@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import * as THREE from "three";
-import { Html } from "@react-three/drei";
+import { Html, RoundedBox } from "@react-three/drei";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { useOffice, useEmployee } from "@/lib/store";
@@ -10,8 +10,20 @@ import type { EmployeeMeta } from "@/lib/team";
 import { cn } from "@/lib/utils";
 import { DESK, SHIRTS, type Palette } from "./palette";
 import { ICONS, LAMP, type LampKey } from "./icons";
+import { OfficeChair, Plant } from "./Furniture";
 
 gsap.registerPlugin(useGSAP);
+
+/** Pointer travel (px) above which a press is a camera drag rather than a click. */
+export const DRAG_PX = 6;
+
+/** Pedestal drawer fronts as [centre y, height]. */
+const DRAWERS: readonly (readonly [number, number])[] = [[0.6, 0.15], [0.42, 0.18], [0.17, 0.28]];
+
+/** "Code" lines on the monitor as [x from the left edge, y from centre, width]. */
+const CODE_LINES: readonly (readonly [number, number, number])[] = [
+  [0, 0.15, 0.32], [0.06, 0.1, 0.42], [0.06, 0.05, 0.24], [0, 0, 0.18], [0.06, -0.05, 0.46], [0.12, -0.1, 0.3], [0, -0.15, 0.2],
+];
 
 type Props = { meta: EmployeeMeta; index: number; pal: Palette; shadows: boolean; reducedMotion: boolean };
 
@@ -88,56 +100,133 @@ export function Desk3D({ meta, index, pal, shadows, reducedMotion }: Props) {
     <group
       ref={root}
       position={[meta.desk.x, 0, meta.desk.y]}
-      onClick={(e) => { e.stopPropagation(); select(meta.id); }}
+      onClick={(e) => {
+        e.stopPropagation();
+        if (e.delta > DRAG_PX) return; // the end of a camera pan, not a click
+        select(meta.id);
+      }}
       onPointerOver={(e) => { e.stopPropagation(); hover(meta.id); document.body.style.cursor = "pointer"; }}
       onPointerOut={() => { hover(null); document.body.style.cursor = ""; }}
     >
       {/* selection pad */}
-      <mesh position={[W / 2, 0.006, D / 2 + 0.35]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[W + 0.6, D + 1.3]} />
+      <mesh position={[W / 2, 0.006, D / 2 + 0.4]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[W + 0.6, D + 1.4]} />
         <meshBasicMaterial ref={pad} color={pal.selected} transparent opacity={0} depthWrite={false} />
       </mesh>
 
-      {/* desk: top + two side panels + modesty panel */}
-      <mesh position={[W / 2, H, D / 2]} castShadow={shadows} receiveShadow={shadows}>
-        <boxGeometry args={[W, 0.06, D]} />
+      {/* desk: rounded top, drawer pedestal on the left, metal T-leg on the right, modesty panel */}
+      <RoundedBox args={[W, 0.05, D]} radius={0.02} smoothness={2} position={[W / 2, H, D / 2]} castShadow={shadows} receiveShadow={shadows}>
         <meshStandardMaterial color={pal.deskTop} />
+      </RoundedBox>
+      <mesh position={[W / 2, H - 0.035, D + 0.002]}>
+        <boxGeometry args={[W - 0.1, 0.012, 0.012]} />
+        <meshStandardMaterial color={shirt} emissive={shirt} emissiveIntensity={working ? 0.6 : 0.15} />
       </mesh>
-      {[0.04, W - 0.04].map((x) => (
-        <mesh key={x} position={[x, H / 2, D / 2]} castShadow={shadows}>
-          <boxGeometry args={[0.06, H, D - 0.04]} />
-          <meshStandardMaterial color={pal.deskSide} />
-        </mesh>
+      <mesh position={[0.26, (H - 0.025) / 2, D / 2 + 0.02]} castShadow={shadows}>
+        <boxGeometry args={[0.42, H - 0.025, D - 0.12]} />
+        <meshStandardMaterial color={pal.deskSide} />
+      </mesh>
+      {DRAWERS.map(([y, h]) => (
+        <group key={y} position={[0.26, y, D - 0.035]}>
+          <mesh>
+            <boxGeometry args={[0.38, h, 0.012]} />
+            <meshStandardMaterial color={pal.drawer} />
+          </mesh>
+          <mesh position={[0, h / 2 - 0.035, 0.012]}>
+            <boxGeometry args={[0.12, 0.015, 0.015]} />
+            <meshStandardMaterial color={pal.handle} />
+          </mesh>
+        </group>
       ))}
-      <mesh position={[W / 2, H / 2 + 0.12, 0.06]}>
-        <boxGeometry args={[W - 0.1, H - 0.3, 0.04]} />
+      <mesh position={[W - 0.1, (H - 0.025) / 2, D / 2]} castShadow={shadows}>
+        <boxGeometry args={[0.05, H - 0.025, 0.05]} />
+        <meshStandardMaterial color={pal.deskMetal} />
+      </mesh>
+      <mesh position={[W - 0.1, 0.015, D / 2]}>
+        <boxGeometry args={[0.06, 0.03, D - 0.1]} />
+        <meshStandardMaterial color={pal.deskMetal} />
+      </mesh>
+      <mesh position={[(W + 0.34) / 2, H - 0.22, 0.05]}>
+        <boxGeometry args={[W - 0.58, 0.36, 0.025]} />
         <meshStandardMaterial color={pal.deskSide} />
       </mesh>
 
-      {/* monitor */}
-      <mesh position={[W / 2, H + 0.1, 0.22]}>
-        <boxGeometry args={[0.06, 0.2, 0.06]} />
+      {/* monitor: base, neck, slim panel, screen with a few "code" lines, cable down the back */}
+      <mesh position={[W / 2, H + 0.033, 0.2]}>
+        <boxGeometry args={[0.28, 0.015, 0.18]} />
         <meshStandardMaterial color={pal.bezel} />
       </mesh>
-      <mesh position={[W / 2, H + 0.38, 0.22]} castShadow={shadows}>
-        <boxGeometry args={[0.8, 0.48, 0.05]} />
+      <mesh position={[W / 2, H + 0.17, 0.16]}>
+        <boxGeometry args={[0.045, 0.28, 0.03]} />
         <meshStandardMaterial color={pal.bezel} />
       </mesh>
-      <mesh position={[W / 2, H + 0.38, 0.25]}>
-        <planeGeometry args={[0.72, 0.4]} />
+      <RoundedBox args={[0.86, 0.5, 0.025]} radius={0.01} smoothness={2} position={[W / 2, H + 0.42, 0.2]} castShadow={shadows}>
+        <meshStandardMaterial color={pal.bezel} />
+      </RoundedBox>
+      <mesh position={[W / 2, H + 0.42, 0.214]}>
+        <planeGeometry args={[0.83, 0.47]} />
         <meshStandardMaterial ref={screen} color={screenColor} emissive={screenColor} emissiveIntensity={0.25} toneMapped={false} />
+      </mesh>
+      {enabled && status !== "error" && CODE_LINES.map(([x, y, w], i) => (
+        <mesh key={i} position={[W / 2 - 0.36 + x + w / 2, H + 0.42 + y, 0.2155]}>
+          <planeGeometry args={[w, 0.018]} />
+          <meshBasicMaterial color={pal.screenLine} transparent opacity={working ? 0.85 : 0.3} toneMapped={false} />
+        </mesh>
+      ))}
+      <mesh position={[W / 2 + 0.06, (H + 0.15) / 2, 0.1]}>
+        <boxGeometry args={[0.012, H + 0.15, 0.012]} />
+        <meshStandardMaterial color={pal.bezel} />
       </mesh>
       {working && <pointLight position={[W / 2, H + 0.4, 0.5]} color={pal.screenOn} intensity={0.8} distance={1.6} />}
 
-      {/* keyboard + mug */}
-      <mesh position={[W / 2, H + 0.04, 0.58]}>
-        <boxGeometry args={[0.52, 0.025, 0.16]} />
+      {/* keyboard, mouse on a pad, mug */}
+      <RoundedBox args={[0.46, 0.022, 0.15]} radius={0.006} smoothness={1} position={[W / 2, H + 0.036, 0.58]}>
+        <meshStandardMaterial color={pal.bezel} />
+      </RoundedBox>
+      <mesh position={[W / 2, H + 0.049, 0.58]}>
+        <boxGeometry args={[0.42, 0.004, 0.12]} />
+        <meshStandardMaterial color={pal.keycap} />
+      </mesh>
+      <mesh position={[W / 2 + 0.42, H + 0.027, 0.6]}>
+        <boxGeometry args={[0.24, 0.004, 0.2]} />
+        <meshStandardMaterial color={pal.mousepad} />
+      </mesh>
+      <mesh position={[W / 2 + 0.42, H + 0.04, 0.62]} scale={[0.032, 0.018, 0.05]}>
+        <sphereGeometry args={[1, 12, 8]} />
         <meshStandardMaterial color={pal.bezel} />
       </mesh>
-      <mesh position={[W - 0.25, H + 0.08, 0.45]} castShadow={shadows}>
-        <cylinderGeometry args={[0.055, 0.05, 0.11, 16]} />
+      <mesh position={[W - 0.18, H + 0.08, 0.3]} castShadow={shadows}>
+        <cylinderGeometry args={[0.05, 0.045, 0.11, 12]} />
         <meshStandardMaterial color={shirt} />
       </mesh>
+
+      {/* desk lamp on even desks, a little plant on odd ones */}
+      {index % 2 === 0 ? (
+        <group position={[0.16, H + 0.025, 0.5]}>
+          <mesh position={[0, 0.01, 0]}>
+            <cylinderGeometry args={[0.07, 0.08, 0.02, 12]} />
+            <meshStandardMaterial color={pal.bezel} />
+          </mesh>
+          <mesh position={[0, 0.19, 0]}>
+            <cylinderGeometry args={[0.012, 0.012, 0.36, 6]} />
+            <meshStandardMaterial color={pal.deskMetal} />
+          </mesh>
+          <mesh position={[0.09, 0.37, 0]}>
+            <boxGeometry args={[0.2, 0.018, 0.018]} />
+            <meshStandardMaterial color={pal.deskMetal} />
+          </mesh>
+          <mesh position={[0.18, 0.33, 0]}>
+            <coneGeometry args={[0.07, 0.1, 12, 1, true]} />
+            <meshStandardMaterial color={pal.lampShade} side={THREE.DoubleSide} />
+          </mesh>
+          <mesh position={[0.18, 0.3, 0]}>
+            <sphereGeometry args={[0.025, 8, 6]} />
+            <meshStandardMaterial color={pal.bulb} emissive={pal.bulb} emissiveIntensity={enabled ? 1 : 0} toneMapped={false} />
+          </mesh>
+        </group>
+      ) : (
+        <Plant pal={pal} shadows={shadows} position={[0.2, H + 0.025, 0.45]} scale={0.3} />
+      )}
 
       {/* the employee, seated with their back to us */}
       {enabled && (
@@ -172,25 +261,7 @@ export function Desk3D({ meta, index, pal, shadows, reducedMotion }: Props) {
         </group>
       )}
 
-      {/* chair: seat, back (between us and the employee), post, base */}
-      <group position={[W / 2, 0, D + 0.45]}>
-        <mesh position={[0, 0.48, 0]} castShadow={shadows}>
-          <boxGeometry args={[0.52, 0.07, 0.48]} />
-          <meshStandardMaterial color={pal.chair} />
-        </mesh>
-        <mesh position={[0, 0.82, 0.25]} castShadow={shadows}>
-          <boxGeometry args={[0.52, 0.58, 0.07]} />
-          <meshStandardMaterial color={pal.chair} />
-        </mesh>
-        <mesh position={[0, 0.24, 0]}>
-          <cylinderGeometry args={[0.03, 0.03, 0.45, 10]} />
-          <meshStandardMaterial color={pal.chairLeg} />
-        </mesh>
-        <mesh position={[0, 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[0.24, 0.025, 8, 24]} />
-          <meshStandardMaterial color={pal.chairLeg} />
-        </mesh>
-      </group>
+      <OfficeChair pal={pal} shadows={shadows} position={[W / 2, 0, D + 0.45]} color={pal.chair} />
 
       {/* floating name tag */}
       <Html position={[W / 2, H + 1.05, 0.25]} center zIndexRange={[20, 0]}>

@@ -79,7 +79,7 @@ function LoginForm() {
   }
 
   return (
-    <main className="grid min-h-dvh place-items-center px-[max(16px,env(safe-area-inset-left,0px))]">
+    <main className="grid min-h-dvh place-items-center px-[max(16px,env(safe-area-inset-left,0px))] pb-[env(safe-area-inset-bottom,0px)] pt-[env(safe-area-inset-top,0px)]">
       <Card className="w-full max-w-sm">
         <CardHeader>
           <p className="font-mono text-xs uppercase tracking-[0.08em] text-primary">rnldvrgl</p>

@@ -8,7 +8,7 @@ export async function loadOfficeState(): Promise<OfficeState> {
     db().from("employees").select("id, enabled, status, summary, last_run_at"),
     db().from("runs").select("id, employee_id, status, output, error, started_at, trigger").order("started_at", { ascending: false }).limit(80),
     db().from("jobs").select("id, role, company, link, salary_text, fit_score, fit_reason, status, date_found").order("date_found", { ascending: false }).order("fit_score", { ascending: false }).limit(100),
-    db().from("reminders").select("id, title, due_at, repeat").is("sent_at", null).order("due_at").limit(30),
+    db().from("reminders").select("id, title, due_at, repeat, source").is("sent_at", null).order("due_at").limit(30),
     db().from("inbox_items").select("message_id, sender, subject, category, summary, draft_id").eq("handled", false).order("created_at", { ascending: false }).limit(30),
   ]);
 

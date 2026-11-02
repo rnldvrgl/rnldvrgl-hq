@@ -54,12 +54,30 @@ export function describeSchedule(s: Schedule): string {
     s.days.length === 7 ? "Daily" :
     s.days.join() === "1,2,3,4,5" ? "Weekdays" :
     s.days.map((d) => DAY_NAMES[d]).join(", ");
-  return `${days} at ${s.times.join(", ")}`;
+  return `${days} at ${s.times.map(to12Hour).join(", ")}`;
 }
 
+/** "07:30" → "7:30 AM", "18:00" → "6:00 PM". */
+export function to12Hour(hhmm: string): string {
+  const [h, m] = hhmm.split(":").map(Number);
+  return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
+}
+
+/** en-US gives uppercase AM/PM; the time zone keeps it in Manila time wherever the browser is. */
+const MANILA_DATE_TIME = new Intl.DateTimeFormat("en-US", {
+  timeZone: "Asia/Manila", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true,
+});
+const MANILA_CLOCK = new Intl.DateTimeFormat("en-US", {
+  timeZone: "Asia/Manila", weekday: "short", hour: "numeric", minute: "2-digit", hour12: true,
+});
+
+/** "Nov 3, 7:30 PM" (Manila). */
 export function formatManila(iso: string | null | undefined): string {
   if (!iso) return "never";
-  return new Intl.DateTimeFormat("en-PH", {
-    timeZone: "Asia/Manila", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
-  }).format(new Date(iso));
+  return MANILA_DATE_TIME.format(new Date(iso));
+}
+
+/** "Mon 7:30 PM" (Manila), for the header clock. */
+export function formatManilaClock(d: Date): string {
+  return MANILA_CLOCK.format(d);
 }

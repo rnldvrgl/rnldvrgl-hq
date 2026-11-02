@@ -61,6 +61,15 @@ create table if not exists reminders (
 );
 create index if not exists reminders_due on reminders (due_at) where sent_at is null;
 
+-- iPhone Reminders sync (via the iOS Shortcut, see README). Safe to re-run on an existing database.
+--   source:    'hq' = created in HQ, 'iphone' = came from the iPhone Reminders app
+--   pushed_at: when an HQ reminder was handed to the iPhone, so it's only added there once
+alter table reminders add column if not exists source text not null default 'hq';
+alter table reminders add column if not exists pushed_at timestamptz;
+do $$ begin
+  alter table reminders add constraint reminders_source_check check (source in ('hq','iphone'));
+exception when duplicate_object then null; end $$;
+
 create table if not exists inbox_items (
   message_id text primary key,
   thread_id text,

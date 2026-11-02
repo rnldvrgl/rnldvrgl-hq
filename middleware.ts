@@ -28,7 +28,7 @@ export async function middleware(req: NextRequest) {
   const { data } = await supabase.auth.getUser();
 
   const path = req.nextUrl.pathname;
-  const isPublic = path.startsWith("/login") || path.startsWith("/auth") || path === "/api/tick";
+  const isPublic = path.startsWith("/login") || path.startsWith("/auth") || path === "/api/tick" || path === "/api/reminders/sync";
   if (!data.user && !isPublic) {
     if (path.startsWith("/api/")) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
     const url = req.nextUrl.clone();
@@ -39,5 +39,6 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg).*)"],
+  // The PWA manifest and icons must load without a session: iOS fetches them when you add HQ to the Home Screen.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg|apple-icon|manifest.webmanifest|pwa-icon|fonts/).*)"],
 };

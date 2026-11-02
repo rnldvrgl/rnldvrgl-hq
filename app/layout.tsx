@@ -12,12 +12,20 @@ export const metadata: Metadata = {
   title: "rnldvrgl HQ",
   description: "Ronald's private headquarters of AI employees.",
   robots: { index: false, follow: false },
+  applicationName: "HQ",
+  // Installed from Safari's "Add to Home Screen": full screen, content runs under the status bar.
+  appleWebApp: { capable: true, title: "HQ", statusBarStyle: "black-translucent" },
+  formatDetection: { telephone: false },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#eef1f4" },
+    { media: "(prefers-color-scheme: dark)", color: "#0f151c" },
+  ],
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

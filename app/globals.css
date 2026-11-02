@@ -127,8 +127,9 @@
   * { @apply border-border outline-ring/50; }
   body {
     @apply bg-background text-foreground font-sans antialiased;
-    padding-top: env(safe-area-inset-top, 0px);
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+    /* Safe areas are padded by each layout (the phone shell pads under the notch and above the home indicator). */
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
   }
   h1, h2, h3 { font-family: var(--font-heading); text-wrap: balance; }
 }

@@ -211,11 +211,55 @@ Why Supabase and not Vercel Cron: Vercel's free plan only runs a cron once a day
 
 - **Names, desks, hours:** `lib/team.ts`
 - **3D colours and room size:** `components/office/palette.ts`
-- **Animations:** `components/office/Desk3D.tsx` (drop-in, typing, hop) and `Scene3D.tsx` (camera glide)
+- **Animations:** `components/office/Desk3D.tsx` (drop-in, typing, hop) and `Scene3D.tsx` (camera controls and the glide to a desk)
 - **Job criteria and your CV:** `data/master-profile.json` (fill in the `TODO` screening answers)
 - **Job boards:** `JOB_BOARDS` in `lib/employees/job-hunter.ts`
 - **Research topics:** `RESEARCH_TOPICS` in `lib/employees/researcher.ts`
 - **Adding a ninth employee:** add a file in `lib/employees/`, register it in `lib/employees/index.ts`, give it a desk in `lib/team.ts`, and add its id to the `insert into employees` line in `schema.sql`.
+
+### 11. Install HQ on your iPhone
+
+HQ is a web app you can install from Safari. Installed, it opens full screen from its own Home Screen icon, with a bottom tab bar (Office, Team, Reminders).
+
+1. Open your Vercel URL in **Safari** on the iPhone and sign in.
+2. Tap **Share → Add to Home Screen → Add**.
+3. Open **HQ** from the Home Screen. You stay signed in; if you're ever sent to the login page, sign in again inside the app (the installed app keeps its own cookies, separate from Safari).
+
+It needs a connection to work (there's no offline mode), and the 3D office uses less detail on phones to save battery.
+
+### 12. Sync your iPhone Reminders
+
+Apple doesn't offer a web API for Reminders, so an iOS **Shortcut** does the syncing. Each time it runs, it sends your open iPhone reminders to HQ and adds HQ's reminders to your iPhone:
+
+- New reminders on your iPhone (with a due date) appear in HQ with an **iPhone** badge. Complete or delete them on the iPhone, and they disappear from HQ on the next sync. Ring doesn't email these, since your iPhone already alerts you.
+- Reminders you add in HQ are added to your iPhone once. If you complete a one-off reminder on the iPhone, HQ marks it done. Each new occurrence of a repeating HQ reminder is sent over again.
+- Reminders are matched by **title + due time**, because Shortcuts can't read a reminder's ID. Renaming one or changing its time on either side counts as a new reminder.
+- Reminders without a due date are skipped.
+
+**One-time setup**
+
+1. **Database:** in Supabase → SQL Editor, run the `-- iPhone Reminders sync` block from `supabase/schema.sql` (it's safe to run on your existing database).
+2. **Token:** create one with `openssl rand -hex 32`, add it as `SHORTCUTS_TOKEN` in `.env.local` and in Vercel, and redeploy.
+3. **The Shortcut:** in the Shortcuts app, tap **+**, name it `HQ Sync`, and add these actions in order:
+   1. **Find Reminders** → add the filter **Is Completed** is **false**.
+   2. **Repeat with Each** item in *Reminders*. Inside the loop, add:
+      - **Format Date**: tap *Date* and pick *Repeat Item → Due Date*. Set *Date Format* to **ISO 8601** and turn on **Include ISO 8601 Time**.
+      - **Text**: `Formatted Date|Repeat Item → Title` (the two variables with a `|` between them, no spaces).
+   3. After *End Repeat*: **Combine Text** → *Repeat Results*, combined with **New Lines**.
+   4. **Get Contents of URL**:
+      - URL: `https://YOUR-APP.vercel.app/api/reminders/sync`
+      - Method: **POST**
+      - Headers: `Authorization` = `Bearer YOUR_SHORTCUTS_TOKEN`
+      - Request Body: **JSON**, with one **Text** field `items` = *Combined Text*.
+   5. **Get Dictionary Value**: get the value for `to_add` in *Contents of URL*.
+   6. **Repeat with Each** item in *Dictionary Value*. Inside the loop, add:
+      - **Get Dictionary Value** `title` from *Repeat Item*.
+      - **Get Dictionary Value** `due_text` from *Repeat Item* (it looks like `November 3, 2026 at 7:30 PM`).
+      - **Add New Reminder**: the title value, in your default list. Turn on *Remind Me* **At Time**, and set the time to the `due_text` value.
+4. Run it once from the Shortcuts app and allow access to Reminders and to your HQ URL when iOS asks.
+5. **Run it automatically:** Shortcuts → **Automation → +** → **App** → choose **Reminders** → **Is Closed** → **Run Immediately** → `HQ Sync`. HQ then catches up every time you close the Reminders app. You can also add a **Time of Day** automation (for example 7:00 AM) so reminders added in HQ reach your iPhone even on days you don't open Reminders.
+
+**If it doesn't sync:** run `HQ Sync` by hand in the Shortcuts app and read the result. `unauthorized` means the token in the header doesn't match `SHORTCUTS_TOKEN` (check the `Bearer ` prefix). A `400` means the `items` field is missing or isn't Text.
 
 ---
 

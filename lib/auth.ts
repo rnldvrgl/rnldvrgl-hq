@@ -11,12 +11,22 @@ export async function currentOwner(): Promise<string | null> {
   return email;
 }
 
-/** For cron calls: constant-time-ish comparison of the bearer token. */
-export function isCronRequest(req: Request): boolean {
+/** Constant-time-ish check that the request carries `Bearer <value of secretEnv>`. */
+function hasBearer(req: Request, secretEnv: string): boolean {
   const header = req.headers.get("authorization") ?? "";
-  const expected = `Bearer ${env("CRON_SECRET")}`;
+  const expected = `Bearer ${env(secretEnv)}`;
   if (header.length !== expected.length) return false;
   let diff = 0;
   for (let i = 0; i < header.length; i++) diff |= header.charCodeAt(i) ^ expected.charCodeAt(i);
   return diff === 0;
+}
+
+/** For the scheduler tick (Supabase pg_cron). */
+export function isCronRequest(req: Request): boolean {
+  return hasBearer(req, "CRON_SECRET");
+}
+
+/** For the iPhone Shortcut that syncs Apple Reminders. */
+export function isShortcutRequest(req: Request): boolean {
+  return hasBearer(req, "SHORTCUTS_TOKEN");
 }

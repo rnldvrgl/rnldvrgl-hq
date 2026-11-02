@@ -4,7 +4,7 @@ import { useRef, useState, type SubmitEvent } from "react";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { toast } from "sonner";
-import { Play, Pause, CheckCheck, X, Copy, ExternalLink, Trash2, ShieldCheck } from "lucide-react";
+import { Play, Pause, CheckCheck, X, Copy, ExternalLink, Trash2, ShieldCheck, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,7 @@ import { describeSchedule, formatManila } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { ICONS, LAMP, STATUS_LABEL, type LampKey } from "./icons";
 import { SHIRTS } from "./palette";
+import { DateTimePicker } from "@/components/DateTimePicker";
 
 gsap.registerPlugin(useGSAP);
 
@@ -223,7 +224,8 @@ function Pipeline() {
   );
 }
 
-function Reminders() {
+/** Add and list reminders. Also the Reminders tab of the phone layout. */
+export function Reminders() {
   const reminders = useOffice((s) => s.data.reminders);
   const { addReminder, removeReminder } = useOffice.getState();
   const [title, setTitle] = useState("");
@@ -232,6 +234,7 @@ function Reminders() {
 
   async function add(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (!local) return toast.error("Pick a date for the reminder.");
     try {
       await addReminder({ title, local, repeat: repeat === "once" ? null : repeat });
       setTitle(""); setLocal(""); setRepeat("once");
@@ -246,11 +249,11 @@ function Reminders() {
           <Label htmlFor="rem-title">Reminder</Label>
           <Input id="rem-title" placeholder="Pay the internet bill" value={title} onChange={(e) => setTitle(e.target.value)} required />
         </div>
-        <div className="grid gap-1.5">
+        <div className="col-span-2 grid gap-1.5">
           <Label htmlFor="rem-when">When (Manila)</Label>
-          <Input id="rem-when" type="datetime-local" value={local} onChange={(e) => setLocal(e.target.value)} required />
+          <DateTimePicker id="rem-when" value={local} onChange={setLocal} />
         </div>
-        <div className="grid gap-1.5">
+        <div className="col-span-2 grid gap-1.5">
           <Label htmlFor="rem-repeat">Repeat</Label>
           <Select value={repeat} onValueChange={(v) => { if (isRepeatChoice(v)) setRepeat(v); }}>
             <SelectTrigger id="rem-repeat" className="w-full"><SelectValue /></SelectTrigger>
@@ -272,10 +275,17 @@ function Reminders() {
               <span className="font-semibold [overflow-wrap:anywhere]">{r.title}</span>
               <span className="text-sm text-muted-foreground">{formatManila(r.due_at)}{r.repeat && ` · ${r.repeat}`}</span>
             </div>
-            <Button variant="ghost" size="icon" aria-label={`Remove ${r.title}`}
-              onClick={() => removeReminder(r.id).then(() => toast.success("Removed.")).catch((e: unknown) => fail(e, "Couldn't remove it."))}>
-              <Trash2 />
-            </Button>
+            {r.source === "iphone" ? (
+              // Deleting here would come straight back on the next sync, so it's done on the phone.
+              <Badge variant="secondary" className="gap-1" title="From your iPhone. Complete or delete it in the Reminders app.">
+                <Smartphone className="size-3" aria-hidden /> iPhone
+              </Badge>
+            ) : (
+              <Button variant="ghost" size="icon" aria-label={`Remove ${r.title}`}
+                onClick={() => removeReminder(r.id).then(() => toast.success("Removed.")).catch((e: unknown) => fail(e, "Couldn't remove it."))}>
+                <Trash2 />
+              </Button>
+            )}
           </li>
         ))}
       </ul>

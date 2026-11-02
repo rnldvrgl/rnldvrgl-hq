@@ -23,6 +23,7 @@ export async function reminderBot(): Promise<WorkResult> {
     .from("reminders")
     .select("id, title, due_at, repeat")
     .is("sent_at", null)
+    .eq("source", "hq") // iPhone reminders already alert on the phone
     .lte("due_at", now.toISOString())
     .order("due_at");
   if (error) throw new Error(error.message);
@@ -34,7 +35,8 @@ export async function reminderBot(): Promise<WorkResult> {
     if (r.repeat) {
       let next = nextDue(new Date(r.due_at), r.repeat);
       while (next <= now) next = nextDue(next, r.repeat); // skip missed repeats
-      await db().from("reminders").update({ due_at: next.toISOString() }).eq("id", r.id);
+      // pushed_at resets so the next occurrence is handed to the iPhone too.
+      await db().from("reminders").update({ due_at: next.toISOString(), pushed_at: null }).eq("id", r.id);
     } else {
       await db().from("reminders").update({ sent_at: now.toISOString() }).eq("id", r.id);
     }

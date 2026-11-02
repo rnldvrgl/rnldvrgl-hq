@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Html } from "@react-three/drei";
-import { ROOM, type Palette } from "./palette";
+import { Suspense, useEffect, useState } from "react";
+import { Text } from "@react-three/drei";
+import { MANILA_OFFSET_MS } from "@/lib/time";
+import { ROOM, type Palette, SCENE_FONT } from "./palette";
+import { Plant } from "./Furniture";
 
-/** Plant leaves as [x, y, z, radius] inside the pot group. */
-const LEAVES: readonly (readonly [number, number, number, number])[] = [
-  [0, 0.62, 0, 0.26], [0.14, 0.82, 0.05, 0.2], [-0.12, 0.78, -0.04, 0.2], [0.02, 0.98, -0.02, 0.17],
-];
+const TAU = Math.PI * 2;
 
 /** Floor, two back walls with windows, a whiteboard with today's tally, a Manila clock and a plant. */
 export function Room({ pal, shadows, done, waiting }: { pal: Palette; shadows: boolean; done: number; waiting: number }) {
@@ -78,67 +77,113 @@ export function Room({ pal, shadows, done, waiting }: { pal: Palette; shadows: b
           <planeGeometry args={[2.38, 1.08]} />
           <meshStandardMaterial color={pal.board} />
         </mesh>
-        <Html transform position={[0, 0, 0.03]} distanceFactor={1.6} pointerEvents="none">
-          <div style={{ width: 300, fontFamily: "var(--font-plex), monospace", color: pal.boardInk, lineHeight: 1.5 }}>
-            <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "0.08em" }}>TODAY</div>
-            <div style={{ fontSize: 20 }}>{done} reports done</div>
-            <div style={{ fontSize: 20, color: waiting ? "var(--st-needs)" : pal.boardInk }}>{waiting} waiting for you</div>
-          </div>
-        </Html>
+        <Suspense fallback={null}>
+          <Text font={SCENE_FONT} position={[-1.06, 0.34, 0.03]} fontSize={0.13} color={pal.boardInk} anchorX="left" anchorY="middle" letterSpacing={0.08}>
+            TODAY
+          </Text>
+          <Text font={SCENE_FONT} position={[-1.06, 0.08, 0.03]} fontSize={0.12} color={pal.boardInk} anchorX="left" anchorY="middle">
+            {`${done} report${done === 1 ? "" : "s"} done`}
+          </Text>
+          <Text font={SCENE_FONT} position={[-1.06, -0.14, 0.03]} fontSize={0.12} color={waiting ? pal.needsInk : pal.boardInk} anchorX="left" anchorY="middle">
+            {`${waiting} waiting for you`}
+          </Text>
+        </Suspense>
       </group>
 
       <Clock pal={pal} />
 
       {/* plant in the corner */}
-      <group position={[0.45, 0, 0.45]}>
-        <mesh position={[0, 0.2, 0]} castShadow={shadows}>
-          <cylinderGeometry args={[0.2, 0.16, 0.4, 20]} />
-          <meshStandardMaterial color={pal.pot} />
-        </mesh>
-        {LEAVES.map(([x, y, z, r], i) => (
-          <mesh key={i} position={[x, y, z]} castShadow={shadows}>
-            <icosahedronGeometry args={[r, 1]} />
-            <meshStandardMaterial color={i % 2 ? pal.leafA : pal.leafB} flatShading />
-          </mesh>
-        ))}
-      </group>
+      <Plant pal={pal} shadows={shadows} position={[0.45, 0, 0.45]} />
     </group>
   );
 }
 
-/** Wall clock on the left wall, showing Manila time. */
+const DIGITAL = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit", hour12: true });
+
+/** Numerals 1–12 as [label, x, y] on the clock face. */
+const NUMERALS: readonly (readonly [string, number, number])[] = Array.from({ length: 12 }, (_, i) => {
+  const n = i + 1;
+  const a = (n / 12) * TAU;
+  return [String(n), Math.sin(a) * 0.255, Math.cos(a) * 0.255] as const;
+});
+
+/**
+ * Wall clock on the left wall showing Manila time, with numerals, a second hand,
+ * and a digital 12-hour readout (e.g. "7:42 PM") on an LED panel underneath.
+ * Local +x on the wall reads left-to-right from the camera.
+ */
 function Clock({ pal }: { pal: Palette }) {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 30_000);
+    const t = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
-  const manila = new Date(now.getTime() + 8 * 3600_000);
-  const h = manila.getUTCHours() % 12, m = manila.getUTCMinutes();
-  const minute = -(m / 60) * Math.PI * 2;
-  const hour = -((h + m / 60) / 12) * Math.PI * 2;
+  const manila = new Date(now.getTime() + MANILA_OFFSET_MS);
+  const h = manila.getUTCHours() % 12, m = manila.getUTCMinutes(), s = manila.getUTCSeconds();
+  const second = -(s / 60) * TAU;
+  const minute = -((m + s / 60) / 60) * TAU;
+  const hour = -((h + m / 60) / 12) * TAU;
 
   return (
-    <group position={[0.02, 1.85, 4.6]} rotation={[0, Math.PI / 2, 0]}>
+    <group position={[0.02, 1.9, 4.6]} rotation={[0, Math.PI / 2, 0]}>
       <mesh rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.32, 0.32, 0.05, 40]} />
+        <cylinderGeometry args={[0.36, 0.36, 0.05, 40]} />
         <meshStandardMaterial color={pal.trim} />
       </mesh>
       <mesh position={[0, 0, 0.03]}>
-        <circleGeometry args={[0.28, 40]} />
+        <circleGeometry args={[0.32, 40]} />
         <meshStandardMaterial color={pal.clockFace} />
       </mesh>
+      {Array.from({ length: 60 }, (_, i) => (
+        <mesh key={i} position={[Math.sin((i / 60) * TAU) * 0.3, Math.cos((i / 60) * TAU) * 0.3, 0.032]} rotation={[0, 0, -(i / 60) * TAU]}>
+          <planeGeometry args={[i % 5 ? 0.004 : 0.01, i % 5 ? 0.014 : 0.03]} />
+          <meshBasicMaterial color={pal.clockInk} />
+        </mesh>
+      ))}
+      <Suspense fallback={null}>
+        {NUMERALS.map(([label, x, y]) => (
+          <Text font={SCENE_FONT} key={label} position={[x, y, 0.034]} fontSize={0.062} color={pal.clockInk} anchorX="center" anchorY="middle">
+            {label}
+          </Text>
+        ))}
+      </Suspense>
       <group position={[0, 0, 0.04]} rotation={[0, 0, hour]}>
-        <mesh position={[0, 0.08, 0]}>
-          <boxGeometry args={[0.035, 0.16, 0.01]} />
+        <mesh position={[0, 0.075, 0]}>
+          <boxGeometry args={[0.03, 0.15, 0.01]} />
           <meshBasicMaterial color={pal.clockInk} />
         </mesh>
       </group>
       <group position={[0, 0, 0.045]} rotation={[0, 0, minute]}>
         <mesh position={[0, 0.11, 0]}>
-          <boxGeometry args={[0.02, 0.22, 0.01]} />
+          <boxGeometry args={[0.018, 0.22, 0.01]} />
           <meshBasicMaterial color={pal.clockInk} />
         </mesh>
+      </group>
+      <group position={[0, 0, 0.05]} rotation={[0, 0, second]}>
+        <mesh position={[0, 0.09, 0]}>
+          <boxGeometry args={[0.006, 0.26, 0.005]} />
+          <meshBasicMaterial color={pal.clockSecond} />
+        </mesh>
+      </group>
+      <mesh position={[0, 0, 0.056]}>
+        <circleGeometry args={[0.016, 16]} />
+        <meshBasicMaterial color={pal.clockSecond} />
+      </mesh>
+
+      {/* digital clock below */}
+      <group position={[0, -0.58, 0]}>
+        <mesh position={[0, 0, 0.02]}>
+          <boxGeometry args={[0.7, 0.24, 0.04]} />
+          <meshStandardMaterial color={pal.ledPanel} />
+        </mesh>
+        <Suspense fallback={null}>
+          <Text font={SCENE_FONT} position={[0, 0.025, 0.042]} fontSize={0.12} color={pal.led} anchorX="center" anchorY="middle" letterSpacing={0.04}>
+            {DIGITAL.format(now)}
+          </Text>
+          <Text font={SCENE_FONT} position={[0, -0.08, 0.042]} fontSize={0.035} color={pal.ledDim} anchorX="center" anchorY="middle" letterSpacing={0.2}>
+            MANILA
+          </Text>
+        </Suspense>
       </group>
     </group>
   );

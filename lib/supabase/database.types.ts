@@ -11,6 +11,7 @@ export type RunTrigger = "schedule" | "manual";
 export type JobStatus = "saved" | "applied" | "interview" | "offer" | "closed";
 export type ReminderRepeat = "daily" | "weekdays" | "weekly";
 export type InboxCategory = "reply" | "fyi" | "ignore" | "interview";
+export type ReminderSource = "hq" | "iphone";
 
 export const JOB_STATUSES = ["saved", "applied", "interview", "offer", "closed"] as const satisfies readonly JobStatus[];
 export const REMINDER_REPEATS = ["daily", "weekdays", "weekly"] as const satisfies readonly ReminderRepeat[];
@@ -144,6 +145,8 @@ export type Database = {
           due_at: string;
           repeat: ReminderRepeat | null;
           sent_at: string | null;
+          source: ReminderSource;
+          pushed_at: string | null;
           created_at: string;
         };
         Insert: {
@@ -152,6 +155,8 @@ export type Database = {
           due_at: string;
           repeat?: ReminderRepeat | null;
           sent_at?: string | null;
+          source?: ReminderSource;
+          pushed_at?: string | null;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["reminders"]["Insert"]>;
