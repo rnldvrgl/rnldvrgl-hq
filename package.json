@@ -1,0 +1,47 @@
+{
+  "name": "rnldvrgl-hq",
+  "version": "0.2.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "ui": "shadcn add button badge card sheet select input label separator scroll-area tabs sonner --yes"
+  },
+  "dependencies": {
+    "@gsap/react": "^2.1.2",
+    "@react-three/drei": "^10.0.6",
+    "@react-three/fiber": "^9.1.2",
+    "@supabase/ssr": "^0.6.1",
+    "@supabase/supabase-js": "^2.49.4",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "cn": "^0.5.1",
+    "gsap": "^3.13.0",
+    "lucide-react": "^0.501.0",
+    "next": "^15.3.0",
+    "next-themes": "^0.4.6",
+    "radix-ui": "^1.8.1",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-responsive": "^10.0.1",
+    "server-only": "^0.0.1",
+    "sonner": "^2.0.8",
+    "tailwind-merge": "^3.2.0",
+    "three": "^0.175.0",
+    "zod": "^3.24.2",
+    "zustand": "^5.0.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.4",
+    "@types/node": "^22.14.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@types/three": "^0.175.0",
+    "shadcn": "^2.5.0",
+    "tailwindcss": "^4.1.4",
+    "tw-animate-css": "^1.2.5",
+    "typescript": "^5.8.3"
+  }
+}

@@ -1,0 +1,152 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* Dark mode follows the OS setting, so shadcn's `dark:` utilities do too. */
+@custom-variant dark (@media (prefers-color-scheme: dark));
+
+/* Layout: the office floor fills the left, the selected desk's panel sits on the right (a bottom sheet on phones).
+   Palette: cool daylight office in light mode, a night shift in dark mode; teal is the one accent. */
+:root {
+  --radius: 0.75rem;
+
+  /* shadcn tokens */
+  --background: #eef1f4;
+  --foreground: #1b2733;
+  --card: #ffffff;
+  --card-foreground: #1b2733;
+  --popover: #ffffff;
+  --popover-foreground: #1b2733;
+  --primary: #0f7c86;
+  --primary-foreground: #ffffff;
+  --secondary: #e6ebef;
+  --secondary-foreground: #1b2733;
+  --muted: #f2f5f7;
+  --muted-foreground: #5a6876;
+  --accent: #e3f1f2;
+  --accent-foreground: #0b5960;
+  --destructive: #d64545;
+  --border: #d7dde3;
+  --input: #d7dde3;
+  --ring: #0f7c86;
+
+  /* status lamps */
+  --st-working: #2f80ed; --st-needs: #d98e04; --st-error: #d64545; --st-idle: #9aa6b2; --st-off: #c3cad1;
+
+  /* shirt colours, one per employee */
+  --c1: #e0a43a; --c2: #4a8fd8; --c3: #2f9e8f; --c4: #d46a6a; --c5: #8a6fd1; --c6: #5aa34f; --c7: #3f5c7a; --c8: #c46aa6;
+
+  /* SVG fallback office (no-WebGL devices) */
+  --ink: var(--foreground); --ink-soft: var(--muted-foreground);
+  --floor-a: #e3e7ea; --floor-b: #dbe0e4; --floor-line: #cfd5da;
+  --wall-left: #c9d3d8; --wall-right: #d8e0e4; --wall-trim: #9fb0ba; --window: #bfe3f2;
+  --board: #fbfcfd; --board-ink: #33414d; --clock: #ffffff; --clock-ink: #1b2733;
+  --desk-top: #e2c79c; --desk-left: #c5a576; --desk-right: #ae8f63;
+  --bezel: #26313b; --screen-idle: #3a4b5a; --screen-on: #7fd3e8; --screen-off: #2a333b; --screen-error: #e07a7a;
+  --screen-line: #5a6d7e; --screen-line-on: #ffffff;
+  --chair: #3c4752; --chair-leg: #59656f; --skin: #c68b63; --hair: #2b2220;
+  --tag: #ffffff; --tag-line: #cfd6dc; --tag-icon: #ffffff;
+  --pot-top: #6f7d77; --pot-left: #5d6a64; --pot-right: #4f5b56; --leaf-a: #4f9a6a; --leaf-b: #6bb383;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0f151c;
+    --foreground: #e6edf3;
+    --card: #17202a;
+    --card-foreground: #e6edf3;
+    --popover: #17202a;
+    --popover-foreground: #e6edf3;
+    --primary: #4cc3cc;
+    --primary-foreground: #0b1a1c;
+    --secondary: #212c37;
+    --secondary-foreground: #e6edf3;
+    --muted: #1c2632;
+    --muted-foreground: #9aabb9;
+    --accent: #1b3438;
+    --accent-foreground: #bdeef1;
+    --destructive: #ff6b6b;
+    --border: #273341;
+    --input: #2c3947;
+    --ring: #4cc3cc;
+
+    --st-working: #5aa2ff; --st-needs: #f2b23a; --st-error: #ff6b6b; --st-idle: #6f7f8e; --st-off: #3a4652;
+
+    --floor-a: #1d2731; --floor-b: #19222b; --floor-line: #24303b;
+    --wall-left: #222e39; --wall-right: #283541; --wall-trim: #3b4b59; --window: #1d3550;
+    --board: #2b3844; --board-ink: #d8e2ea; --clock: #c9d3db; --clock-ink: #0f151c;
+    --desk-top: #8b6f4c; --desk-left: #6e5639; --desk-right: #5c472f;
+    --bezel: #0b0f13; --screen-idle: #22313d; --screen-on: #63c7e0; --screen-off: #141a20; --screen-error: #c95d5d;
+    --screen-line: #3e5263; --screen-line-on: #e9fbff;
+    --chair: #2b343d; --chair-leg: #45515c; --skin: #b07a55; --hair: #1a1412;
+    --tag: #1e2934; --tag-line: #34424f; --tag-icon: #0f151c;
+    --pot-top: #4e5a55; --pot-left: #414b47; --pot-right: #363f3b; --leaf-a: #3f7d56; --leaf-b: #569a6b;
+
+    color-scheme: dark;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-working: var(--st-working);
+  --color-needs: var(--st-needs);
+  --color-error: var(--st-error);
+  --color-idle: var(--st-idle);
+  --color-off: var(--st-off);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex), ui-monospace, Menlo, monospace;
+}
+
+@layer base {
+  * { @apply border-border outline-ring/50; }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  h1, h2, h3 { font-family: var(--font-heading); text-wrap: balance; }
+}
+
+/* ---------- SVG fallback office ---------- */
+.scene { display: block; width: 100%; height: auto; max-width: 100%; }
+.desk { cursor: pointer; outline: none; }
+.desk-pad { fill: transparent; stroke: transparent; transition: fill .15s; }
+.desk:hover .desk-pad { fill: color-mix(in srgb, var(--primary) 9%, transparent); }
+.desk.is-selected .desk-pad { fill: color-mix(in srgb, var(--primary) 16%, transparent); stroke: var(--primary); stroke-width: 1.5; }
+.desk:focus-visible .desk-pad { stroke: var(--primary); stroke-width: 2; stroke-dasharray: 6 4; }
+.desk.is-off { opacity: .55; }
+.bob { animation: bob 1.6s ease-in-out infinite; }
+.screen-glow { animation: glow 2.4s ease-in-out infinite; }
+.typing rect { animation: type 1.2s steps(2) infinite; }
+.lamp-pulse { animation: pulse 1.2s ease-in-out infinite; }
+@keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+@keyframes glow { 0%, 100% { opacity: 1; } 50% { opacity: .82; } }
+@keyframes type { 0% { opacity: 1; } 100% { opacity: .35; } }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .bob, .screen-glow, .typing rect, .lamp-pulse { animation: none; } }

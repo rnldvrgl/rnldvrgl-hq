@@ -1,0 +1,67 @@
+{
+  "name": "Ronald Vergel Dela Cruz",
+  "headline": "Full-Stack Web Developer, React / Next.js focus",
+  "location": "Pampanga, Philippines (UTC+8), open to fully remote",
+  "experience_years": 3,
+  "target": {
+    "roles": ["Frontend Developer", "React Developer", "Next.js Developer"],
+    "level": "mid-level",
+    "setup": "remote",
+    "min_salary_php_month": 40000
+  },
+  "summary": "BS Information Technology graduate (Magna Cum Laude, 2023) with 3+ years building production web apps. Turns UI/UX wireframes into responsive React and Next.js interfaces, and is comfortable across the stack: API design, databases, server logic and web scraping.",
+  "skills": {
+    "frontend": ["React", "Next.js", "TypeScript", "JavaScript", "HTML", "CSS", "Tailwind CSS", "GSAP", "Framer Motion"],
+    "backend": ["Node.js API routes", "PHP", "Laravel", "REST API design", "Web scraping", "Django REST Framework"],
+    "data": ["PostgreSQL", "MySQL", "Supabase"],
+    "devops": ["Docker", "Vercel", "AWS Copilot"],
+    "design": ["Figma"]
+  },
+  "experience": [
+    {
+      "company": "GeoPro Global Solutions Inc.",
+      "role": "Full Stack Web Developer",
+      "dates": "Jun 2023 – Present",
+      "highlights": [
+        "Turned UI/UX wireframes into responsive web applications",
+        "Built and maintained frontend and backend features: API design, database integration, server logic, web scraping",
+        "Gathered client requirements and kept systems fast and reliable"
+      ]
+    },
+    {
+      "company": "RVDC Ref and Aircon Repair Shop",
+      "role": "Software Engineer (freelance)",
+      "dates": "Jul 2024 – Present",
+      "highlights": [
+        "Built and maintain a business system for inventory, sales, employees, payroll and service scheduling"
+      ]
+    }
+  ],
+  "projects": [
+    { "name": "RVDC Business System", "stack": ["Next.js", "PostgreSQL", "Docker"], "url": "https://rvdc.vercel.app/", "pitch": "Inventory, sales, payroll and scheduling for a repair business" },
+    { "name": "Easethetics Landing Page", "stack": ["Next.js", "TypeScript", "Tailwind", "GSAP"], "url": "https://easethetics.ph/", "pitch": "Animated marketing site for an aesthetics clinic platform" },
+    { "name": "TaskGrabber", "stack": ["Next.js", "Supabase", "PostgreSQL", "Framer Motion"], "url": "https://taskgrabber.vercel.app/", "pitch": "Marketplace for posting tasks and finding work" },
+    { "name": "Kyoo", "stack": ["Laravel", "MySQL", "Tailwind"], "url": "https://github.com/rnldvrgl/Kyoo", "pitch": "Real-time queue management for Republic Central Colleges" },
+    { "name": "Galen", "stack": ["Laravel", "MySQL", "Tailwind"], "url": "https://ispscgalen.cloud/", "pitch": "Healthcare records and prescriptions for ISPSC" }
+  ],
+  "education": "BS Information Technology, Republic Central Colleges, Magna Cum Laude (2023)",
+  "certifications": [
+    "Complete NextJS Developer, Zero-to-Mastery (Udemy, 2023)",
+    "Build REST APIs with Django REST Framework (Udemy, 2025)",
+    "Deploying Containerized Applications using AWS Copilot (2022)",
+    "Introduction to Cybersecurity for Developers (2022)",
+    "Figma for Beginners (2022)"
+  ],
+  "links": {
+    "portfolio": "https://rnld-vrgl.vercel.app",
+    "github": "https://github.com/rnldvrgl",
+    "linkedin": "https://linkedin.com/in/rnldvrgl"
+  },
+  "screening_answers": {
+    "years_react": "3+ years",
+    "notice_period": "TODO: fill in (e.g. 30 days)",
+    "expected_salary": "TODO: fill in your range, at least PHP 40,000/month",
+    "work_hours": "TODO: day shift / night shift / flexible",
+    "equipment": "TODO: laptop specs, internet speed, backup power"
+  }
+}

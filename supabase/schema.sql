@@ -1,0 +1,104 @@
+-- rnldvrgl HQ schema. Run once in Supabase → SQL Editor.
+-- RLS is on with no public policies: only the server (service-role key) reads and writes.
+
+create table if not exists employees (
+  id text primary key,
+  enabled boolean not null default true,
+  status text not null default 'idle'
+    check (status in ('idle','working','needs_you','error')),
+  summary text,
+  last_run_at timestamptz,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists runs (
+  id uuid primary key default gen_random_uuid(),
+  employee_id text not null references employees(id) on delete cascade,
+  trigger text not null default 'schedule' check (trigger in ('schedule','manual')),
+  status text not null default 'running' check (status in ('running','done','needs_you','error')),
+  output text,
+  error text,
+  started_at timestamptz not null default now(),
+  finished_at timestamptz
+);
+create index if not exists runs_employee_started on runs (employee_id, started_at desc);
+
+create table if not exists jobs (
+  id uuid primary key default gen_random_uuid(),
+  role text not null,
+  company text not null,
+  link text unique,
+  source text,
+  salary_text text,
+  salary_min_php int,
+  fit_score int check (fit_score between 0 and 100),
+  fit_reason text,
+  status text not null default 'saved'
+    check (status in ('saved','applied','interview','offer','closed')),
+  date_found date not null default (now() at time zone 'Asia/Manila')::date,
+  date_applied date,
+  notes text,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists interviews (
+  id uuid primary key default gen_random_uuid(),
+  job_id uuid references jobs(id) on delete set null,
+  company text,
+  starts_at timestamptz not null,
+  meeting_link text,
+  calendar_event_id text,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists reminders (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  due_at timestamptz not null,
+  repeat text check (repeat in ('daily','weekdays','weekly')),
+  sent_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists reminders_due on reminders (due_at) where sent_at is null;
+
+create table if not exists inbox_items (
+  message_id text primary key,
+  thread_id text,
+  sender text,
+  subject text,
+  category text check (category in ('reply','fyi','ignore','interview')),
+  summary text,
+  draft_id text,
+  handled boolean not null default false,
+  received_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+alter table employees enable row level security;
+alter table runs enable row level security;
+alter table jobs enable row level security;
+alter table interviews enable row level security;
+alter table reminders enable row level security;
+alter table inbox_items enable row level security;
+
+insert into employees (id) values
+  ('chief-of-staff'), ('inbox-triage'), ('job-hunter'), ('reminder-bot'),
+  ('scheduler'), ('researcher'), ('dev-assistant'), ('weekly-reviewer')
+on conflict (id) do nothing;
+
+-- ---------------------------------------------------------------------------
+-- The office clock: Supabase pings /api/tick every 5 minutes.
+-- Enable the pg_cron and pg_net extensions first (Database → Extensions),
+-- then replace the URL and secret below and run this block.
+-- ---------------------------------------------------------------------------
+-- select cron.schedule(
+--   'rnldvrgl-hq-tick',
+--   '*/5 * * * *',
+--   $$
+--   select net.http_post(
+--     url := 'https://YOUR-APP.vercel.app/api/tick',
+--     headers := jsonb_build_object('Authorization', 'Bearer YOUR_CRON_SECRET'),
+--     timeout_milliseconds := 60000
+--   );
+--   $$
+-- );

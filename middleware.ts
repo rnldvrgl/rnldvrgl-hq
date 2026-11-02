@@ -1,0 +1,39 @@
+import { NextResponse, type NextRequest } from "next/server";
+import { createServerClient } from "@supabase/ssr";
+
+/**
+ * Keeps the Supabase session fresh and sends anyone without a session to /login.
+ * The owner-email check happens again on the server for every page and API call.
+ */
+export async function middleware(req: NextRequest) {
+  let res = NextResponse.next({ request: req });
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll: () => req.cookies.getAll(),
+        setAll: (toSet) => {
+          toSet.forEach(({ name, value }) => req.cookies.set(name, value));
+          res = NextResponse.next({ request: req });
+          toSet.forEach(({ name, value, options }) => res.cookies.set(name, value, options));
+        },
+      },
+    },
+  );
+  const { data } = await supabase.auth.getUser();
+
+  const path = req.nextUrl.pathname;
+  const isPublic = path.startsWith("/login") || path.startsWith("/auth") || path === "/api/tick";
+  if (!data.user && !isPublic) {
+    if (path.startsWith("/api/")) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
+    const url = req.nextUrl.clone();
+    url.pathname = "/login";
+    return NextResponse.redirect(url);
+  }
+  return res;
+}
+
+export const config = {
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg).*)"],
+};
