@@ -4,11 +4,12 @@ import { ask, extractJson, UNTRUSTED_NOTE } from "@/lib/ai";
 import { db } from "@/lib/supabase/admin";
 import { listMail, createReplyDraft, createTentativeEvent } from "@/lib/google";
 import profile from "@/data/master-profile.json";
+import { INBOX_CATEGORIES } from "@/lib/supabase/database.types";
 import type { WorkResult } from "./types";
 
 const Triage = z.array(z.object({
   id: z.string(),
-  category: z.enum(["reply", "fyi", "ignore", "interview"]),
+  category: z.enum(INBOX_CATEGORIES),
   summary: z.string(),
   reply_draft: z.string().nullable(),
   interview: z.object({
@@ -17,6 +18,12 @@ const Triage = z.array(z.object({
     minutes: z.number().int().min(10).max(240).default(60),
   }).nullable(),
 }));
+
+/** Gmail's Date header is free text; a malformed one must not crash the whole run. */
+function toIso(header: string): string | null {
+  const t = Date.parse(header);
+  return Number.isNaN(t) ? null : new Date(t).toISOString();
+}
 
 export async function inboxTriage(): Promise<WorkResult> {
   const mail = await listMail("is:unread category:primary newer_than:1d", 20);
@@ -68,7 +75,7 @@ export async function inboxTriage(): Promise<WorkResult> {
       message_id: m.id, thread_id: m.threadId, sender: m.from, subject: m.subject,
       category: it.category, summary: it.summary, draft_id: draftId,
       handled: it.category === "ignore" || it.category === "fyi",
-      received_at: m.date ? new Date(m.date).toISOString() : null,
+      received_at: toIso(m.date),
     });
     lines.push(`[${it.category.toUpperCase()}] ${m.subject}\n   ${it.summary}${draftId ? "\n   → reply draft saved in Gmail" : ""}`);
   }

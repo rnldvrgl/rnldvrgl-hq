@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import type { Database } from "@/lib/supabase/database.types";
+import { supabaseUrl, supabaseAnonKey } from "@/lib/supabase/config";
 
 /**
  * Keeps the Supabase session fresh and sends anyone without a session to /login.
@@ -7,16 +9,18 @@ import { createServerClient } from "@supabase/ssr";
  */
 export async function middleware(req: NextRequest) {
   let res = NextResponse.next({ request: req });
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  const supabase = createServerClient<Database>(
+    supabaseUrl(),
+    supabaseAnonKey(),
     {
       cookies: {
         getAll: () => req.cookies.getAll(),
-        setAll: (toSet) => {
+        setAll: (toSet, headers) => {
           toSet.forEach(({ name, value }) => req.cookies.set(name, value));
           res = NextResponse.next({ request: req });
           toSet.forEach(({ name, value, options }) => res.cookies.set(name, value, options));
+          // Responses that refresh auth cookies must never be cached by a CDN.
+          Object.entries(headers).forEach(([key, value]) => res.headers.set(key, value));
         },
       },
     },

@@ -2,11 +2,12 @@ import "server-only";
 import { db } from "@/lib/supabase/admin";
 import { emailMe } from "@/lib/email";
 import { formatManila, manilaParts } from "@/lib/time";
+import type { ReminderRepeat } from "@/lib/supabase/database.types";
 import type { WorkResult } from "./types";
 
 export const NOTHING_DUE = "Nothing due";
 
-function nextDue(due: Date, repeat: string): Date {
+function nextDue(due: Date, repeat: ReminderRepeat): Date {
   const d = new Date(due);
   if (repeat === "weekly") d.setUTCDate(d.getUTCDate() + 7);
   else d.setUTCDate(d.getUTCDate() + 1);

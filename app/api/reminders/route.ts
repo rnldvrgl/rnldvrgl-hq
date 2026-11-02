@@ -3,6 +3,7 @@ import { z } from "zod";
 import { currentOwner } from "@/lib/auth";
 import { db } from "@/lib/supabase/admin";
 import { MANILA_OFFSET_MS } from "@/lib/time";
+import { REMINDER_REPEATS } from "@/lib/supabase/database.types";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,7 @@ const NewReminder = z.object({
   title: z.string().trim().min(1).max(200),
   /** "YYYY-MM-DDTHH:MM" as typed in a datetime-local input, read as Manila time. */
   local: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/),
-  repeat: z.enum(["daily", "weekdays", "weekly"]).nullable(),
+  repeat: z.enum(REMINDER_REPEATS).nullable(),
 });
 
 export async function POST(req: Request) {

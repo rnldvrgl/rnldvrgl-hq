@@ -1,7 +1,7 @@
 "use client";
 
-import type { KeyboardEvent } from "react";
-import { TEAM, type EmployeeId, type OfficeState } from "@/lib/team";
+import type { KeyboardEvent, ReactElement } from "react";
+import { TEAM, type EmployeeId, type EmployeeMeta, type EmployeeView, type OfficeState } from "@/lib/team";
 import { iconPath } from "@/components/Icons";
 
 /* ---------- isometric projection: 2:1 tiles, x runs down-right, y runs down-left, z is up ---------- */
@@ -32,7 +32,7 @@ function Box({ x, y, w, d, h, top, left, right }: { x: number; y: number; w: num
 }
 
 function Floor() {
-  const tiles = [];
+  const tiles: ReactElement[] = [];
   for (let i = 0; i < Math.ceil(W); i++) {
     for (let j = 0; j < Math.ceil(D); j++) {
       const w = Math.min(1, W - i), d = Math.min(1, D - j);
@@ -44,6 +44,9 @@ function Floor() {
   }
   return <g>{tiles}</g>;
 }
+
+/** Plant leaves as [dx, dy, radius] offsets from the pot, in px. */
+const LEAVES: readonly (readonly [number, number, number])[] = [[-10, -38, 13], [8, -44, 12], [0, -56, 13], [-4, -30, 10], [10, -30, 9]];
 
 function Walls({ now, done, needsYou }: { now: Date; done: number; needsYou: number }) {
   const manila = new Date(now.getTime() + 8 * 3600_000);
@@ -81,7 +84,7 @@ function Walls({ now, done, needsYou }: { now: Date; done: number; needsYou: num
 
       {/* corner plant */}
       <Box x={0.25} y={0.3} w={0.45} d={0.45} h={22} top="var(--pot-top)" left="var(--pot-left)" right="var(--pot-right)" />
-      {[[-10, -38, 13], [8, -44, 12], [0, -56, 13], [-4, -30, 10], [10, -30, 9]].map(([dx, dy, r], i) => {
+      {LEAVES.map(([dx, dy, r], i) => {
         const [cx, cy] = P(0.47, 0.52, 0);
         return <circle key={i} cx={cx + dx} cy={cy + dy} r={r} fill={i % 2 ? "var(--leaf-a)" : "var(--leaf-b)"} />;
       })}
@@ -89,9 +92,7 @@ function Walls({ now, done, needsYou }: { now: Date; done: number; needsYou: num
   );
 }
 
-type Emp = OfficeState["employees"][number];
-
-function Desk({ meta, emp, selected, onSelect }: { meta: (typeof TEAM)[number]; emp: Emp; selected: boolean; onSelect: (id: EmployeeId) => void }) {
+function Desk({ meta, emp, selected, onSelect }: { meta: EmployeeMeta; emp: EmployeeView; selected: boolean; onSelect: (id: EmployeeId) => void }) {
   const { x, y } = meta.desk;
   const working = emp.status === "working";
   const off = !emp.enabled;
@@ -174,6 +175,9 @@ function Desk({ meta, emp, selected, onSelect }: { meta: (typeof TEAM)[number]; 
   );
 }
 
+/** Stand-in for a desk the server hasn't reported on yet, so the scene never renders a missing employee. */
+const idleEmployee = (id: EmployeeId): EmployeeView => ({ id, enabled: true, status: "idle", summary: null, last_run_at: null, runs: [] });
+
 export function IsoScene({ state, selected, onSelect, now }: {
   state: OfficeState; selected: EmployeeId | null; onSelect: (id: EmployeeId) => void; now: Date;
 }) {
@@ -189,7 +193,7 @@ export function IsoScene({ state, selected, onSelect, now }: {
       <Floor />
       <Walls now={now} done={done} needsYou={needsYou} />
       {desks.map((meta) => (
-        <Desk key={meta.id} meta={meta} emp={byId.get(meta.id)!} selected={selected === meta.id} onSelect={onSelect} />
+        <Desk key={meta.id} meta={meta} emp={byId.get(meta.id) ?? idleEmployee(meta.id)} selected={selected === meta.id} onSelect={onSelect} />
       ))}
     </svg>
   );

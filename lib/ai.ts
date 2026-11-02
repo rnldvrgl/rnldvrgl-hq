@@ -1,5 +1,5 @@
 import "server-only";
-import { optionalEnv } from "@/lib/env";
+import { env, optionalEnv } from "@/lib/env";
 import type { AiProvider } from "@/lib/team";
 
 /**
@@ -87,7 +87,7 @@ async function askClaude(opts: AskOptions): Promise<string> {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-api-key": optionalEnv("ANTHROPIC_API_KEY")!,
+        "x-api-key": env("ANTHROPIC_API_KEY"),
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
@@ -130,7 +130,7 @@ async function askGemini(opts: AskOptions): Promise<string> {
 
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method: "POST",
-    headers: { "content-type": "application/json", "x-goog-api-key": optionalEnv("GEMINI_API_KEY")! },
+    headers: { "content-type": "application/json", "x-goog-api-key": env("GEMINI_API_KEY") },
     body: JSON.stringify({
       ...(opts.system ? { systemInstruction: { parts: [{ text: opts.system }] } } : {}),
       contents: [{ role: "user", parts: [{ text: prompt }] }],

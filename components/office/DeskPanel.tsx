@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type FormEvent } from "react";
+import { useRef, useState, type SubmitEvent } from "react";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { toast } from "sonner";
@@ -14,6 +14,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useOffice, useEmployee } from "@/lib/store";
+import { JOB_STATUSES, REMINDER_REPEATS, type JobStatus, type ReminderRepeat } from "@/lib/supabase/database.types";
 import { teamById, type EmployeeId } from "@/lib/team";
 import { describeSchedule, formatManila } from "@/lib/time";
 import { cn } from "@/lib/utils";
@@ -154,7 +155,10 @@ function Report({ text }: { text: string }) {
   );
 }
 
-const JOB_STATUSES = ["saved", "applied", "interview", "offer", "closed"] as const;
+const isJobStatus = (v: string): v is JobStatus => JOB_STATUSES.some((s) => s === v);
+
+type RepeatChoice = "once" | ReminderRepeat;
+const isRepeatChoice = (v: string): v is RepeatChoice => v === "once" || REMINDER_REPEATS.some((r) => r === v);
 
 function Pipeline() {
   const jobs = useOffice((s) => s.data.jobs);
@@ -186,7 +190,7 @@ function Pipeline() {
               {j.fit_reason && <span className="text-sm">{j.fit_reason}</span>}
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Select value={j.status} onValueChange={(v) => setJobStatus(j.id, v as (typeof JOB_STATUSES)[number]).catch((e) => fail(e, "Couldn't save the status."))}>
+              <Select value={j.status} onValueChange={(v) => { if (isJobStatus(v)) setJobStatus(j.id, v).catch((e: unknown) => fail(e, "Couldn't save the status.")); }}>
                 <SelectTrigger size="sm" className="w-32" aria-label={`Status for ${j.role}`}><SelectValue /></SelectTrigger>
                 <SelectContent>{JOB_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
               </Select>
@@ -224,15 +228,15 @@ function Reminders() {
   const { addReminder, removeReminder } = useOffice.getState();
   const [title, setTitle] = useState("");
   const [local, setLocal] = useState("");
-  const [repeat, setRepeat] = useState<"once" | "daily" | "weekdays" | "weekly">("once");
+  const [repeat, setRepeat] = useState<RepeatChoice>("once");
 
-  async function add(e: FormEvent) {
+  async function add(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     try {
       await addReminder({ title, local, repeat: repeat === "once" ? null : repeat });
       setTitle(""); setLocal(""); setRepeat("once");
       toast.success("Reminder added.");
-    } catch (x) { fail(x, "Couldn't add the reminder."); }
+    } catch (err) { fail(err, "Couldn't add the reminder."); }
   }
 
   return (
@@ -248,7 +252,7 @@ function Reminders() {
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="rem-repeat">Repeat</Label>
-          <Select value={repeat} onValueChange={(v) => setRepeat(v as typeof repeat)}>
+          <Select value={repeat} onValueChange={(v) => { if (isRepeatChoice(v)) setRepeat(v); }}>
             <SelectTrigger id="rem-repeat" className="w-full"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="once">Once</SelectItem>
@@ -269,7 +273,7 @@ function Reminders() {
               <span className="text-sm text-muted-foreground">{formatManila(r.due_at)}{r.repeat && ` · ${r.repeat}`}</span>
             </div>
             <Button variant="ghost" size="icon" aria-label={`Remove ${r.title}`}
-              onClick={() => removeReminder(r.id).then(() => toast.success("Removed.")).catch((e) => fail(e, "Couldn't remove it."))}>
+              onClick={() => removeReminder(r.id).then(() => toast.success("Removed.")).catch((e: unknown) => fail(e, "Couldn't remove it."))}>
               <Trash2 />
             </Button>
           </li>

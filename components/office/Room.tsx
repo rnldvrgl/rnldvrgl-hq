@@ -4,6 +4,11 @@ import { useEffect, useState } from "react";
 import { Html } from "@react-three/drei";
 import { ROOM, type Palette } from "./palette";
 
+/** Plant leaves as [x, y, z, radius] inside the pot group. */
+const LEAVES: readonly (readonly [number, number, number, number])[] = [
+  [0, 0.62, 0, 0.26], [0.14, 0.82, 0.05, 0.2], [-0.12, 0.78, -0.04, 0.2], [0.02, 0.98, -0.02, 0.17],
+];
+
 /** Floor, two back walls with windows, a whiteboard with today's tally, a Manila clock and a plant. */
 export function Room({ pal, shadows, done, waiting }: { pal: Palette; shadows: boolean; done: number; waiting: number }) {
   const { W, D, H } = ROOM;
@@ -90,7 +95,7 @@ export function Room({ pal, shadows, done, waiting }: { pal: Palette; shadows: b
           <cylinderGeometry args={[0.2, 0.16, 0.4, 20]} />
           <meshStandardMaterial color={pal.pot} />
         </mesh>
-        {[[0, 0.62, 0, 0.26], [0.14, 0.82, 0.05, 0.2], [-0.12, 0.78, -0.04, 0.2], [0.02, 0.98, -0.02, 0.17]].map(([x, y, z, r], i) => (
+        {LEAVES.map(([x, y, z, r], i) => (
           <mesh key={i} position={[x, y, z]} castShadow={shadows}>
             <icosahedronGeometry args={[r, 1]} />
             <meshStandardMaterial color={i % 2 ? pal.leafA : pal.leafB} flatShading />

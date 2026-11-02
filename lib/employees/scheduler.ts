@@ -26,7 +26,7 @@ export async function scheduler(): Promise<WorkResult> {
 
   const clashes: string[] = [];
   for (let i = 1; i < timed.length; i++) {
-    const prev = timed.at(i - 1)!, cur = timed.at(i)!;
+    const prev = timed[i - 1], cur = timed[i];
     if (cur.s[0] < prev.s[1]) clashes.push(`${prev.e.summary ?? "Event"} overlaps ${cur.e.summary ?? "Event"}`);
   }
 

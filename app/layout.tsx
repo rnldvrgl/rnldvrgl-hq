@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { Metadata, Viewport } from "next";
 import { Lexend, Atkinson_Hyperlegible, IBM_Plex_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
@@ -19,7 +20,7 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${display.variable} ${body.variable} ${mono.variable}`}>
       <body>

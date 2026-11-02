@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "@/lib/supabase/admin";
-import { TEAM, type OfficeState, type EmployeeStatus } from "@/lib/team";
+import { TEAM, type OfficeState, type RunView } from "@/lib/team";
 import { activeProvider, backupAllowsPrivate } from "@/lib/ai";
 
 export async function loadOfficeState(): Promise<OfficeState> {
@@ -13,6 +13,12 @@ export async function loadOfficeState(): Promise<OfficeState> {
   ]);
 
   const rowById = new Map((employees.data ?? []).map((e) => [e.id, e]));
+  const runsByEmployee = new Map<string, RunView[]>();
+  for (const { employee_id, ...run } of runs.data ?? []) {
+    const list = runsByEmployee.get(employee_id) ?? [];
+    if (list.length < 5) list.push(run);
+    runsByEmployee.set(employee_id, list);
+  }
   return {
     ai: { provider: activeProvider(), backupAllowsPrivate: backupAllowsPrivate() },
     employees: TEAM.map((t) => {
@@ -20,10 +26,10 @@ export async function loadOfficeState(): Promise<OfficeState> {
       return {
         id: t.id,
         enabled: row?.enabled ?? true,
-        status: (row?.status ?? "idle") as EmployeeStatus,
+        status: row?.status ?? "idle",
         summary: row?.summary ?? null,
         last_run_at: row?.last_run_at ?? null,
-        runs: (runs.data ?? []).filter((r) => r.employee_id === t.id).slice(0, 5),
+        runs: runsByEmployee.get(t.id) ?? [],
       };
     }),
     jobs: jobs.data ?? [],

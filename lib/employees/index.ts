@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/supabase/admin";
-import { TEAM, teamById, type EmployeeId } from "@/lib/team";
+import { TEAM, teamById, type EmployeeId, type EmployeeMeta } from "@/lib/team";
+import type { RunTrigger } from "@/lib/supabase/database.types";
 import { activeProvider, backupAllowsPrivate } from "@/lib/ai";
 import { dueSlot } from "@/lib/time";
 import type { Employee } from "./types";
@@ -31,7 +32,7 @@ const STALE_MS = 10 * 60_000;
  * Runs one employee end to end: claims the desk, does the work, records the run.
  * Returns false if the employee was already busy.
  */
-export async function runEmployee(id: EmployeeId, trigger: "schedule" | "manual"): Promise<boolean> {
+export async function runEmployee(id: EmployeeId, trigger: RunTrigger): Promise<boolean> {
   const now = new Date();
 
   // Private desks don't touch your mail or calendar while only the free backup is available.
@@ -54,17 +55,24 @@ export async function runEmployee(id: EmployeeId, trigger: "schedule" | "manual"
     .select("id");
   if (!claimed?.length) return false;
 
-  const { data: run } = await db()
+  const { data: run, error: runError } = await db()
     .from("runs")
     .insert({ employee_id: id, trigger, status: "running" })
     .select("id")
     .single();
+  if (runError) {
+    // Couldn't record the run: release the desk instead of leaving it stuck on "working".
+    await db().from("employees").update({
+      status: "error", summary: `Couldn't log the run: ${runError.message}`.slice(0, 140), updated_at: new Date().toISOString(),
+    }).eq("id", id);
+    return true;
+  }
 
   try {
     const result = await WORK[id]();
     const finished = new Date().toISOString();
     const brain = activeProvider() === "gemini" ? "\n\n— done by the free Gemini backup" : "";
-    await db().from("runs").update({ status: result.status, output: result.output + brain, finished_at: finished }).eq("id", run!.id);
+    await db().from("runs").update({ status: result.status, output: result.output + brain, finished_at: finished }).eq("id", run.id);
     await db().from("employees").update({
       status: result.status === "needs_you" ? "needs_you" : "idle",
       summary: result.summary, last_run_at: now.toISOString(), updated_at: finished,
@@ -72,7 +80,7 @@ export async function runEmployee(id: EmployeeId, trigger: "schedule" | "manual"
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const finished = new Date().toISOString();
-    await db().from("runs").update({ status: "error", error: message, finished_at: finished }).eq("id", run!.id);
+    await db().from("runs").update({ status: "error", error: message, finished_at: finished }).eq("id", run.id);
     // last_run_at still advances so a broken employee doesn't retry every 5 minutes; use "Run now" after fixing.
     await db().from("employees").update({
       status: "error", summary: message.slice(0, 140), last_run_at: now.toISOString(), updated_at: finished,
@@ -88,7 +96,7 @@ export async function runEmployee(id: EmployeeId, trigger: "schedule" | "manual"
 export async function tick(): Promise<string[]> {
   const ran: string[] = [];
   const { data: rows } = await db().from("employees").select("id, enabled, last_run_at");
-  const state = new Map((rows ?? []).map((r) => [r.id as string, r]));
+  const state = new Map((rows ?? []).map((r) => [r.id, r]));
 
   if (state.get("reminder-bot")?.enabled !== false) {
     // Checked every tick, but only logged when something was sent, so the run history stays readable.
@@ -113,7 +121,7 @@ export async function tick(): Promise<string[]> {
       const last = state.get(e.id)?.last_run_at;
       return { e, slot: dueSlot(e.schedule, last ? new Date(last) : null, now) };
     })
-    .filter((x): x is { e: (typeof TEAM)[number]; slot: Date } => x.slot !== null)
+    .filter((x): x is { e: EmployeeMeta; slot: Date } => x.slot !== null)
     .sort((a, b) => a.slot.getTime() - b.slot.getTime());
 
   const next = due.at(0);

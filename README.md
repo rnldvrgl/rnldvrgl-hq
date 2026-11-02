@@ -63,6 +63,19 @@ Push it to a **new private GitHub repo** on your personal account.
 3. **Project Settings → API**: copy the URL, `anon` key and `service_role` key into `.env.local`.
 4. **Authentication → URL Configuration**: set Site URL to `http://localhost:3000` for now, and add `http://localhost:3000/auth/callback` to Redirect URLs.
 5. Set `OWNER_EMAIL` to your email. Only that address can open the office.
+6. **Make the sign-in email include a 6-digit code.** Go to **Authentication → Emails** (called **Email Templates** in some dashboards). Open the **Magic link** template, delete everything in the **Body** box, paste this, and click **Save**:
+
+    ```html
+    <h2>Your rnldvrgl HQ code</h2>
+    <p>Type this code on the HQ sign-in page:</p>
+    <p style="font-size:28px;font-weight:bold;letter-spacing:6px">{{ .Token }}</p>
+    <p>Or <a href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=email">click here to sign in</a>.</p>
+    ```
+
+    Do the same for the **Confirm signup** template, since your very first sign-in uses that one.
+
+    Why: the default email only has a link, and that link fails if it opens in a different browser from the one you signed in from. The code works anywhere, and the new link works in any browser too.
+7. Always open HQ at `http://localhost:3000`, not `127.0.0.1:3000`. They count as different sites, so a session from one doesn't carry over to the other.
 
 ### 3a. Gemini backup (free, use this until Claude is ready)
 
@@ -97,18 +110,67 @@ The app needs an API key; a claude.ai login can't be used by a deployed app. But
 
 ### 5. Google (Gmail + Calendar), personal account only
 
-1. console.cloud.google.com → new project "rnldvrgl HQ".
-2. **APIs & Services → Library**: enable **Gmail API** and **Google Calendar API**.
-3. **OAuth consent screen**: External, add yourself as a test user.
-4. **Credentials → Create OAuth client ID** → Web application → add redirect URI `https://developers.google.com/oauthplayground`.
-5. Open the OAuth Playground → gear icon → "Use your own OAuth credentials" → paste the client ID and secret.
-6. Authorise these scopes:
-   - `https://www.googleapis.com/auth/gmail.readonly`
-   - `https://www.googleapis.com/auth/gmail.compose` (drafts only; the app never calls send)
-   - `https://www.googleapis.com/auth/calendar.events`
-7. Exchange the code for tokens and copy the **refresh token** → `GOOGLE_REFRESH_TOKEN`.
+This takes about 10 minutes. In Parts A–D you create a "Google app" so Google knows what HQ is. In Part E you press **Connect Google** inside HQ. You never copy a token by hand.
 
-> While the consent screen is in "Testing", Google expires refresh tokens after 7 days. Publish the app (no review needed for a personal app with you as the only user) so it keeps working.
+Use your **personal** Gmail for every step, not your work account. If you're signed in to several Google accounts, check the avatar in the top-right corner of each page.
+
+#### Part A: Create the project (Google Cloud Console)
+
+1. Open https://console.cloud.google.com and sign in with your personal Gmail. If it asks you to accept the Terms of Service, pick your country and click **Agree and continue**.
+2. At the top left, next to the Google Cloud logo, click the **project picker** (it says "Select a project" or shows a project name). In the window that opens, click **New project** at the top right.
+3. Type **rnldvrgl HQ** as the project name. Leave Location as "No organization". Click **Create**.
+4. Wait about 10 seconds for the bell icon to show it's done. Then open the project picker again and click **rnldvrgl HQ** so it's the selected project. Its name should now show at the top of the page.
+
+#### Part B: Turn on Gmail and Calendar
+
+5. In the search bar at the top of the console, type **Gmail API** and click the result with that name. Click the blue **Enable** button.
+6. Search again for **Google Calendar API**, click it, and click **Enable**.
+
+#### Part C: Set up the sign-in screen (Google Auth Platform)
+
+7. Search the top bar for **Google Auth Platform** and open it. You'll see "Google Auth Platform not configured yet". Click **Get started**.
+8. The setup has four short steps:
+   - **App information:** App name `rnldvrgl HQ`. User support email: pick your Gmail from the dropdown. Click **Next**.
+   - **Audience:** choose **External**. Click **Next**.
+   - **Contact information:** type your Gmail. Click **Next**.
+   - **Finish:** tick the box to agree to the user data policy. Click **Continue**, then **Create**.
+9. In the left menu, click **Audience**. Scroll to **Test users** and click **+ Add users**. Type your personal Gmail, then click **Save**. Only test users can sign in while the app is in Testing.
+10. In the left menu, click **Data Access**, then **Add or remove scopes**. A panel slides in from the right. Scroll to the bottom to the box called **Manually add scopes**. Paste these three lines into it:
+
+    ```
+    https://www.googleapis.com/auth/gmail.readonly
+    https://www.googleapis.com/auth/gmail.compose
+    https://www.googleapis.com/auth/calendar.events
+    ```
+
+    Click **Add to table**, then **Update** at the bottom of the panel, then **Save** at the bottom of the page. Google will list the Gmail scopes under "restricted scopes"; that's expected.
+
+#### Part D: Create the client ID and secret
+
+11. In the left menu, click **Clients**, then **+ Create client**.
+12. Set **Application type** to **Web application**. Set **Name** to `rnldvrgl HQ web`.
+13. Under **Authorized redirect URIs**, click **+ Add URI** and paste:
+
+    ```
+    http://localhost:3000/api/google/callback
+    ```
+
+    You'll add your Vercel address here too in step 8. Leave "Authorized JavaScript origins" empty.
+14. Click **Create**. A window shows your **Client ID** and **Client secret**. Copy both into `.env.local` as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Also click **Download JSON** as a backup, because Google may not show the secret again.
+
+#### Part E: Connect from inside HQ
+
+15. Restart `npm run dev` so it picks up the new values. Open http://localhost:3000 and sign in.
+16. Click **Connect Google** in the header. Pick your personal Gmail.
+17. Google shows **"Google hasn't verified this app"**. That's normal for an app only you use. Click **Continue**. (On some screens it's **Advanced**, then **Go to rnldvrgl HQ (unsafe)**.)
+18. On the permissions screen, **tick every checkbox** (read email, manage drafts, see and edit calendar events), then click **Continue**.
+19. You land back in HQ with a "Google connected" message, and the header shows your Gmail address instead of the button.
+
+#### About the 7-day limit
+
+While the app's status is **Testing**, Google ends the connection after 7 days. HQ notices this, shows the **Connect Google** button again, and Maya, Iggy and Cal pause with "Your Google connection expired". Reconnecting is steps 16–18 again, about 20 seconds.
+
+To stop the weekly reconnect, publish the app: **Google Auth Platform → Audience → Publish app → Confirm**, then click **Connect Google** once more. You'll still see the "hasn't verified" warning, which is fine for personal use. If Google asks you to submit the app for verification and won't let you continue, stay in Testing and reconnect weekly.
 
 ### 6. GitHub
 
@@ -134,7 +196,8 @@ curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/tick
 1. vercel.com → **Add New Project** → import the repo.
 2. Add every variable from `.env.local` under **Settings → Environment Variables**. Change `APP_URL` to the Vercel URL.
 3. Deploy, then in Supabase **Authentication → URL Configuration** add `https://YOUR-APP.vercel.app` and `https://YOUR-APP.vercel.app/auth/callback`.
-4. After your first sign-in, turn off **Authentication → Providers → Email → Allow new users to sign up** so nobody else can create an account.
+4. In Google Cloud: **Google Auth Platform → Clients →** click `rnldvrgl HQ web` **→ Authorized redirect URIs → + Add URI** → `https://YOUR-APP.vercel.app/api/google/callback` **→ Save**. If you use the same Supabase project locally and live, you are already connected; otherwise open the live site and click **Connect Google** once.
+5. After your first sign-in, turn off **Authentication → Providers → Email → Allow new users to sign up** so nobody else can create an account.
 
 ### 9. Start the office clock
 
@@ -175,8 +238,13 @@ Why Supabase and not Vercel Cron: Vercel's free plan only runs a cron once a day
 
 | Symptom | Fix |
 | --- | --- |
+| "That sign-in link didn't work" | Type the 6-digit code instead of clicking the link. If the email has no code, redo step 2.6. The message in brackets is Supabase's exact reason. |
+| "That code is wrong or has expired" | Use the code from the **newest** email; each new code cancels the old one. Codes last 1 hour by default. |
 | Desk lamp red | Open the desk; the report shows the error. Fix the env var, then **Run now**. |
-| `Google token refresh failed` | Re-create `GOOGLE_REFRESH_TOKEN` (step 5) and publish the consent screen. |
+| **Connect Google** shows again / "Google connection expired" | Normal after 7 days in Testing. Click it and reconnect, or publish the app (step 5, "About the 7-day limit"). |
+| Google says `redirect_uri_mismatch` | The address in step 13 (or deploy step 4) must match exactly, including `http` vs `https` and no trailing slash. |
+| Google says "Access blocked: app has not completed verification" | Your Gmail isn't on the test user list. Redo step 9. |
+| "Google didn't return a long-lived sign-in" | Remove rnldvrgl HQ at myaccount.google.com/permissions, then click Connect Google again. |
 | No emails arrive | With `onboarding@resend.dev`, `EMAIL_TO` must be your Resend sign-up email. |
 | Nobody runs on schedule | Check Supabase → Integrations → Cron for failed runs; the URL or secret is usually wrong. |
 | Office shows the flat SVG, not 3D | The browser has WebGL turned off or unsupported. Enable hardware acceleration. |

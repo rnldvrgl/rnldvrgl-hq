@@ -1,9 +1,10 @@
 "use client";
 
 import { create } from "zustand";
-import type { EmployeeId, OfficeState } from "@/lib/team";
+import type { EmployeeId, EmployeeView, OfficeState } from "@/lib/team";
+import type { JobStatus, ReminderRepeat } from "@/lib/supabase/database.types";
 
-type JobStatus = "saved" | "applied" | "interview" | "offer" | "closed";
+export type NewReminder = { title: string; local: string; repeat: ReminderRepeat | null };
 
 type OfficeStore = {
   data: OfficeState;
@@ -21,16 +22,23 @@ type OfficeStore = {
   acknowledge: (id: EmployeeId) => Promise<void>;
   setJobStatus: (jobId: string, status: JobStatus) => Promise<void>;
   draftCoverLetter: (jobId: string) => Promise<string>;
-  addReminder: (input: { title: string; local: string; repeat: "daily" | "weekdays" | "weekly" | null }) => Promise<void>;
+  addReminder: (input: NewReminder) => Promise<void>;
   removeReminder: (id: string) => Promise<void>;
 };
 
 const EMPTY: OfficeState = { ai: { provider: "none", backupAllowsPrivate: false }, employees: [], jobs: [], reminders: [], inbox: [] };
 
+/** Pulls `{ error: string }` out of an API error body, whatever shape it actually came back in. */
+function errorMessage(body: unknown): string | null {
+  if (typeof body === "object" && body !== null && "error" in body && typeof body.error === "string") return body.error;
+  return null;
+}
+
+/** Fetches one of our own API routes. `T` is the success shape that route returns. */
 async function call<T = { ok: true }>(url: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(url, { ...init, headers: { "content-type": "application/json", ...(init.headers ?? {}) } });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
+  const res = await fetch(url, { ...init, headers: { "content-type": "application/json", ...init.headers } });
+  const body: unknown = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(errorMessage(body) ?? `Request failed (${res.status})`);
   return body as T;
 }
 
@@ -105,5 +113,5 @@ export const useOffice = create<OfficeStore>()((set, get) => ({
 }));
 
 /** Convenience selectors */
-export const useEmployee = (id: EmployeeId | null) =>
+export const useEmployee = (id: EmployeeId | null): EmployeeView | null =>
   useOffice((s) => (id ? s.data.employees.find((e) => e.id === id) ?? null : null));

@@ -1,4 +1,4 @@
-import { Sun, Inbox, Briefcase, Bell, CalendarDays, BookOpen, Code2, ClipboardCheck, type LucideIcon } from "lucide-react";
+import { Sun, Inbox, Briefcase, Bell, CalendarDays, BookOpen, CodeXml, ClipboardCheck, type LucideIcon } from "lucide-react";
 import type { IconName } from "@/lib/team";
 
 export const ICONS: Record<IconName, LucideIcon> = {
@@ -8,7 +8,7 @@ export const ICONS: Record<IconName, LucideIcon> = {
   bell: Bell,
   calendar: CalendarDays,
   book: BookOpen,
-  code: Code2,
+  code: CodeXml,
   clipboard: ClipboardCheck,
 };
 

@@ -1,12 +1,14 @@
 import "server-only";
 import { env } from "@/lib/env";
 
-function escapeHtml(s: string) {
-  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+const HTML_ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => HTML_ESCAPES[c] ?? c);
 }
 
 /** Plain-text-first email to yourself through Resend. */
-export async function emailMe(subject: string, body: string) {
+export async function emailMe(subject: string, body: string): Promise<void> {
   const html = `<div style="font-family:system-ui,sans-serif;font-size:15px;line-height:1.55;white-space:pre-wrap;max-width:640px">${escapeHtml(body)}</div>`;
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",

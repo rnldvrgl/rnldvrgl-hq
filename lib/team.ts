@@ -1,4 +1,7 @@
 import type { Schedule } from "@/lib/time";
+import type { EmployeeStatus, Tables } from "@/lib/supabase/database.types";
+
+export type { EmployeeStatus } from "@/lib/supabase/database.types";
 
 export type EmployeeId =
   | "chief-of-staff" | "inbox-triage" | "job-hunter" | "reminder-bot"
@@ -55,26 +58,31 @@ export const TEAM: EmployeeMeta[] = [
 export const teamById = Object.fromEntries(TEAM.map((e) => [e.id, e])) as Record<EmployeeId, EmployeeMeta>;
 
 export function isEmployeeId(id: string): id is EmployeeId {
-  return id in teamById;
+  return Object.hasOwn(teamById, id);
 }
-
-export type EmployeeStatus = "idle" | "working" | "needs_you" | "error";
 
 /** Shape the office UI receives from /api/state. */
 export type AiProvider = "claude" | "gemini" | "none";
 
+export type RunView = Pick<Tables<"runs">, "id" | "status" | "output" | "error" | "started_at" | "trigger">;
+export type JobView = Pick<Tables<"jobs">, "id" | "role" | "company" | "link" | "salary_text" | "fit_score" | "fit_reason" | "status" | "date_found">;
+export type ReminderView = Pick<Tables<"reminders">, "id" | "title" | "due_at" | "repeat">;
+export type InboxView = Pick<Tables<"inbox_items">, "message_id" | "sender" | "subject" | "category" | "summary" | "draft_id">;
+
+export type EmployeeView = {
+  id: EmployeeId;
+  enabled: boolean;
+  status: EmployeeStatus;
+  summary: string | null;
+  last_run_at: string | null;
+  runs: RunView[];
+};
+
 export type OfficeState = {
   /** Which AI the office is running on right now, and whether private desks may use the backup. */
   ai: { provider: AiProvider; backupAllowsPrivate: boolean };
-  employees: {
-    id: EmployeeId;
-    enabled: boolean;
-    status: EmployeeStatus;
-    summary: string | null;
-    last_run_at: string | null;
-    runs: { id: string; status: string; output: string | null; error: string | null; started_at: string; trigger: string }[];
-  }[];
-  jobs: { id: string; role: string; company: string; link: string | null; salary_text: string | null; fit_score: number | null; fit_reason: string | null; status: string; date_found: string }[];
-  reminders: { id: string; title: string; due_at: string; repeat: string | null }[];
-  inbox: { message_id: string; sender: string | null; subject: string | null; category: string | null; summary: string | null; draft_id: string | null }[];
+  employees: EmployeeView[];
+  jobs: JobView[];
+  reminders: ReminderView[];
+  inbox: InboxView[];
 };
