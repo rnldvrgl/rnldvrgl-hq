@@ -108,34 +108,47 @@ The app needs an API key; a claude.ai login can't be used by a deployed app. But
 2. Leave `EMAIL_FROM=rnldvrgl HQ <onboarding@resend.dev>` while testing. That sender can only email the address you signed up to Resend with, so sign up with your personal Gmail.
 3. Later, verify a domain in Resend to send from your own address.
 
-### 5. Google (Gmail + Calendar), personal account only
+### 5. Keys for Maya, Iggy, Cal and Dex
 
-This takes about 10 minutes. In Parts A–D you create a "Google app" so Google knows what HQ is. In Part E you press **Connect Google** inside HQ. You never copy a token by hand.
+Four desks read your own accounts, so they need keys of their own. Everyone else (Hunter, Ring, Rhea, Rev) works with just the AI key and Resend.
+
+| Desk | Reads | Keys in `.env.local` | AI |
+|---|---|---|---|
+| **Maya** (morning brief) | Gmail (unread count), Calendar (today) | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN` | Waits for `ANTHROPIC_API_KEY` (private data) |
+| **Iggy** (inbox triage) | Gmail (reads new mail, saves reply drafts) | the same three Google keys | Waits for `ANTHROPIC_API_KEY` (private data) |
+| **Cal** (tomorrow's calendar) | Calendar | the same three Google keys | Works on the Gemini backup too |
+| **Dex** (GitHub PRs and issues) | GitHub | `GITHUB_TOKEN`, `GITHUB_USERNAME` (step 6) | Waits for `ANTHROPIC_API_KEY` (private repos) |
+
+Maya and Cal email you, so they also need the Resend keys from step 4. If a key is missing, that desk shows the error on its panel and the others keep working.
+
+#### 5a. Google (Gmail + Calendar) for Maya, Iggy and Cal
+
+About 10 minutes. In Parts A–D you create a small "Google app" that belongs to you. In Part E you sign in to it once and copy out a **refresh token**, the long-lived key HQ uses to read your mail and calendar.
 
 Use your **personal** Gmail for every step, not your work account. If you're signed in to several Google accounts, check the avatar in the top-right corner of each page.
 
-#### Part A: Create the project (Google Cloud Console)
+**Part A: Create the project (Google Cloud Console)**
 
 1. Open https://console.cloud.google.com and sign in with your personal Gmail. If it asks you to accept the Terms of Service, pick your country and click **Agree and continue**.
-2. At the top left, next to the Google Cloud logo, click the **project picker** (it says "Select a project" or shows a project name). In the window that opens, click **New project** at the top right.
+2. At the top left, next to the Google Cloud logo, click the **project picker** ("Select a project", or a project name). In the window that opens, click **New project** at the top right.
 3. Type **rnldvrgl HQ** as the project name. Leave Location as "No organization". Click **Create**.
-4. Wait about 10 seconds for the bell icon to show it's done. Then open the project picker again and click **rnldvrgl HQ** so it's the selected project. Its name should now show at the top of the page.
+4. Wait about 10 seconds for the bell icon to show it's done. Open the project picker again and click **rnldvrgl HQ**, so its name shows at the top of the page.
 
-#### Part B: Turn on Gmail and Calendar
+**Part B: Turn on Gmail and Calendar**
 
-5. In the search bar at the top of the console, type **Gmail API** and click the result with that name. Click the blue **Enable** button.
-6. Search again for **Google Calendar API**, click it, and click **Enable**.
+5. In the search bar at the top, type **Gmail API**, click the result with that name, and click **Enable**.
+6. Search for **Google Calendar API**, click it, and click **Enable**.
 
-#### Part C: Set up the sign-in screen (Google Auth Platform)
+**Part C: Set up the sign-in screen (Google Auth Platform)**
 
 7. Search the top bar for **Google Auth Platform** and open it. You'll see "Google Auth Platform not configured yet". Click **Get started**.
-8. The setup has four short steps:
-   - **App information:** App name `rnldvrgl HQ`. User support email: pick your Gmail from the dropdown. Click **Next**.
-   - **Audience:** choose **External**. Click **Next**.
-   - **Contact information:** type your Gmail. Click **Next**.
-   - **Finish:** tick the box to agree to the user data policy. Click **Continue**, then **Create**.
-9. In the left menu, click **Audience**. Scroll to **Test users** and click **+ Add users**. Type your personal Gmail, then click **Save**. Only test users can sign in while the app is in Testing.
-10. In the left menu, click **Data Access**, then **Add or remove scopes**. A panel slides in from the right. Scroll to the bottom to the box called **Manually add scopes**. Paste these three lines into it:
+8. Fill in the four short steps:
+   - **App information:** App name `rnldvrgl HQ`. User support email: your Gmail. Click **Next**.
+   - **Audience:** **External**. Click **Next**.
+   - **Contact information:** your Gmail. Click **Next**.
+   - **Finish:** tick the box to agree to the user data policy, click **Continue**, then **Create**.
+9. In the left menu, click **Audience**. Under **Test users**, click **+ Add users**, type your personal Gmail and click **Save**. Only test users can sign in while the app is in Testing.
+10. In the left menu, click **Data Access**, then **Add or remove scopes**. In the panel that slides in, scroll to **Manually add scopes** and paste these three lines:
 
     ```
     https://www.googleapis.com/auth/gmail.readonly
@@ -143,38 +156,58 @@ Use your **personal** Gmail for every step, not your work account. If you're sig
     https://www.googleapis.com/auth/calendar.events
     ```
 
-    Click **Add to table**, then **Update** at the bottom of the panel, then **Save** at the bottom of the page. Google will list the Gmail scopes under "restricted scopes"; that's expected.
+    Click **Add to table**, then **Update**, then **Save** at the bottom of the page. Google lists the Gmail scopes under "restricted scopes"; that's expected.
 
-#### Part D: Create the client ID and secret
+**Part D: Create the client ID and secret**
 
 11. In the left menu, click **Clients**, then **+ Create client**.
-12. Set **Application type** to **Web application**. Set **Name** to `rnldvrgl HQ web`.
-13. Under **Authorized redirect URIs**, click **+ Add URI** and paste:
+12. Set **Application type** to **Web application** and **Name** to `rnldvrgl HQ web`.
+13. Under **Authorized redirect URIs**, click **+ Add URI** and paste exactly:
 
     ```
-    http://localhost:3000/api/google/callback
+    https://developers.google.com/oauthplayground
     ```
 
-    You'll add your Vercel address here too in step 8. Leave "Authorized JavaScript origins" empty.
-14. Click **Create**. A window shows your **Client ID** and **Client secret**. Copy both into `.env.local` as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Also click **Download JSON** as a backup, because Google may not show the secret again.
+    (That's Google's own token tool, used once in Part E. Leave "Authorized JavaScript origins" empty.)
+14. Click **Create**. Copy the **Client ID** and **Client secret** into `.env.local` as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Click **Download JSON** too, as a backup: Google may not show the secret again.
 
-#### Part E: Connect from inside HQ
+**Part E: Get the refresh token (`GOOGLE_REFRESH_TOKEN`)**
 
-15. Restart `npm run dev` so it picks up the new values. Open http://localhost:3000 and sign in.
-16. Click **Connect Google** in the header. Pick your personal Gmail.
-17. Google shows **"Google hasn't verified this app"**. That's normal for an app only you use. Click **Continue**. (On some screens it's **Advanced**, then **Go to rnldvrgl HQ (unsafe)**.)
-18. On the permissions screen, **tick every checkbox** (read email, manage drafts, see and edit calendar events), then click **Continue**.
-19. You land back in HQ with a "Google connected" message, and the header shows your Gmail address instead of the button.
+15. Open https://developers.google.com/oauthplayground.
+16. Click the **gear icon** (top right). Tick **Use your own OAuth credentials**, paste your Client ID and Client secret, and close the panel. Leave "Access type" on **Offline**.
+17. In the box on the left under **Step 1**, at the bottom ("Input your own scopes"), paste the same three scopes separated by spaces:
 
-#### About the 7-day limit
+    ```
+    https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.compose https://www.googleapis.com/auth/calendar.events
+    ```
 
-While the app's status is **Testing**, Google ends the connection after 7 days. HQ notices this, shows the **Connect Google** button again, and Maya, Iggy and Cal pause with "Your Google connection expired". Reconnecting is steps 16–18 again, about 20 seconds.
+    Click **Authorize APIs**.
+18. Pick your personal Gmail. Google shows **"Google hasn't verified this app"**. That's normal for an app only you use: click **Continue** (or **Advanced → Go to rnldvrgl HQ (unsafe)**). On the permissions screen, **tick every checkbox** and click **Continue**.
+19. You're back in the Playground at **Step 2**. Click **Exchange authorization code for tokens**.
+20. Copy the **Refresh token** (it starts with `1//`) into `.env.local` as `GOOGLE_REFRESH_TOKEN`. Ignore the access token: it expires in an hour, and HQ makes fresh ones itself.
+21. Restart `npm run dev`. Open Maya's desk and press **Run now**. Her report should mention today's events and your unread count. If it says "Google token refresh failed", the refresh token or the client values don't match: redo steps 15–20.
 
-To stop the weekly reconnect, publish the app: **Google Auth Platform → Audience → Publish app → Confirm**, then click **Connect Google** once more. You'll still see the "hasn't verified" warning, which is fine for personal use. If Google asks you to submit the app for verification and won't let you continue, stay in Testing and reconnect weekly.
+On Vercel, add the same three values under **Settings → Environment Variables** and redeploy (step 8).
 
-### 6. GitHub
+**About the 7-day limit**
 
-github.com → Settings → Developer settings → **Fine-grained token** → read-only access to Issues, Pull requests and Metadata on your repos → `GITHUB_TOKEN`. Set `GITHUB_USERNAME=rnldvrgl`.
+While the app's status is **Testing**, Google expires the refresh token after 7 days, and Maya, Iggy and Cal show "Google token refresh failed (400)". Repeat steps 15–20 for a new token, then update it in `.env.local` and on Vercel.
+
+To stop the weekly refresh, publish the app: **Google Auth Platform → Audience → Publish app → Confirm**, then get a new refresh token once more (steps 15–20). You'll still see the "hasn't verified" warning, which is fine for personal use. If Google asks you to submit the app for verification and won't let you continue, stay in Testing and refresh weekly.
+
+### 6. GitHub for Dex
+
+About 3 minutes. Dex only reads: it lists open pull requests and issues that involve you.
+
+1. Sign in at https://github.com and open https://github.com/settings/personal-access-tokens/new (or **Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**).
+2. **Token name:** `rnldvrgl HQ`. **Expiration:** 90 days or longer (you'll set a calendar reminder to rotate it).
+3. **Resource owner:** your account (`rnldvrgl`). **Repository access:** **All repositories**, or **Only select repositories** if you'd rather limit it.
+4. Under **Permissions → Repository permissions**, set **Issues: Read-only** and **Pull requests: Read-only**. (**Metadata: Read-only** is added automatically.) Leave everything else at **No access**.
+5. Click **Generate token** and copy it (it starts with `github_pat_`). GitHub shows it only once.
+6. In `.env.local`: `GITHUB_TOKEN=` the token, and `GITHUB_USERNAME=rnldvrgl` (your GitHub username, used to find work that involves you).
+7. Restart `npm run dev`, open Dex's desk and press **Run now**. On Vercel, add both values and redeploy.
+
+If Dex says `GitHub 401`, the token expired or was pasted wrong; generate a new one. `GitHub 422` usually means `GITHUB_USERNAME` is misspelled.
 
 ### 7. Run it locally
 
@@ -196,7 +229,7 @@ curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/tick
 1. vercel.com → **Add New Project** → import the repo.
 2. Add every variable from `.env.local` under **Settings → Environment Variables**. Change `APP_URL` to the Vercel URL.
 3. Deploy, then in Supabase **Authentication → URL Configuration** add `https://YOUR-APP.vercel.app` and `https://YOUR-APP.vercel.app/auth/callback`.
-4. In Google Cloud: **Google Auth Platform → Clients →** click `rnldvrgl HQ web` **→ Authorized redirect URIs → + Add URI** → `https://YOUR-APP.vercel.app/api/google/callback` **→ Save**. If you use the same Supabase project locally and live, you are already connected; otherwise open the live site and click **Connect Google** once.
+4. Add the Google and GitHub keys from steps 5 and 6 (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `GITHUB_TOKEN`, `GITHUB_USERNAME`) to the Vercel environment variables too. The same refresh token works locally and live.
 5. After your first sign-in, turn off **Authentication → Providers → Email → Allow new users to sign up** so nobody else can create an account.
 
 ### 9. Start the office clock
@@ -265,23 +298,52 @@ Apple doesn't offer a web API for Reminders, so an iOS **Shortcut** does the syn
 
 ## A day in the office
 
-The 3D office follows Manila time, so every screen shows the same moment:
+The 3D office is in Mabalacat City, Pampanga and follows Philippine time, so every screen shows the same moment:
 
 | When | What happens |
 |---|---|
 | 6 AM–11:30 AM | Morning light: a warm sunrise in the windows, then bright day. |
 | 7:00 AM | Everyone walks in from the street and sits down. |
 | 7–8 AM, 12–1 PM, 6–7 PM | Ben the janitor mops the aisles (wet-floor sign out). |
-| 11:30 AM–1 PM | Lunch: the brightest part of the day. |
+| 9:00 AM (weekdays) | Stand-up: anyone who isn't busy gathers in the circle at the front, Ronald leads, and Maya's morning brief pops up on the screen. |
+| 12:00–12:55 PM | Lunch: anyone who isn't busy eats at the dining table by the pantry. |
 | 1 PM–6 PM | Afternoon: golden light, sunset from about 5:20 PM. |
-| 5:40 PM | Today's trash duty walks round every bin and takes the bag out to the big bin outside. The team takes turns, one per day. |
+| 4:00–4:30 PM | Vape break: anyone who isn't busy goes out to the patio past the parked car. |
+| 5:30 PM | Everyone empties their desk bin into the main bin by the entrance. |
+| 5:40 PM | Today's trash duty takes the main bin's bag out to the dumpster outside. The team takes turns, one per day. |
 | 7 PM | Idle employees go home. Anyone working, waiting for you or showing an error stays at their desk. |
 | Night | City lights in the windows, office lights on, screens off on empty desks. |
-| Through the day | Ronald gets up now and then (every half hour from 9:30 AM to 4:30 PM, and at random), walks the floor and looks over people's shoulders, sometimes via the coffee machine. |
+| Through the day | Ronald gets up now and then (every half hour from 9:30 AM to 4:30 PM, and at random), walks the floor and looks over people's shoulders, sometimes via the coffee machine. When someone finishes a report, a sheet of paper flies to his in-tray. |
 
-The ACs run 8 AM–7 PM on the floor and 7:30 AM–10:30 PM in the corner office.
+The windows look out over Mabalacat towards Mount Arayat, with its live weather (from Open-Meteo, no key needed, refreshed every 15 minutes): clouds, rain on the glass and the pavement, and lightning in storms. The ACs run 8 AM–7 PM on the floor and 7:30 AM–10:30 PM in the corner office.
 
-Use the clock button at the top left of the office to jump to any of these moments. It keeps ticking from there; **Back to live** returns to now. Change the times in `lib/office-clock.ts`.
+Use the clock and weather buttons at the top left of the office to preview any of these. They keep ticking from there; **Back to live** returns to now. The lightning button at the bottom right switches **low-power mode** (no shadows, lower resolution, 30 fps), which this device remembers. Change the times in `lib/office-clock.ts`.
+
+**Themes:** the palette button in the header switches between Graphite (default, light gray), Porcelain (white), Onyx (black), Slate (dark blue-gray) and Auto (Porcelain or Onyx following your device). Each browser remembers its choice.
+
+## Push notifications on your iPhone
+
+When an employee needs you (or hits an error), HQ can ping your phone like any app. It uses Web Push, which works on iPhone (iOS 16.4 or later) **only in HQ installed on the Home Screen**, and in desktop Chrome, Edge, Firefox and Safari.
+
+1. **Make the keys** (once):
+   ```bash
+   npx web-push generate-vapid-keys
+   ```
+2. **Add them** to `.env.local` and to Vercel → Settings → Environment Variables, then redeploy:
+   ```
+   NEXT_PUBLIC_VAPID_PUBLIC_KEY=<Public Key>
+   VAPID_PRIVATE_KEY=<Private Key>
+   VAPID_SUBJECT=mailto:you@example.com
+   ```
+3. **Create the table**: in Supabase → SQL Editor, run the `-- Push notifications` block at the end of `supabase/schema.sql` (safe to run again).
+4. **On your iPhone**:
+   - Open your HQ URL in Safari → Share → **Add to Home Screen** (if you haven't already).
+   - Open HQ **from the Home Screen icon**. Push doesn't work in a Safari tab.
+   - Go to the Team tab and tap **Enable** under Notifications, then **Allow**.
+   - Tap **Test** to check that one arrives.
+5. Do the same on any other device you want pinged. Each device is subscribed separately; **Turn off** removes just that one.
+
+You'll get one notification per desk (a newer one replaces the older), and tapping it opens HQ. If notifications stop arriving, turn them off and on again; devices the push service reports as gone are removed automatically.
 
 ## Costs (rough, per month)
 
@@ -305,10 +367,11 @@ Use the clock button at the top left of the office to jump to any of these momen
 | "That sign-in link didn't work" | Type the 6-digit code instead of clicking the link. If the email has no code, redo step 2.6. The message in brackets is Supabase's exact reason. |
 | "That code is wrong or has expired" | Use the code from the **newest** email; each new code cancels the old one. Codes last 1 hour by default. |
 | Desk lamp red | Open the desk; the report shows the error. Fix the env var, then **Run now**. |
-| **Connect Google** shows again / "Google connection expired" | Normal after 7 days in Testing. Click it and reconnect, or publish the app (step 5, "About the 7-day limit"). |
-| Google says `redirect_uri_mismatch` | The address in step 13 (or deploy step 4) must match exactly, including `http` vs `https` and no trailing slash. |
+| Maya, Iggy or Cal say "Google token refresh failed (400)" | The refresh token expired (every 7 days while the Google app is in Testing) or doesn't match the client. Get a new one (step 5, Part E), or publish the app ("About the 7-day limit"). |
+| Google says `redirect_uri_mismatch` | The client's redirect URI (step 13) must be exactly `https://developers.google.com/oauthplayground`, and the gear panel must use that same client. |
 | Google says "Access blocked: app has not completed verification" | Your Gmail isn't on the test user list. Redo step 9. |
-| "Google didn't return a long-lived sign-in" | Remove rnldvrgl HQ at myaccount.google.com/permissions, then click Connect Google again. |
+| Dex says `GitHub 401` or `422` | The token expired or was pasted wrong (401), or `GITHUB_USERNAME` is misspelled (422). See step 6. |
+| The Playground shows no refresh token | Check "Access type: Offline" in the gear panel. Then remove rnldvrgl HQ at myaccount.google.com/permissions and authorize again. |
 | No emails arrive | With `onboarding@resend.dev`, `EMAIL_TO` must be your Resend sign-up email. |
 | Nobody runs on schedule | Check Supabase → Integrations → Cron for failed runs; the URL or secret is usually wrong. |
 | Office shows the flat SVG, not 3D | The browser has WebGL turned off or unsupported. Enable hardware acceleration. |
@@ -316,4 +379,3 @@ Use the clock button at the top left of the office to jump to any of these momen
 | Maya, Iggy or Dex say "Waiting for your Claude key" | Expected on the Gemini backup. Add `ANTHROPIC_API_KEY` and redeploy. |
 | `Gemini free tier limit reached` | Wait for the daily reset, or add the Claude key. |
 | Desk stuck on "working" | It frees itself after 10 minutes; check Vercel → Logs for a timeout. |
-| Name tags or status bubbles missing after `npm install` | Delete `.next` and restart `npm run dev`. The build cache doesn't notice the drei patch changing. |

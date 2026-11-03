@@ -3,16 +3,20 @@
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
-import { BellRing, House, Pause, Trash2, TriangleAlert, LogIn, LogOut } from "lucide-react";
+import { BellRing, House, Pause, Trash2, TriangleAlert, LogIn, LogOut, UtensilsCrossed, Users, Wind } from "lucide-react";
 import { useOffice, useEmployee, sceneNow } from "@/lib/store";
-import { isAfterHours, manilaMinutes } from "@/lib/office-clock";
+import { isAfterHours, isWeekday, manilaMinutes } from "@/lib/office-clock";
 import { formatManilaSoon, nextSlot } from "@/lib/time";
 import type { EmployeeId, EmployeeMeta, EmployeeStatus } from "@/lib/team";
 import { PAL, SHIRTS, type Palette } from "./palette";
 import { Person, applyPose, REST, type Look, type HairStyle, type Pose, type PersonRig } from "./Person";
 import { Bubble, type Tone } from "./Bubble";
 import { ICONS } from "./icons";
-import { BINS, chairOf, commuteAt, pickupTimes, sample, trashRoute, trashRunT, type Route, type Sample } from "./routes";
+import {
+  actWindows, chairOf, commuteAt, deskCenterX, dropRoute, dropRunT, lunchRoute, lunchRunT, sample, standupRoute, standupRunT,
+  trashRoute, trashRunT, vapeRoute, vapeRunT, type Route, type Sample,
+} from "./routes";
+import { launchDelivery } from "./Deliveries";
 import { useSceneNow } from "./scene-clock-ui";
 
 const HAIR: readonly HairStyle[] = ["bun", "short", "short", "long", "neat", "long", "short", "bun"];
@@ -21,23 +25,46 @@ const PANTS = ["#2f3a4a", "#3b3f46", "#4b5563", "#1f2937"] as const;
 /** Radians of stride per metre walked. */
 const STRIDE = 4.8;
 
+type Purpose = "collect" | "drop" | "lunch" | "standup" | "vape" | "leaving" | "arriving";
 type Activity =
   | { kind: "seat" }
   | { kind: "away"; why: "home" | "paused" }
-  | { kind: "route"; route: Route; t: number; reverse: boolean; purpose: "trash" | "leaving" | "arriving" };
+  | { kind: "route"; route: Route; t: number; reverse: boolean; purpose: Purpose };
 
-function activityOf(min: number, meta: EmployeeMeta, index: number, status: EmployeeStatus, enabled: boolean, duty: EmployeeId | null): Activity {
+/**
+ * What an employee is doing at `min` (Manila minutes), in priority order: paused → away; 5:40 PM trash
+ * run (today's collector); 5:30 PM drop-off (everyone); then, only if idle, the weekday stand-up, lunch,
+ * the commute and being home for the night. Anyone busy stays at their desk.
+ */
+function activityOf(min: number, weekday: boolean, meta: EmployeeMeta, index: number, status: EmployeeStatus, enabled: boolean, duty: EmployeeId | null): Activity {
   if (!enabled) return { kind: "away", why: "paused" };
+  const route = (purpose: Purpose, r: Route, t: number): Activity => ({ kind: "route", route: r, t, reverse: false, purpose });
   if (duty === meta.id) {
     const t = trashRunT(min, meta.id);
-    if (t !== null) return { kind: "route", route: trashRoute(meta.id), t, reverse: false, purpose: "trash" };
+    if (t !== null) return route("collect", trashRoute(meta.id), t);
   }
+  const drop = dropRunT(min, meta.id);
+  if (drop !== null) return route("drop", dropRoute(meta.id), drop);
   if (status === "idle") {
+    if (weekday) {
+      const t = standupRunT(min, meta.id);
+      if (t !== null) return route("standup", standupRoute(meta.id), t);
+    }
+    const lunch = lunchRunT(min, meta.id);
+    if (lunch !== null) return route("lunch", lunchRoute(meta.id), lunch);
+    const vape = vapeRunT(min, meta.id);
+    if (vape !== null) return route("vape", vapeRoute(meta.id), vape);
     const c = commuteAt(min, meta, index);
     if (c) return { kind: "route", route: c.route, t: c.t, reverse: c.reverse, purpose: c.reverse ? "arriving" : "leaving" };
     if (isAfterHours(min)) return { kind: "away", why: "home" };
   }
   return { kind: "seat" };
+}
+
+/** Is `t` past the middle of the first stop with this act? */
+function past(route: Route, act: "pickup" | "drop" | "toss", t: number): boolean {
+  const w = actWindows(route, act)[0];
+  return w !== undefined && t >= w[0] + (w[1] - w[0]) * 0.55;
 }
 
 /** Sample a route, walking it backwards for `reverse` (arriving in the morning). */
@@ -66,30 +93,36 @@ export function Employee3D({ meta, index, pal, shadows, reducedMotion, duty }: P
   const group = useRef<THREE.Group>(null);
   const body = useRef<THREE.Group>(null);
   const bag = useRef<THREE.Group>(null);
+  const vapor = useRef<THREE.Group>(null);
   const rig = useRef<PersonRig | null>(null);
   const pose = useRef<Pose>({ ...REST });
   const live = useRef({ status, enabled, duty });
   live.current = { status, enabled, duty };
   const hop = useRef({ prev: status, at: -10 });
   const chair = chairOf(meta);
-  const pickups = useMemo(() => (duty === meta.id ? [...pickupTimes(trashRoute(meta.id)).values()].sort((a, b) => a - b) : []), [duty, meta.id]);
 
   useFrame(({ clock }) => {
     const g = group.current, r = rig.current, b = body.current;
     if (!g || !r || !b) return;
     const { status: st, enabled: en, duty: d } = live.current;
-    const min = manilaMinutes(sceneNow());
-    const a = activityOf(min, meta, index, st, en, d);
+    const now = sceneNow();
+    const min = manilaMinutes(now);
+    const a = activityOf(min, isWeekday(now), meta, index, st, en, d);
     const p = pose.current;
     Object.assign(p, REST);
     p.time = reducedMotion ? 0 : clock.elapsedTime + index * 1.7;
 
-    if (hop.current.prev === "working" && st !== "working") hop.current.at = clock.elapsedTime;
+    if (hop.current.prev === "working" && st !== "working") {
+      hop.current.at = clock.elapsedTime;
+      // the finished report flies over to Ronald's desk
+      launchDelivery({ x: deskCenterX(meta), z: meta.desk.y + 0.3 }, st === "error" ? "error" : st === "needs_you" ? "needs" : "done");
+    }
     hop.current.prev = st;
     const hopK = (clock.elapsedTime - hop.current.at) / 0.55;
     if (hopK >= 0 && hopK <= 1 && !reducedMotion) p.hop = hopK;
 
     b.visible = a.kind !== "away";
+    if (vapor.current) vapor.current.visible = false;
     if (bag.current) bag.current.visible = false;
 
     if (a.kind === "seat" || a.kind === "away") {
@@ -109,16 +142,49 @@ export function Employee3D({ meta, index, pal, shadows, reducedMotion, duty }: P
       p.stride = reducedMotion ? 0 : s.dist * STRIDE;
       if (s.act === "rise") p.sit = a.reverse ? s.actT : 1 - s.actT;
       if (s.act === "sit") p.sit = a.reverse ? 1 - s.actT : s.actT;
-      if (a.purpose === "trash") {
-        const done = pickups.filter((t) => t <= a.t).length;
-        const tossing = s.act === "toss";
-        if (s.act === "pickup") p.bend = Math.sin(s.actT * Math.PI);
-        if (tossing) p.toss = s.actT;
-        // the bag appears at the first bin, grows with each one, and goes into the dumpster mid-throw
-        if (bag.current && done > 0 && !passedToss(a.route, a.t)) {
+      if (s.act === "pickup" || s.act === "drop") p.bend = Math.sin(s.actT * Math.PI);
+      if (s.act === "toss") p.toss = s.actT;
+      if (s.act === "eat") {
+        p.sit = 1;
+        // a bite now and then, chatting in between
+        p.mug = Math.max(0, Math.sin(p.time * 0.9)) > 0.75 ? 1 : 0;
+        p.nod = Math.sin(p.time * 0.3) > 0.6 ? 1 : 0;
+      }
+      if (s.act === "vape") {
+        // a 7-second cycle: draw (hand to mouth), exhale a cloud, chat
+        const k = (p.time % 7) / 7;
+        p.mug = k < 0.2 ? 1 : 0;
+        p.nod = k > 0.6 && k < 0.8 ? 1 : 0;
+      }
+      if (vapor.current) {
+        const on = s.act === "vape" && !reducedMotion;
+        vapor.current.visible = on;
+        if (on) {
+          const k = (p.time % 7) / 7;
+          vapor.current.children.forEach((c, j) => {
+            // puffs 0–5: the exhaled cloud (staggered, growing, drifting up and away); 6–7: a thin wisp in between
+            const wisp = j >= 6;
+            const e = wisp
+              ? ((p.time * 0.5 + j * 0.5) % 1)
+              : Math.min(1, Math.max(0, (k - 0.22 - j * 0.035) / 0.55));
+            c.visible = e > 0 && e < 1;
+            const drift = wisp ? 0.04 : 0.16;
+            c.position.set(Math.sin(j * 2.1 + p.time * 0.6) * drift * e, (wisp ? 1.3 : 1.72) + e * (wisp ? 0.35 : 0.7), (wisp ? -0.32 : -0.22) - e * (wisp ? 0.05 : 0.45));
+            c.scale.setScalar(wisp ? 0.025 + e * 0.05 : 0.06 + e * 0.34);
+            const mat = c instanceof THREE.Mesh ? c.material : null;
+            if (mat instanceof THREE.MeshStandardMaterial) mat.opacity = (wisp ? 0.35 : 0.75) * (1 - e) * (wisp && k < 0.2 ? 0 : 1);
+          });
+        }
+      }
+      if (s.act === "listen") p.nod = Math.sin(p.time * 0.4 + index) > 0.85 ? 1 : 0;
+      // bags: a small one from your desk bin to the main bin; the collector's big one out to the dumpster
+      if (bag.current && (a.purpose === "drop" || a.purpose === "collect")) {
+        const from = past(a.route, "pickup", a.t);
+        const until = a.purpose === "drop" ? past(a.route, "drop", a.t) : past(a.route, "toss", a.t);
+        if (from && !until) {
           bag.current.visible = true;
-          bag.current.scale.setScalar(0.55 + (done / BINS.length) * 0.65);
-          if (!tossing && s.act !== "pickup") p.carry = 1;
+          bag.current.scale.setScalar(a.purpose === "drop" ? 0.6 : 1.25);
+          if (s.act !== "pickup" && s.act !== "drop" && s.act !== "toss") p.carry = 1;
         }
       }
     }
@@ -128,8 +194,8 @@ export function Employee3D({ meta, index, pal, shadows, reducedMotion, duty }: P
   // Bubble text: re-rendered once a second from the scene clock.
   const now = useSceneNow(1000);
   const min = manilaMinutes(now);
-  const activity = activityOf(min, meta, index, status, enabled, duty);
-  const seated = activity.kind === "seat";
+  const activity = activityOf(min, isWeekday(now), meta, index, status, enabled, duty);
+  const seated = activity.kind === "seat" || (activity.kind === "route" && activity.purpose === "lunch" && sample(activity.route, activity.t).act === "eat");
   let tone: Tone = "idle", label = "Idle", detail: string | undefined, Icon = ICONS[meta.icon], busy = false, attention = false, chip: string | undefined = shirt;
 
   if (activity.kind === "away") {
@@ -138,10 +204,17 @@ export function Employee3D({ meta, index, pal, shadows, reducedMotion, duty }: P
     else { tone = "off"; label = "Home"; Icon = House; detail = "Back 7:00 AM"; }
   } else if (activity.kind === "route") {
     chip = undefined;
-    if (activity.purpose === "trash") {
-      const done = pickups.filter((t) => t <= activity.t).length;
+    if (activity.purpose === "collect") {
       tone = "duty"; label = "Trash run"; Icon = Trash2;
-      detail = passedToss(activity.route, activity.t) ? "All taken out · heading back" : `${done}/${BINS.length} bins collected`;
+      detail = past(activity.route, "toss", activity.t) ? "Taken out · heading back" : past(activity.route, "pickup", activity.t) ? "Taking it outside" : "Getting the main bin";
+    } else if (activity.purpose === "drop") {
+      tone = "duty"; label = "Binning trash"; Icon = Trash2; detail = "To the main bin";
+    } else if (activity.purpose === "lunch") {
+      tone = "idle"; label = "Lunch"; Icon = UtensilsCrossed; detail = "Back 12:55 PM";
+    } else if (activity.purpose === "vape") {
+      tone = "idle"; label = "Vape break"; Icon = Wind; detail = "Outside · back 4:30 PM";
+    } else if (activity.purpose === "standup") {
+      tone = "idle"; label = "Stand-up"; Icon = Users; detail = "Daily 9:00 AM";
     } else if (activity.purpose === "leaving") { tone = "off"; label = "Heading home"; Icon = LogOut; detail = "See you at 7 AM"; }
     else { tone = "idle"; label = "Clocking in"; Icon = LogIn; detail = "Good morning"; }
   } else if (status === "working") {
@@ -183,7 +256,16 @@ export function Employee3D({ meta, index, pal, shadows, reducedMotion, duty }: P
           }
         />
       </group>
+      <group ref={vapor} visible={false}>
+        {[0, 1, 2, 3, 4, 5, 6, 7].map((j) => (
+          <mesh key={j}>
+            <icosahedronGeometry args={[1, 1]} />
+            <meshStandardMaterial color="#f1f4f7" emissive="#d9dee4" emissiveIntensity={0.25} transparent opacity={0.6} depthWrite={false} roughness={1} />
+          </mesh>
+        ))}
+      </group>
       <Bubble
+        id={meta.id}
         position={[0, seated || activity.kind === "away" ? 1.95 : 2.3, 0]}
         icon={Icon}
         tone={tone}
@@ -198,12 +280,6 @@ export function Employee3D({ meta, index, pal, shadows, reducedMotion, duty }: P
       />
     </group>
   );
-}
-
-/** Has the trash already gone into the dumpster on this run? */
-function passedToss(route: Route, t: number): boolean {
-  for (const e of route.entries) if (e.kind === "wait" && e.act === "toss") return t >= e.t0 + (e.t1 - e.t0) * 0.55;
-  return false;
 }
 
 function clip(s: string | null | undefined, n = 34): string | null {

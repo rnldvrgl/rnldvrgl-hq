@@ -3,7 +3,7 @@
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
-import { sceneNow } from "@/lib/store";
+import { sceneNow, sceneWeather, type WeatherKind } from "@/lib/store";
 import { manilaMinutes } from "@/lib/office-clock";
 import { CENTER, ROOM } from "./palette";
 
@@ -44,6 +44,18 @@ export const light = {
   min: 0,
   lamps: 0,
   night: 0,
+  /** 0 clear … 1 heavy overcast, and 0–1 rain; eased toward the current weather. */
+  cloud: 0,
+  rain: 0,
+  /** A lightning flash, 0–1 (storms). */
+  flash: 0,
+};
+
+const WEATHER_TARGET: Record<WeatherKind, { cloud: number; rain: number }> = {
+  clear: { cloud: 0, rain: 0 },
+  cloudy: { cloud: 0.65, rain: 0 },
+  rain: { cloud: 0.85, rain: 0.8 },
+  storm: { cloud: 1, rain: 1 },
 };
 
 const tmpA = new THREE.Color(), tmpB = new THREE.Color();
@@ -56,6 +68,8 @@ export const skyUniforms = {
   uTop: { value: new THREE.Color("#7fbfeb") },
   uBottom: { value: new THREE.Color("#e3f2fb") },
   uNight: { value: 0 },
+  uRain: { value: 0 },
+  uTime: { value: 0 },
 };
 
 const SKY_VERTEX = /* glsl */ `
@@ -70,6 +84,8 @@ const SKY_FRAGMENT = /* glsl */ `
 uniform vec3 uTop;
 uniform vec3 uBottom;
 uniform float uNight;
+uniform float uRain;
+uniform float uTime;
 varying vec3 vW;
 float h1(float n) { return fract(sin(n) * 43758.5453); }
 float h2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -81,13 +97,16 @@ void main() {
   // stars
   float star = step(0.992, h2(floor(vec2(u, v) * 46.0))) * uNight * smoothstep(1.5, 2.3, v);
   col += vec3(star);
-  // two layers of Manila skyline: far (hazy) and near
+  // Mabalacat, Pampanga: Mount Arayat on the horizon, then low-rise town and a few mid-rise blocks
+  float arayat = 1.05 + 0.85 * exp(-pow((u - 47.0) / 2.4, 2.0)) + 0.25 * exp(-pow((u - 44.5) / 1.6, 2.0));
+  vec3 mountain = mix(mix(uBottom, vec3(0.42, 0.52, 0.5), 0.55), vec3(0.04, 0.06, 0.1), uNight);
+  if (v < arayat) col = mix(col, mountain, 0.85);
   float far = floor(u * 1.7);
-  float farTop = 1.05 + h1(far) * 0.9;
+  float farTop = 0.95 + h1(far) * 0.35 + step(0.85, h1(far + 5.0)) * 0.3;
   float near = floor(u * 1.1 + 0.4);
-  float nearTop = 0.85 + h1(near + 17.0) * 0.6;
-  vec3 farDay = mix(uBottom, vec3(0.55, 0.63, 0.72), 0.55);
-  vec3 nearDay = vec3(0.42, 0.5, 0.58);
+  float nearTop = 0.82 + h1(near + 17.0) * 0.22;
+  vec3 farDay = mix(uBottom, vec3(0.6, 0.63, 0.6), 0.5);
+  vec3 nearDay = vec3(0.5, 0.52, 0.5);
   vec3 farCol = mix(farDay, vec3(0.05, 0.07, 0.12), uNight);
   vec3 nearCol = mix(nearDay, vec3(0.03, 0.04, 0.07), uNight);
   // windows in the buildings: faint by day, many lit at night
@@ -97,7 +116,13 @@ void main() {
   float lit = step(1.0 - (0.08 + 0.42 * uNight), h2(floor(wp) + near));
   vec3 lamp = vec3(1.0, 0.82, 0.5);
   if (v < farTop) col = mix(farCol, lamp, win * lit * uNight * 0.55);
-  if (v < nearTop) col = mix(nearCol, lamp, win * lit * uNight * 0.85) + win * (1.0 - uNight) * 0.06;
+  if (v < nearTop) col = mix(nearCol, lamp, win * lit * uNight * 0.85) + win * (1.0 - uNight) * 0.05;
+  // rain: grey haze, and streaks running down the glass
+  col = mix(col, vec3(0.55, 0.6, 0.66) * (1.0 - 0.75 * uNight), uRain * 0.35);
+  float lane = floor(u * 55.0);
+  float drop = fract(v * 1.6 + uTime * (1.4 + h1(lane) * 1.2) + h1(lane + 3.0));
+  float streak = step(0.6, h1(lane + 9.0)) * smoothstep(0.0, 0.05, drop) * (1.0 - smoothstep(0.05, 0.22, drop));
+  col += vec3(0.75, 0.82, 0.9) * streak * uRain * 0.35;
   gl_FragColor = vec4(col, 1.0);
   #include <colorspace_fragment>
 }`;
@@ -128,11 +153,12 @@ export function getGlowTexture(): THREE.CanvasTexture {
 
 /** Downlight pools on the floor: over each desk pair, the lanes, the pantry and the lounge. [x, z, radius] */
 const POOLS: readonly (readonly [number, number, number])[] = [
-  [3.0, 2.4, 2.2], [7.8, 2.4, 2.2], [3.0, 6.1, 2.2], [7.8, 6.1, 2.2], [13.3, 5.6, 1.6], [12.2, 7.4, 1.6], [13.0, 1.8, 1.8],
+  [3.0, 2.4, 2.2], [7.8, 2.4, 2.2], [3.0, 6.1, 2.2], [7.8, 6.1, 2.2], [13.0, 6.6, 1.8], [13.0, 1.8, 1.8],
+  [2.2, 9.9, 1.8], [7.4, 9.8, 1.9], [12.9, 9.9, 1.9],
 ];
 
 /** Ceiling lights that actually light things (kept to a few: each light costs on phones). */
-const LAMP_LIGHTS: readonly (readonly [number, number])[] = [[3.0, 3.6], [7.8, 3.6], [13.0, 6.2]];
+const LAMP_LIGHTS: readonly (readonly [number, number])[] = [[3.0, 3.9], [7.8, 5.6], [12.8, 8.0]];
 
 export function Lighting({ shadows }: { shadows: boolean }) {
   const ambient = useRef<THREE.AmbientLight>(null);
@@ -147,8 +173,17 @@ export function Lighting({ shadows }: { shadows: boolean }) {
   }, []);
   const glow = useMemo(() => getGlowTexture(), []);
 
-  useFrame(() => {
+  useFrame(({ clock }, dt) => {
     const min = manilaMinutes(sceneNow());
+    const target = WEATHER_TARGET[sceneWeather()];
+    const ease = Math.min(1, dt * 0.8);
+    light.cloud += (target.cloud - light.cloud) * ease;
+    light.rain += (target.rain - light.rain) * ease;
+    // storms: a double flash every 9 seconds or so
+    const storm = sceneWeather() === "storm";
+    const ph = clock.elapsedTime % 9.3;
+    light.flash = storm && (ph < 0.08 || (ph > 0.2 && ph < 0.3)) ? 1 : 0;
+    const overcast = light.cloud;
     let i = 0;
     while (i < KEYS.length - 2 && KEYS[i + 1].at <= min) i++;
     const a = KEYS[i], b = KEYS[i + 1];
@@ -162,7 +197,7 @@ export function Lighting({ shadows }: { shadows: boolean }) {
     light.night = num(a.night, b.night);
 
     if (ambient.current) {
-      ambient.current.intensity = num(a.ambient, b.ambient);
+      ambient.current.intensity = num(a.ambient, b.ambient) * (1 - 0.3 * overcast) + light.flash * 1.6;
       lerpColor(ambient.current.color, a.ambientColor, b.ambientColor, e);
     }
     if (hemi.current) {
@@ -170,7 +205,7 @@ export function Lighting({ shadows }: { shadows: boolean }) {
       lerpColor(hemi.current.color, a.skyTop, b.skyTop, e).lerp(tmpA.set("#ffffff"), 0.6);
     }
     if (sun.current) {
-      sun.current.intensity = num(a.sun, b.sun);
+      sun.current.intensity = num(a.sun, b.sun) * (1 - 0.7 * overcast);
       lerpColor(sun.current.color, a.sunColor, b.sunColor, e);
       // the sun swings from the front-right in the morning to the front-left in the afternoon; the moon hangs high left
       const dayK = Math.min(1, Math.max(0, (min - 360) / (1110 - 360)));
@@ -180,12 +215,17 @@ export function Lighting({ shadows }: { shadows: boolean }) {
       const y = isNight ? 13 : 5 + Math.sin(angle) * 10;
       sun.current.position.set(x, y, CENTER.z + 7);
     }
-    lamps.current.forEach((l) => { if (l) l.intensity = light.lamps * 5.5; });
-    pools.current.forEach((m) => { if (m) m.opacity = light.lamps * 0.32; });
+    // on a dark rainy day the office lights come on too
+    const lampLevel = Math.min(1, light.lamps + overcast * (1 - light.night) * 0.6);
+    lamps.current.forEach((l) => { if (l) l.intensity = lampLevel * 5.5; });
+    pools.current.forEach((m) => { if (m) m.opacity = lampLevel * 0.32; });
 
-    lerpColor(skyUniforms.uTop.value, a.skyTop, b.skyTop, e);
-    lerpColor(skyUniforms.uBottom.value, a.skyBottom, b.skyBottom, e);
+    lerpColor(skyUniforms.uTop.value, a.skyTop, b.skyTop, e).lerp(tmpA.set(light.night > 0.5 ? "#151b26" : "#8d98a4"), overcast * 0.75);
+    lerpColor(skyUniforms.uBottom.value, a.skyBottom, b.skyBottom, e).lerp(tmpA.set(light.night > 0.5 ? "#232b38" : "#b6bec7"), overcast * 0.7);
+    if (light.flash) { skyUniforms.uTop.value.set("#e8eefc"); skyUniforms.uBottom.value.set("#cfd8ee"); }
     skyUniforms.uNight.value = light.night;
+    skyUniforms.uRain.value = light.rain;
+    skyUniforms.uTime.value = clock.elapsedTime;
   });
 
   return (

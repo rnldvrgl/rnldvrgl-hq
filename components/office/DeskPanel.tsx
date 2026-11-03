@@ -1,26 +1,26 @@
 "use client";
 
-import { useRef, useState, type SubmitEvent } from "react";
+import { useRef, useState } from "react";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { toast } from "sonner";
-import { Play, Pause, CheckCheck, X, Copy, ExternalLink, Trash2, ShieldCheck, Smartphone, Loader2 } from "lucide-react";
+import { Play, Pause, CheckCheck, X, ShieldCheck, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useOffice, useEmployee } from "@/lib/store";
-import { JOB_STATUSES, REMINDER_REPEATS, type JobStatus, type ReminderRepeat } from "@/lib/supabase/database.types";
 import { teamById, type EmployeeId } from "@/lib/team";
 import { describeSchedule, formatManila } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { ICONS, LAMP, STATUS_LABEL, type LampKey } from "./icons";
 import { SHIRTS } from "./palette";
-import { DateTimePicker } from "@/components/DateTimePicker";
+import { ReportCard, History } from "./panel/Report";
+import { Pipeline } from "./panel/Pipeline";
+import { InboxWaiting } from "./panel/Inbox";
+import { Reminders } from "./panel/Reminders";
+
+export { Reminders };
 
 gsap.registerPlugin(useGSAP);
 
@@ -110,214 +110,26 @@ export function DeskPanel({ id, onClose }: { id: EmployeeId; onClose?: () => voi
       <Separator data-anim />
 
       <Tabs data-anim defaultValue={extraTab ?? "report"} key={id} className="min-w-0">
-        <TabsList>
+        <TabsList className="w-full">
           {extraTab && <TabsTrigger value={extraTab}>{extraTab}</TabsTrigger>}
           <TabsTrigger value="report">Latest report</TabsTrigger>
-          <TabsTrigger value="history" disabled={emp.runs.length < 2}>History</TabsTrigger>
+          <TabsTrigger value="history" disabled={emp.runs.length < 2}>
+            History{emp.runs.length > 1 && <span className="ml-1 rounded-full bg-muted-foreground/15 px-1.5 text-[10px] tabular-nums">{emp.runs.length - 1}</span>}
+          </TabsTrigger>
         </TabsList>
 
-        {extraTab === "Pipeline" && <TabsContent value="Pipeline"><Pipeline /></TabsContent>}
-        {extraTab === "Reminders" && <TabsContent value="Reminders"><Reminders /></TabsContent>}
-        {extraTab === "Inbox" && <TabsContent value="Inbox"><InboxWaiting /></TabsContent>}
+        {extraTab === "Pipeline" && <TabsContent value="Pipeline" className="mt-2"><Pipeline /></TabsContent>}
+        {extraTab === "Reminders" && <TabsContent value="Reminders" className="mt-2"><Reminders /></TabsContent>}
+        {extraTab === "Inbox" && <TabsContent value="Inbox" className="mt-2"><InboxWaiting /></TabsContent>}
 
-        <TabsContent value="report">
-          {latest ? (
-            <div className="grid gap-2">
-              <p className="font-mono text-xs text-muted-foreground">
-                {formatManila(latest.started_at)} · {latest.trigger === "manual" ? "you asked" : "on schedule"}
-              </p>
-              {latest.error
-                ? <p className="text-sm text-destructive">{latest.error}</p>
-                : latest.output
-                  ? <Report text={latest.output} />
-                  : <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" aria-hidden /> Still working…</p>}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">No reports yet. Press Run now to see {meta.name} work.</p>
-          )}
+        <TabsContent value="report" className="mt-2">
+          <ReportCard run={latest} name={meta.name} />
         </TabsContent>
 
-        <TabsContent value="history" className="grid gap-4">
-          {emp.runs.slice(1).map((r) => (
-            <div key={r.id} className="grid gap-1.5">
-              <p className="font-mono text-xs text-muted-foreground">{formatManila(r.started_at)} · {r.status}</p>
-              <Report text={r.error ?? r.output ?? ""} />
-            </div>
-          ))}
+        <TabsContent value="history" className="mt-2">
+          <History runs={emp.runs.slice(1)} />
         </TabsContent>
       </Tabs>
-    </div>
-  );
-}
-
-function Report({ text }: { text: string }) {
-  return (
-    <ScrollArea className="max-h-80 rounded-lg bg-muted">
-      <pre className="whitespace-pre-wrap break-words p-3 font-sans text-sm leading-relaxed">{text}</pre>
-    </ScrollArea>
-  );
-}
-
-const isJobStatus = (v: string): v is JobStatus => JOB_STATUSES.some((s) => s === v);
-
-type RepeatChoice = "once" | ReminderRepeat;
-const isRepeatChoice = (v: string): v is RepeatChoice => v === "once" || REMINDER_REPEATS.some((r) => r === v);
-
-function Pipeline() {
-  const jobs = useOffice((s) => s.data.jobs);
-  const { setJobStatus, draftCoverLetter } = useOffice.getState();
-  const [letter, setLetter] = useState<{ id: string; text: string } | null>(null);
-  const [drafting, setDrafting] = useState<string | null>(null);
-  const open = jobs.filter((j) => j.status !== "closed").slice(0, 25);
-
-  return (
-    <div className="grid gap-3">
-      <div className="flex flex-wrap gap-1.5">
-        {JOB_STATUSES.map((s) => (
-          <Badge key={s} variant="outline" className="font-normal">
-            <b className="tabular-nums">{jobs.filter((j) => j.status === s).length}</b>&nbsp;{s}
-          </Badge>
-        ))}
-      </div>
-      {open.length === 0 && <p className="text-sm text-muted-foreground">No jobs yet. Hunter searches weekdays at 7:45 AM.</p>}
-      <ul className="grid gap-3">
-        {open.map((j) => (
-          <li key={j.id} className="grid gap-2 rounded-lg border p-3">
-            <div className="grid min-w-0 gap-0.5">
-              {j.link
-                ? <a href={j.link} target="_blank" rel="noopener noreferrer" className="font-semibold text-primary hover:underline [overflow-wrap:anywhere]">{j.role} <ExternalLink className="inline size-3" aria-hidden /></a>
-                : <span className="font-semibold">{j.role}</span>}
-              <span className="text-sm text-muted-foreground">
-                {j.company} · {j.salary_text || "pay not listed"}{j.fit_score != null && ` · fit ${j.fit_score}/100`}
-              </span>
-              {j.fit_reason && <span className="text-sm">{j.fit_reason}</span>}
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Select value={j.status} onValueChange={(v) => { if (isJobStatus(v)) setJobStatus(j.id, v).catch((e: unknown) => fail(e, "Couldn't save the status.")); }}>
-                <SelectTrigger size="sm" className="w-32" aria-label={`Status for ${j.role}`}><SelectValue /></SelectTrigger>
-                <SelectContent>{JOB_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-              </Select>
-              <Button size="sm" variant="outline" disabled={drafting === j.id}
-                onClick={async () => {
-                  setDrafting(j.id);
-                  try { setLetter({ id: j.id, text: await draftCoverLetter(j.id) }); }
-                  catch (e) { fail(e, "Couldn't draft the letter."); }
-                  finally { setDrafting(null); }
-                }}>
-                {drafting === j.id ? <><Loader2 className="animate-spin" aria-hidden /> Drafting…</> : "Cover letter"}
-              </Button>
-            </div>
-            {letter?.id === j.id && (
-              <div className="grid gap-2">
-                <Report text={letter.text} />
-                <Button size="sm" variant="secondary" className="justify-self-start"
-                  onClick={async () => {
-                    try { await navigator.clipboard.writeText(letter.text); toast.success("Copied. Paste it into the application."); }
-                    catch { toast.error("Select the text and copy it manually."); }
-                  }}>
-                  <Copy /> Copy
-                </Button>
-              </div>
-            )}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-/** Add and list reminders. Also the Reminders tab of the phone layout. */
-export function Reminders() {
-  const reminders = useOffice((s) => s.data.reminders);
-  const { addReminder, removeReminder } = useOffice.getState();
-  const [title, setTitle] = useState("");
-  const [local, setLocal] = useState("");
-  const [repeat, setRepeat] = useState<RepeatChoice>("once");
-  const [adding, setAdding] = useState(false);
-
-  async function add(e: SubmitEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (!local) return toast.error("Pick a date for the reminder.");
-    setAdding(true);
-    try {
-      await addReminder({ title, local, repeat: repeat === "once" ? null : repeat });
-      setTitle(""); setLocal(""); setRepeat("once");
-      toast.success("Reminder added.");
-    } catch (err) { fail(err, "Couldn't add the reminder."); }
-    finally { setAdding(false); }
-  }
-
-  return (
-    <div className="grid gap-4">
-      <form onSubmit={add} className="grid grid-cols-2 gap-2">
-        <div className="col-span-2 grid gap-1.5">
-          <Label htmlFor="rem-title">Reminder</Label>
-          <Input id="rem-title" placeholder="Pay the internet bill" value={title} onChange={(e) => setTitle(e.target.value)} required />
-        </div>
-        <div className="col-span-2 grid gap-1.5">
-          <Label htmlFor="rem-when">When (Manila)</Label>
-          <DateTimePicker id="rem-when" value={local} onChange={setLocal} />
-        </div>
-        <div className="col-span-2 grid gap-1.5">
-          <Label htmlFor="rem-repeat">Repeat</Label>
-          <Select value={repeat} onValueChange={(v) => { if (isRepeatChoice(v)) setRepeat(v); }}>
-            <SelectTrigger id="rem-repeat" className="w-full"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="once">Once</SelectItem>
-              <SelectItem value="daily">Daily</SelectItem>
-              <SelectItem value="weekdays">Weekdays</SelectItem>
-              <SelectItem value="weekly">Weekly</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <Button type="submit" className="col-span-2" disabled={adding}>
-          {adding ? <><Loader2 className="animate-spin" aria-hidden /> Adding…</> : "Add reminder"}
-        </Button>
-      </form>
-      {reminders.length === 0 && <p className="text-sm text-muted-foreground">Nothing coming up.</p>}
-      <ul className="grid gap-2">
-        {reminders.map((r) => (
-          <li key={r.id} className="flex items-center gap-3 rounded-lg border px-3 py-2">
-            <div className="grid min-w-0 flex-1">
-              <span className="font-semibold [overflow-wrap:anywhere]">{r.title}</span>
-              <span className="text-sm text-muted-foreground">{formatManila(r.due_at)}{r.repeat && ` · ${r.repeat}`}</span>
-            </div>
-            {r.source === "iphone" ? (
-              // Deleting here would come straight back on the next sync, so it's done on the phone.
-              <Badge variant="secondary" className="gap-1" title="From your iPhone. Complete or delete it in the Reminders app.">
-                <Smartphone className="size-3" aria-hidden /> iPhone
-              </Badge>
-            ) : (
-              <Button variant="ghost" size="icon" aria-label={`Remove ${r.title}`}
-                onClick={() => removeReminder(r.id).then(() => toast.success("Removed.")).catch((e: unknown) => fail(e, "Couldn't remove it."))}>
-                <Trash2 />
-              </Button>
-            )}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function InboxWaiting() {
-  const inbox = useOffice((s) => s.data.inbox);
-  const items = inbox.filter((i) => i.category === "reply" || i.category === "interview");
-  return (
-    <div className="grid gap-3">
-      {items.length === 0 && <p className="text-sm text-muted-foreground">No replies waiting.</p>}
-      <ul className="grid gap-2">
-        {items.map((i) => (
-          <li key={i.message_id} className="grid gap-0.5 rounded-lg border px-3 py-2">
-            <span className="font-semibold [overflow-wrap:anywhere]">{i.subject}</span>
-            <span className="text-sm text-muted-foreground">{i.sender} · {i.category}{i.draft_id && " · draft saved"}</span>
-            {i.summary && <span className="text-sm">{i.summary}</span>}
-          </li>
-        ))}
-      </ul>
-      <Button asChild variant="outline" size="sm" className="justify-self-start">
-        <a href="https://mail.google.com/mail/u/0/#drafts" target="_blank" rel="noopener noreferrer">Open Gmail drafts <ExternalLink /></a>
-      </Button>
     </div>
   );
 }

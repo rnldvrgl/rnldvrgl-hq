@@ -111,3 +111,15 @@ on conflict (id) do nothing;
 --   );
 --   $$
 -- );
+
+-- ---------------------------------------------------------------------------
+-- Push notifications: one row per device that tapped "Enable" (safe to re-run).
+-- ---------------------------------------------------------------------------
+create table if not exists push_subscriptions (
+  endpoint   text primary key,
+  p256dh     text not null,
+  auth       text not null,
+  user_agent text,
+  created_at timestamptz not null default now()
+);
+alter table push_subscriptions enable row level security;

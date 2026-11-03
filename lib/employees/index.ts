@@ -4,6 +4,7 @@ import { TEAM, teamById, type EmployeeId, type EmployeeMeta } from "@/lib/team";
 import type { RunTrigger } from "@/lib/supabase/database.types";
 import { activeProvider, backupAllowsPrivate } from "@/lib/ai";
 import { dueSlot } from "@/lib/time";
+import { pushToOwner } from "@/lib/push";
 import type { Employee } from "./types";
 import { chiefOfStaff } from "./chief-of-staff";
 import { inboxTriage } from "./inbox-triage";
@@ -77,6 +78,7 @@ export async function runEmployee(id: EmployeeId, trigger: RunTrigger): Promise<
       status: result.status === "needs_you" ? "needs_you" : "idle",
       summary: result.summary, last_run_at: now.toISOString(), updated_at: finished,
     }).eq("id", id);
+    if (result.status === "needs_you") await notify(id, "needs you", result.summary);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const finished = new Date().toISOString();
@@ -85,8 +87,20 @@ export async function runEmployee(id: EmployeeId, trigger: RunTrigger): Promise<
     await db().from("employees").update({
       status: "error", summary: message.slice(0, 140), last_run_at: now.toISOString(), updated_at: finished,
     }).eq("id", id);
+    await notify(id, "hit an error", message);
   }
   return true;
+}
+
+/** Push to your phone when a desk needs you. Never throws (pushToOwner swallows its own failures). */
+async function notify(id: EmployeeId, what: string, detail: string | null): Promise<void> {
+  const meta = teamById[id];
+  await pushToOwner({
+    title: `${meta.name} ${what}`,
+    body: (detail || meta.title).slice(0, 180),
+    url: `/?desk=${id}`,
+    tag: `desk-${id}`,
+  });
 }
 
 /**

@@ -1,8 +1,9 @@
 "use client";
 
 import { useFrame, useThree } from "@react-three/fiber";
-import { Html } from "@react-three/drei";
+import { Label } from "./Labels";
 import { create } from "zustand";
+import type { MouseEvent, PointerEvent } from "react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Vec3 } from "./Furniture";
@@ -46,6 +47,8 @@ const TONE: Record<Tone, string> = {
 };
 
 type Props = {
+  /** Unique per character (employee id, "owner", "janitor"). */
+  id: string;
   position: Vec3;
   icon: LucideIcon;
   tone: Tone;
@@ -67,23 +70,40 @@ type Props = {
   expanded?: boolean;
 };
 
-export function Bubble({ position, icon: Icon, tone, name, status, detail, attention, busy, onClick, zIndex = 20, chip, expanded }: Props) {
+/** A status bubble anchored in the 3D scene, drawn in the label layer above the canvas (see Labels.tsx). */
+export function Bubble({ id, position, zIndex = 20, ...card }: Props) {
+  return (
+    <Label
+      id={id}
+      position={[position[0], position[1], position[2]]}
+      spec={{ render: () => <BubbleCard {...card} />, layer: zIndex, interactive: !!card.onClick }}
+    />
+  );
+}
+
+function BubbleCard({ icon: Icon, tone, name, status, detail, attention, busy, onClick, chip, expanded }: Omit<Props, "id" | "position" | "zIndex">) {
   const mode = useBubbleMode((s) => s.mode);
   const compact = mode === "dot";
   const showDetail = mode === "full" || expanded;
   const Tag = onClick ? "button" : "div";
   return (
-    <Html position={position} center zIndexRange={[zIndex, 0]} style={{ pointerEvents: onClick ? "auto" : "none" }}>
+    <div className="pb-1.5">
       <Tag
-        {...(onClick ? { type: "button" as const, onClick } : {})}
+        {...(onClick ? {
+          type: "button" as const,
+          // Keep the click to the bubble: the 3D scene would read it as a click on empty floor and close the desk.
+          onClick: (e: MouseEvent<HTMLElement>) => { e.stopPropagation(); onClick(); },
+          onPointerDown: (e: PointerEvent<HTMLElement>) => e.stopPropagation(),
+          onPointerUp: (e: PointerEvent<HTMLElement>) => e.stopPropagation(),
+        } : {})}
         aria-label={`${name}: ${status}${detail ? `, ${detail}` : ""}`}
         className={cn(
-          "group relative flex -translate-y-1/2 select-none items-center whitespace-nowrap rounded-full border bg-card/95 text-left text-card-foreground shadow-md backdrop-blur transition-[padding,transform] duration-200",
+          "group relative flex select-none items-center whitespace-nowrap rounded-full border bg-card/95 text-left text-card-foreground shadow-md backdrop-blur transition-[padding,transform] duration-200",
           onClick && "cursor-pointer hover:scale-105 focus-visible:outline-2 focus-visible:outline-ring",
           compact ? "gap-0 p-0.5" : "gap-1.5 py-0.5 pl-0.5 pr-2.5",
           attention && "motion-safe:animate-bounce border-needs",
         )}
-        style={{ fontFamily: "var(--font-display)" }}
+        style={{ fontFamily: "var(--font-display), ui-sans-serif, system-ui, sans-serif" }}
       >
         <span
           className={cn("grid size-5 shrink-0 place-items-center rounded-full", !chip && TONE[tone])}
@@ -111,7 +131,7 @@ export function Bubble({ position, icon: Icon, tone, name, status, detail, atten
         {/* tail */}
         <span className="absolute left-1/2 top-full -mt-px size-2 -translate-x-1/2 -translate-y-1 rotate-45 border-r border-b bg-card/95" aria-hidden />
       </Tag>
-    </Html>
+    </div>
   );
 }
 

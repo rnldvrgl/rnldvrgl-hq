@@ -54,9 +54,9 @@ function IsoBuilding({ size }: { size: number }) {
     // The SVG transform sits on an outer group: the CSS animation's transform would replace it otherwise.
     <g key={i} transform={`translate(0 ${y})`}>
       <g className="hq-floor" style={{ animationDelay: `${i * 0.22}s` }}>
-      <path d="M50 20 L80 35 L50 50 L20 35 Z" fill="#5fd0d8" />
-      <path d="M20 35 L50 50 L50 62 L20 47 Z" fill="#1f3a52" />
-      <path d="M80 35 L50 50 L50 62 L80 47 Z" fill="#2c5272" />
+      <path d="M50 20 L80 35 L50 50 L20 35 Z" fill="var(--logo-a)" opacity="0.55" />
+      <path d="M20 35 L50 50 L50 62 L20 47 Z" fill="var(--logo-b)" />
+      <path d="M80 35 L50 50 L50 62 L80 47 Z" fill="var(--logo-a)" />
       {WINDOWS.map((d, w) => (
         <path key={w} d={d} className="hq-window" style={{ animationDelay: `${0.7 + i * 0.22 + w * 0.08}s` }} fill="#ffd27a" />
       ))}

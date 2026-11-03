@@ -190,6 +190,24 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["inbox_items"]["Insert"]>;
         Relationships: [];
       };
+      push_subscriptions: {
+        Row: {
+          endpoint: string;
+          p256dh: string;
+          auth: string;
+          user_agent: string | null;
+          created_at: string;
+        };
+        Insert: {
+          endpoint: string;
+          p256dh: string;
+          auth: string;
+          user_agent?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["push_subscriptions"]["Insert"]>;
+        Relationships: [];
+      };
     };
     Views: { [_ in never]: never };
     Functions: { [_ in never]: never };

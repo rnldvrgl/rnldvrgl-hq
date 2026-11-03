@@ -2,6 +2,7 @@
 
 import { useLayoutEffect, useRef, type ReactNode, type RefObject } from "react";
 import * as THREE from "three";
+import { RoundedBox } from "@react-three/drei";
 import { SEAT_Y } from "./palette";
 
 /**
@@ -10,7 +11,7 @@ import { SEAT_Y } from "./palette";
  * Nothing re-renders while they move; the parent's useFrame writes straight into the rig.
  */
 
-export type HairStyle = "short" | "bun" | "long" | "cap" | "neat";
+export type HairStyle = "short" | "bun" | "long" | "cap" | "neat" | "korean";
 
 export type Look = {
   shirt: string;
@@ -19,6 +20,13 @@ export type Look = {
   hair: string;
   hairStyle: HairStyle;
   shoes: string;
+  /**
+   * "street": Japanese street style. An oversized hoodie (hood, kangaroo pocket, drawstrings, long sleeves),
+   * wide-leg pants and chunky sneakers with a thick sole.
+   */
+  outfit?: "street";
+  /** Drawstrings / small details on the street outfit. */
+  accent?: string;
   /** Cap colour, for hairStyle "cap". */
   cap?: string;
 };
@@ -159,21 +167,35 @@ export function Person({ look, shadows, rig, rightHand, leftHand, front }: Props
     return () => { rig.current = null; };
   }, [rig]);
 
+  const street = look.outfit === "street";
   const leg = (side: -1 | 1, hip: RefObject<THREE.Group | null>, knee: RefObject<THREE.Group | null>) => (
     <group ref={hip} position={[side * 0.11, 0, 0]}>
       <mesh position={[0, -LEG / 2 + 0.02, 0]} castShadow={shadows}>
-        <capsuleGeometry args={[0.088, LEG - 0.12, 4, 10]} />
+        <capsuleGeometry args={[street ? 0.108 : 0.088, LEG - 0.12, 4, 10]} />
         <meshStandardMaterial color={look.pants} />
       </mesh>
       <group ref={knee} position={[0, -LEG, 0]}>
         <mesh position={[0, -LEG / 2 + 0.03, 0]} castShadow={shadows}>
-          <capsuleGeometry args={[0.078, LEG - 0.14, 4, 10]} />
+          {/* wide-leg pants flare a little toward the ankle */}
+          <cylinderGeometry args={street ? [0.1, 0.12, LEG - 0.04, 12] : [0.078, 0.078, LEG - 0.04, 10]} />
           <meshStandardMaterial color={look.pants} />
         </mesh>
-        <mesh position={[0, -LEG + 0.04, -0.045]} castShadow={shadows}>
-          <boxGeometry args={[0.13, 0.08, 0.25]} />
-          <meshStandardMaterial color={look.shoes} />
-        </mesh>
+        {street ? (
+          <group position={[0, -LEG + 0.05, -0.05]}>
+            <RoundedBox args={[0.15, 0.09, 0.28]} radius={0.03} smoothness={2} castShadow={shadows}>
+              <meshStandardMaterial color={look.shoes} />
+            </RoundedBox>
+            <mesh position={[0, -0.05, -0.005]}>
+              <boxGeometry args={[0.16, 0.035, 0.3]} />
+              <meshStandardMaterial color="#d6d3cd" />
+            </mesh>
+          </group>
+        ) : (
+          <mesh position={[0, -LEG + 0.04, -0.045]} castShadow={shadows}>
+            <boxGeometry args={[0.13, 0.08, 0.25]} />
+            <meshStandardMaterial color={look.shoes} />
+          </mesh>
+        )}
       </group>
     </group>
   );
@@ -181,13 +203,13 @@ export function Person({ look, shadows, rig, rightHand, leftHand, front }: Props
   const arm = (side: -1 | 1, shoulder: RefObject<THREE.Group | null>, elbow: RefObject<THREE.Group | null>, held?: ReactNode) => (
     <group ref={shoulder} position={[side * SHOULDER_X, SHOULDER_Y, 0]}>
       <mesh position={[0, -0.14, 0]} castShadow={shadows}>
-        <capsuleGeometry args={[0.07, 0.17, 4, 10]} />
+        <capsuleGeometry args={[street ? 0.088 : 0.07, 0.17, 4, 10]} />
         <meshStandardMaterial color={look.shirt} />
       </mesh>
       <group ref={elbow} position={[0, -0.29, 0]}>
         <mesh position={[0, -0.12, 0]} castShadow={shadows}>
-          <capsuleGeometry args={[0.058, 0.16, 4, 10]} />
-          <meshStandardMaterial color={look.skin} />
+          <capsuleGeometry args={[street ? 0.078 : 0.058, 0.16, 4, 10]} />
+          <meshStandardMaterial color={street ? look.shirt : look.skin} />
         </mesh>
         <mesh position={[0, -0.27, 0]}>
           <sphereGeometry args={[0.066, 10, 8]} />
@@ -211,10 +233,35 @@ export function Person({ look, shadows, rig, rightHand, leftHand, front }: Props
 
         <group ref={torso}>
           {/* chest, slightly flattened front to back */}
-          <mesh position={[0, 0.32, 0]} scale={[1.08, 1, 0.8]} castShadow={shadows}>
+          <mesh position={[0, street ? 0.3 : 0.32, 0]} scale={street ? [1.2, 1.06, 0.92] : [1.08, 1, 0.8]} castShadow={shadows}>
             <capsuleGeometry args={[0.21, 0.3, 6, 16]} />
-            <meshStandardMaterial color={look.shirt} />
+            <meshStandardMaterial color={look.shirt} roughness={street ? 0.95 : 1} />
           </mesh>
+          {street && (
+            <>
+              {/* hood bunched behind the neck */}
+              <mesh position={[0, 0.6, 0.11]} rotation={[0.35, 0, 0]} scale={[1.2, 0.8, 1]} castShadow={shadows}>
+                <sphereGeometry args={[0.13, 14, 10]} />
+                <meshStandardMaterial color={look.shirt} roughness={0.95} />
+              </mesh>
+              {/* kangaroo pocket and drawstrings on the front (-z) */}
+              <mesh position={[0, 0.16, -0.19]}>
+                <boxGeometry args={[0.26, 0.11, 0.02]} />
+                <meshStandardMaterial color={look.shirt} roughness={1} />
+              </mesh>
+              {[-0.045, 0.045].map((x) => (
+                <mesh key={x} position={[x, 0.46, -0.18]}>
+                  <cylinderGeometry args={[0.007, 0.007, 0.14, 6]} />
+                  <meshStandardMaterial color={look.accent ?? "#f5f5f0"} />
+                </mesh>
+              ))}
+              {/* ribbed hem */}
+              <mesh position={[0, 0.04, 0]} scale={[1.2, 1, 0.92]}>
+                <cylinderGeometry args={[0.215, 0.215, 0.05, 16]} />
+                <meshStandardMaterial color={look.shirt} roughness={1} />
+              </mesh>
+            </>
+          )}
           {/* collar */}
           <mesh position={[0, 0.6, 0]}>
             <cylinderGeometry args={[0.1, 0.13, 0.06, 12]} />
@@ -266,6 +313,33 @@ function Hair({ look, shadows }: { look: Look; shadows: boolean }) {
         <mesh position={[0, 0.05, -0.2]} rotation={[-0.15, 0, 0]}>
           <boxGeometry args={[0.3, 0.02, 0.16]} />
           <meshStandardMaterial color={look.cap ?? look.hair} />
+        </mesh>
+      </group>
+    );
+  }
+  if (look.hairStyle === "korean") {
+    // medium length: full crown, curtain bangs parted in the middle, sides over the ears, a soft nape
+    return (
+      <group position={[0, 0.17, 0]}>
+        <mesh rotation={[0.3, 0, 0]} scale={[1.04, 1.02, 1.05]} castShadow={shadows}>
+          <sphereGeometry args={[0.222, 22, 14, 0, Math.PI * 2, 0, Math.PI * 0.6]} />
+          <meshStandardMaterial color={look.hair} roughness={0.7} />
+        </mesh>
+        {[-1, 1].map((side) => (
+          <mesh key={side} position={[side * 0.075, 0.1, -0.17]} rotation={[0.5, side * 0.35, side * 0.35]} scale={[1.25, 0.55, 0.6]} castShadow={shadows}>
+            <sphereGeometry args={[0.09, 12, 8]} />
+            <meshStandardMaterial color={look.hair} roughness={0.7} />
+          </mesh>
+        ))}
+        {[-1, 1].map((side) => (
+          <mesh key={`s${side}`} position={[side * 0.2, 0.03, 0.02]} rotation={[0, 0, side * 0.12]} scale={[0.45, 1, 1]} castShadow={shadows}>
+            <capsuleGeometry args={[0.07, 0.1, 4, 8]} />
+            <meshStandardMaterial color={look.hair} roughness={0.7} />
+          </mesh>
+        ))}
+        <mesh position={[0, -0.03, 0.15]} scale={[1.5, 1, 0.75]} castShadow={shadows}>
+          <capsuleGeometry args={[0.1, 0.06, 4, 10]} />
+          <meshStandardMaterial color={look.hair} roughness={0.7} />
         </mesh>
       </group>
     );

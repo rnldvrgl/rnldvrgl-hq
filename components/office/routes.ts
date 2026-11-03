@@ -4,11 +4,13 @@
  * Because it's all derived from the clock, every screen shows the same people in the same places.
  */
 import { TEAM, type EmployeeId, type EmployeeMeta } from "@/lib/team";
-import { hm, JANITOR_ROUNDS, TRASH_AT, HOME_FROM, BACK_AT } from "@/lib/office-clock";
-import { DESK, DUMPSTER, ENTRANCE, LANES, OFFICE, ROOM } from "./palette";
+import {
+  hm, JANITOR_ROUNDS, TRASH_AT, TRASH_DROP_AT, HOME_FROM, BACK_AT, LUNCH_FROM, LUNCH_TO, STANDUP_FROM, STANDUP_TO, VAPE_FROM, VAPE_TO,
+} from "@/lib/office-clock";
+import { DESK, DINING, DUMPSTER, ENTRANCE, HUDDLE, LANES, MAIN_BIN, OFFICE, ROOM, VAPE } from "./palette";
 
 export type Pt = { readonly x: number; readonly z: number };
-export type Act = "rise" | "sit" | "pickup" | "toss" | "inspect" | "coffee" | "look";
+export type Act = "rise" | "sit" | "pickup" | "drop" | "toss" | "inspect" | "coffee" | "look" | "eat" | "listen" | "lead" | "vape";
 export type Waypoint = Pt & { wait?: number; act?: Act; face?: number; bin?: number };
 
 type Entry =
@@ -107,29 +109,30 @@ function laneZOf(m: EmployeeMeta): number {
   return isBackRow(m) ? LANES.mid : LANES.front;
 }
 
-/** Bins: one in the gap right of each desk, one in the owner's office, one at the pantry. */
-export type Bin = Pt & { id: number; pickup: Pt; face: number };
-export const BINS: readonly Bin[] = [
-  ...TEAM.map((m, i): Bin => {
-    const x = m.desk.x + DESK.W + 0.2;
-    const z = m.desk.y + 0.22;
-    return isBackRow(m)
-      ? { id: i, x, z, pickup: P(x, m.desk.y + 0.75), face: FACE_BACK }
-      : { id: i, x, z, pickup: P(x, m.desk.y - 0.4), face: FACE_FRONT };
-  }),
-  { id: TEAM.length, x: OFFICE.x0 + 0.35, z: 0.55, pickup: P(OFFICE.doorX, 1.2), face: headingOf(-0.15, -0.65) },
-  { id: TEAM.length + 1, x: 12.0, z: 4.62, pickup: P(12.0, 5.2), face: FACE_BACK },
-];
+/** Desk bins: one in the gap right of each desk, reached from that row's lane. */
+export type Bin = Pt & { id: number; pickup: Pt; face: number; lane: number };
+export const BINS: readonly Bin[] = TEAM.map((m, i): Bin => {
+  const x = m.desk.x + DESK.W + 0.2;
+  const z = m.desk.y + 0.22;
+  return isBackRow(m)
+    ? { id: i, x, z, pickup: P(x, m.desk.y + 0.75), face: FACE_BACK, lane: LANES.mid }
+    : { id: i, x, z, pickup: P(x, m.desk.y + DESK.D + 0.1), face: FACE_BACK, lane: LANES.front };
+});
+/** Ronald's own wastebasket (just furniture: he empties it himself). */
+export const OWNER_BIN: Pt = P(OFFICE.x0 + 0.92, 1.42);
 
 const DOOR_IN = P(ROOM.W - 0.6, ENTRANCE.z);
 const DOOR = P(ROOM.W, ENTRANCE.z);
 const DOOR_OUT = P(ROOM.W + 0.7, ENTRANCE.z);
-/** Where people walking home leave the scene, at the street edge. */
-const STREET = P(ROOM.W + 2.9, ROOM.D - 0.35);
+/** Where people walking home leave the scene: the front edge of the pavement, along the building (clear of the parked car). */
+const STREET = P(ROOM.W + 0.55, ROOM.D - 0.3);
 const PANTRY_L = P(12.0, LANES.pantry);
 const PANTRY_R = P(DOOR_IN.x, LANES.pantry);
 const OFFICE_DOOR_OUT = P(OFFICE.doorX, LANES.mid);
 const OFFICE_DOOR_IN = P(OFFICE.doorX, OFFICE.z1 - 0.6);
+/** Standing spot in front of the main bin. */
+const MAIN_BIN_SPOT = P(MAIN_BIN.x - 0.6, LANES.lounge);
+const MAIN_BIN_FACE = headingOf(MAIN_BIN.x - MAIN_BIN_SPOT.x, MAIN_BIN.z - MAIN_BIN_SPOT.z);
 
 /** Lane-to-lane path from a point on the mid or front lane to the entrance (inside). */
 function toEntrance(from: Pt): Pt[] {
@@ -149,58 +152,189 @@ function intoChair(m: EmployeeMeta): Waypoint[] {
   return [P(c.x, laneZOf(m)), P(c.x, c.z + 0.55), { ...c, wait: 0.9, act: "sit", face: FACE_BACK }];
 }
 
-/* ------------------------------------------------------------------ the 5:40 PM trash run */
+/** Out of the chair, along `path` to `stops`, back the same way, and into the chair again. */
+function roundTrip(m: EmployeeMeta, path: readonly Pt[], stops: readonly Waypoint[]): Waypoint[] {
+  return [...outOfChair(m), ...path, ...stops, ...[...path].reverse(), ...intoChair(m)];
+}
 
-/** A relaxed walk (m/s): slow enough to follow, so the 5:40 PM run takes a few minutes. */
-const WALK = 0.65;
+/** Same, but the middle stop stretches so the whole trip lasts exactly `total` seconds. */
+function timedTrip(m: EmployeeMeta, path: readonly Pt[], before: readonly Waypoint[], hold: Waypoint, after: readonly Waypoint[], total: number, speed: number): Route {
+  const probe = compile(roundTrip(m, path, [...before, { ...hold, wait: 0.001 }, ...after]), speed);
+  const wait = Math.max(1, total - probe.duration);
+  return compile(roundTrip(m, path, [...before, { ...hold, wait }, ...after]), speed);
+}
 
-function buildTrashRoute(m: EmployeeMeta): Route {
-  const pts: Waypoint[] = [...outOfChair(m)];
+function memo<K, V>(build: (k: K) => V): (k: K) => V {
+  const cache = new Map<K, V>();
+  return (k) => {
+    let v = cache.get(k);
+    if (v === undefined) { v = build(k); cache.set(k, v); }
+    return v;
+  };
+}
+
+const metaOf = (id: EmployeeId): EmployeeMeta => {
+  const m = TEAM.find((t) => t.id === id);
+  if (!m) throw new Error(`unknown employee ${id}`);
+  return m;
+};
+const indexOf = (id: EmployeeId): number => TEAM.findIndex((t) => t.id === id);
+
+/* ------------------------------------------------------------------ 5:30 PM: everyone bins their trash */
+
+const WALK = 1.0;
+const DROP_STAGGER_S = 7;
+
+/** Pick up the bag from your own desk bin, take it to the main bin by the entrance, come back. */
+export const dropRoute = memo((id: EmployeeId): Route => {
+  const m = metaOf(id);
+  const bin = BINS[indexOf(id)];
   const lane = laneZOf(m);
-  // Get onto the mid lane at the far left, then sweep right, ducking into each gap for both rows' bins.
-  if (lane === LANES.front) pts.push(P(LANES.left, LANES.front), P(LANES.left, LANES.mid));
-  else pts.push(P(LANES.left, LANES.mid));
-  for (let col = 0; col < 4; col++) {
-    for (const bin of BINS.slice(0, TEAM.length).filter((b) => Math.abs(b.x - BINS[col].x) < 0.01)) {
-      pts.push(P(bin.x, LANES.mid), { ...bin.pickup, wait: 5, act: "pickup", face: bin.face, bin: bin.id }, P(bin.x, LANES.mid));
-    }
-  }
-  const ownerBin = BINS[TEAM.length];
-  const pantryBin = BINS[TEAM.length + 1];
-  pts.push(
-    OFFICE_DOOR_OUT, OFFICE_DOOR_IN,
-    { ...ownerBin.pickup, wait: 5, act: "pickup", face: ownerBin.face, bin: ownerBin.id },
-    OFFICE_DOOR_IN, OFFICE_DOOR_OUT,
-    PANTRY_L,
-    { ...pantryBin.pickup, wait: 5, act: "pickup", face: pantryBin.face, bin: pantryBin.id },
-    PANTRY_L, PANTRY_R, DOOR_IN, DOOR, DOOR_OUT,
-    P(DUMPSTER.x, DOOR_OUT.z - 0.4),
-    { x: DUMPSTER.x, z: DUMPSTER.z + 0.95, wait: 5, act: "toss", face: FACE_BACK },
-    P(DUMPSTER.x, DOOR_OUT.z - 0.4), DOOR_OUT, DOOR, DOOR_IN,
-  );
-  // back to the desk, through the pantry
-  pts.push(PANTRY_R, PANTRY_L, P(LANES.right, LANES.pantry));
-  pts.push(lane === LANES.front ? P(LANES.right, LANES.front) : P(LANES.right, LANES.mid));
-  pts.push(...intoChair(m));
-  return compile(pts, WALK);
+  return compile([
+    ...outOfChair(m),
+    P(bin.x, lane), { ...bin.pickup, wait: 2.2, act: "pickup", face: bin.face, bin: bin.id }, P(bin.x, lane),
+    P(LANES.right, lane), P(LANES.right, LANES.lounge),
+    { ...MAIN_BIN_SPOT, wait: 2.2, act: "drop", face: MAIN_BIN_FACE },
+    P(LANES.right, LANES.lounge), P(LANES.right, lane),
+    ...intoChair(m),
+  ], WALK);
+});
+
+/** Seconds into this employee's 5:30 PM drop-off, or null outside it. */
+export function dropRunT(min: number, id: EmployeeId): number | null {
+  const t = (min - TRASH_DROP_AT) * 60 - indexOf(id) * DROP_STAGGER_S;
+  return t >= 0 && t <= dropRoute(id).duration ? t : null;
 }
 
-const trashRoutes = new Map<EmployeeId, Route>();
-export function trashRoute(id: EmployeeId): Route {
-  let r = trashRoutes.get(id);
-  if (!r) {
-    const meta = TEAM.find((m) => m.id === id);
-    if (!meta) throw new Error(`unknown employee ${id}`);
-    r = buildTrashRoute(meta);
-    trashRoutes.set(id, r);
-  }
-  return r;
+/** When (seconds after 5:30 PM) this desk's bin is emptied, and when its bag lands in the main bin. */
+export function dropTimes(id: EmployeeId): { emptied: number; dropped: number } {
+  const r = dropRoute(id);
+  const offset = indexOf(id) * DROP_STAGGER_S;
+  const pick = actWindows(r, "pickup")[0];
+  const drop = actWindows(r, "drop")[0];
+  return { emptied: offset + (pick ? pick[0] + 1 : 0), dropped: offset + (drop ? drop[0] + 1.2 : 0) };
 }
+
+/* ------------------------------------------------------------------ 5:40 PM: the bag goes out */
+
+/** Today's collector takes the main bin's bag out to the dumpster and comes back. */
+export const trashRoute = memo((id: EmployeeId): Route => {
+  const m = metaOf(id);
+  const lane = laneZOf(m);
+  const nearDoor = P(MAIN_BIN_SPOT.x, ENTRANCE.z + 0.75);
+  return compile([
+    ...outOfChair(m),
+    P(LANES.right, lane), P(LANES.right, LANES.lounge),
+    { ...MAIN_BIN_SPOT, wait: 2.6, act: "pickup", face: MAIN_BIN_FACE },
+    nearDoor, DOOR_IN, DOOR, DOOR_OUT,
+    P(DUMPSTER.x, DOOR_OUT.z - 0.4),
+    { x: DUMPSTER.x, z: DUMPSTER.z + 0.95, wait: 3.5, act: "toss", face: FACE_BACK },
+    P(DUMPSTER.x, DOOR_OUT.z - 0.4), DOOR_OUT, DOOR, DOOR_IN, nearDoor, MAIN_BIN_SPOT,
+    P(LANES.right, LANES.lounge), P(LANES.right, lane),
+    ...intoChair(m),
+  ], WALK);
+});
 
 /** Seconds into today's trash run, or null outside it. */
 export function trashRunT(min: number, id: EmployeeId): number | null {
   const t = (min - TRASH_AT) * 60;
   return t >= 0 && t <= trashRoute(id).duration ? t : null;
+}
+
+/* ------------------------------------------------------------------ 12:00 lunch at the dining table */
+
+const LUNCH_STAGGER_S = 5;
+/** Dining chairs: four along each side. Index = desk order. */
+export const DINING_SEATS: readonly Waypoint[] = [-0.975, -0.325, 0.325, 0.975].flatMap((dx) => [
+  { x: DINING.x + dx, z: DINING.z - 0.68, face: FACE_FRONT },
+  { x: DINING.x + dx, z: DINING.z + 0.68, face: FACE_BACK },
+]);
+
+export const lunchRoute = memo((id: EmployeeId): Route => {
+  const m = metaOf(id);
+  const i = indexOf(id);
+  const seat = DINING_SEATS[i];
+  const lane = laneZOf(m);
+  const near = seat.z < DINING.z;
+  const sideLane = near ? LANES.pantry : LANES.lounge;
+  const behind = P(seat.x, seat.z + (near ? -0.5 : 0.5));
+  const path = [P(LANES.right, lane), P(LANES.right, sideLane), P(seat.x, sideLane), behind];
+  const face = seat.face ?? FACE_BACK;
+  return timedTrip(m, path,
+    [{ ...seat, wait: 0.9, act: "sit", face }],
+    { ...seat, act: "eat", face },
+    [{ ...seat, wait: 0.9, act: "rise", face }],
+    (LUNCH_TO - LUNCH_FROM) * 60 - i * LUNCH_STAGGER_S, WALK);
+});
+
+export function lunchRunT(min: number, id: EmployeeId): number | null {
+  const t = (min - LUNCH_FROM) * 60 - indexOf(id) * LUNCH_STAGGER_S;
+  return t >= 0 && t <= lunchRoute(id).duration ? t : null;
+}
+
+/* ------------------------------------------------------------------ 4:00 PM vape break outside */
+
+const VAPE_STAGGER_S = 6;
+/** Pavement lane between the dumpster and the parked car. */
+const OUTSIDE_LANE_Z = 5.75;
+/** Places around the patio's standing table. Index = desk order. */
+export const VAPE_SPOTS: readonly Waypoint[] = TEAM.map((_, i) => {
+  const a = (i / TEAM.length) * Math.PI * 2 + 0.3;
+  const x = VAPE.x + VAPE.r * Math.sin(a);
+  const z = VAPE.z + VAPE.r * Math.cos(a);
+  return { x, z, face: headingOf(VAPE.x - x, VAPE.z - z) };
+});
+
+export const vapeRoute = memo((id: EmployeeId): Route => {
+  const m = metaOf(id);
+  const i = indexOf(id);
+  const spot = VAPE_SPOTS[i];
+  const c = chairOf(m);
+  const path = [
+    ...toEntrance(P(c.x, laneZOf(m))), DOOR, DOOR_OUT,
+    P(DOOR_OUT.x + 0.35, OUTSIDE_LANE_Z), P(VAPE.x - VAPE.r - 0.45, OUTSIDE_LANE_Z),
+  ];
+  return timedTrip(m, path, [], { ...spot, act: "vape", face: spot.face ?? FACE_BACK }, [],
+    (VAPE_TO - VAPE_FROM) * 60 - i * VAPE_STAGGER_S, WALK);
+});
+
+export function vapeRunT(min: number, id: EmployeeId): number | null {
+  const t = (min - VAPE_FROM) * 60 - indexOf(id) * VAPE_STAGGER_S;
+  return t >= 0 && t <= vapeRoute(id).duration ? t : null;
+}
+
+/* ------------------------------------------------------------------ 9:00 stand-up */
+
+const STANDUP_STAGGER_S = 3;
+/** Places in the stand-up circle, open toward the screen on the left. Index = desk order. */
+export const HUDDLE_SPOTS: readonly Waypoint[] = TEAM.map((_, i) => {
+  const a = ((-150 + (i * 270) / (TEAM.length - 1)) * Math.PI) / 180;
+  const x = HUDDLE.x + HUDDLE.r * Math.sin(a + Math.PI / 2);
+  const z = HUDDLE.z + HUDDLE.r * Math.cos(a + Math.PI / 2);
+  return { x, z, face: headingOf(HUDDLE.x - x, HUDDLE.z - z) };
+});
+/** Ronald leads from beside the screen. */
+export const LEADER_SPOT: Waypoint = { x: HUDDLE.x - HUDDLE.r - 0.35, z: HUDDLE.z + 0.55, face: headingOf(1, -0.4) };
+/** The stand-up screen, on a stand facing the circle. */
+export const STANDUP_SCREEN: Pt = P(HUDDLE.x - HUDDLE.r - 0.75, HUDDLE.z - 0.35);
+
+function toHuddle(m: EmployeeMeta, spot: Pt): Pt[] {
+  if (!isBackRow(m)) return [P(deskCenterX(m), LANES.lounge), P(spot.x, LANES.lounge + 0.2)];
+  const aisle = deskCenterX(m) < 5 ? LANES.left : LANES.right;
+  return [P(aisle, LANES.mid), P(aisle, LANES.lounge), P(spot.x, LANES.lounge + 0.2)];
+}
+
+export const standupRoute = memo((id: EmployeeId): Route => {
+  const m = metaOf(id);
+  const i = indexOf(id);
+  const spot = HUDDLE_SPOTS[i];
+  return timedTrip(m, toHuddle(m, spot), [], { ...spot, act: "listen", face: spot.face ?? FACE_BACK }, [],
+    (STANDUP_TO - STANDUP_FROM) * 60 - i * STANDUP_STAGGER_S, WALK);
+});
+
+export function standupRunT(min: number, id: EmployeeId): number | null {
+  const t = (min - STANDUP_FROM) * 60 - indexOf(id) * STANDUP_STAGGER_S;
+  return t >= 0 && t <= standupRoute(id).duration ? t : null;
 }
 
 /* ------------------------------------------------------------------ going home and coming back */
@@ -317,6 +451,25 @@ function buildTour(seed: number, coffee: boolean): Route {
   return compile(pts, OWNER_SPEED);
 }
 
+const leadRoute = memo((_: "lead"): Route => {
+  const out: Pt[] = [OWNER_STAND, OFFICE_DOOR_IN, OFFICE_DOOR_OUT, P(LANES.right, LANES.mid), P(LANES.right, LANES.lounge), P(LEADER_SPOT.x + 0.4, LANES.lounge)];
+  const go = compile([{ ...OWNER_CHAIR, wait: 1.1, act: "rise", face: FACE_BACK }, ...out, { ...LEADER_SPOT, wait: 0.001 }], OWNER_SPEED);
+  const back = compile([LEADER_SPOT, ...[...out].reverse(), { ...OWNER_CHAIR, wait: 1.1, act: "sit", face: FACE_BACK }], OWNER_SPEED);
+  // he gets there first and leaves last
+  const hold = (STANDUP_TO - STANDUP_FROM) * 60 + 10 - go.duration - back.duration;
+  return compile([{ ...OWNER_CHAIR, wait: 1.1, act: "rise", face: FACE_BACK }, ...out,
+    { ...LEADER_SPOT, wait: Math.max(1, hold), act: "lead", face: LEADER_SPOT.face },
+    ...[...out].reverse(), { ...OWNER_CHAIR, wait: 1.1, act: "sit", face: FACE_BACK }], OWNER_SPEED);
+});
+
+/** Ronald leading the weekday stand-up, if it's on. He leaves his desk 20 s early. */
+export function ownerStandupAt(weekday: boolean, min: number): { route: Route; t: number } | null {
+  if (!weekday) return null;
+  const route = leadRoute("lead");
+  const t = (min - STANDUP_FROM) * 60 + 20;
+  return t >= 0 && t <= route.duration ? { route, t } : null;
+}
+
 const tours = new Map<string, Route>();
 /** 10-minute slots: a walk on every half hour 9:30 AM–4:30 PM, and now and then in between, 8 AM–7 PM. */
 const SLOT = 10;
@@ -329,6 +482,7 @@ export function ownerTourAt(day: number, min: number): { route: Route; t: number
   const slot = Math.floor(min / SLOT);
   const start = slot * SLOT;
   if (start < hm("08:00") || start >= hm("19:00")) return null;
+  if (start >= hm("08:50") && start < hm("09:10")) return null; // stand-up time
   const seed = day * 1000 + slot;
   const halfHour = start % 60 === 30 && start >= hm("09:30") && start <= hm("16:30");
   if (!halfHour && rand(seed) > 0.3) return null;

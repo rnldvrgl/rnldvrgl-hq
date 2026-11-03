@@ -64,7 +64,7 @@ export function isEmployeeId(id: string): id is EmployeeId {
 /** Shape the office UI receives from /api/state. */
 export type AiProvider = "claude" | "gemini" | "none";
 
-export type RunView = Pick<Tables<"runs">, "id" | "status" | "output" | "error" | "started_at" | "trigger">;
+export type RunView = Pick<Tables<"runs">, "id" | "status" | "output" | "error" | "started_at" | "finished_at" | "trigger">;
 export type JobView = Pick<Tables<"jobs">, "id" | "role" | "company" | "link" | "salary_text" | "fit_score" | "fit_reason" | "status" | "date_found">;
 export type ReminderView = Pick<Tables<"reminders">, "id" | "title" | "due_at" | "repeat" | "source">;
 export type InboxView = Pick<Tables<"inbox_items">, "message_id" | "sender" | "subject" | "category" | "summary" | "draft_id">;

@@ -42,17 +42,32 @@ export const SHIRTS = ["#e0a43a", "#4a8fd8", "#2f9e8f", "#d46a6a", "#8a6fd1", "#
 /**
  * Room geometry in metres (= the tile units of lib/team.ts desk positions).
  * The team's desks fill x 1–9.9; the owner's glass office takes the back-right corner beyond that;
- * the pantry and lounge sit in front of it, and the street entrance is on the right wall.
+ * the pantry and dining table sit in front of it, and the street entrance is on the right wall.
+ * The front zone (z > FRONT_Z) has a glass meeting room, the stand-up circle and the lounge.
  */
-export const ROOM = { W: 15.3, D: 8.3, H: 2.7 } as const;
+export const ROOM = { W: 15.3, D: 11.2, H: 2.7 } as const;
+/** Where the desk floor ends and the front zone (meeting room, stand-up area, lounge) begins. */
+export const FRONT_Z = 8.3;
 export const DESK = { W: 1.7, D: 0.85, H: 0.74 } as const;
 /** The owner's office: from x0 to the room's right edge, from the back wall (z = 0) to z1. Door gap at x0..x0+1. */
 export const OFFICE = { x0: 10.7, x1: ROOM.W, z1: 4.2, doorX: 11.2 } as const;
 /** Glass entrance on the right wall, centred on z. */
 export const ENTRANCE = { z: 6.6, w: 1.3 } as const;
 /** Paved area outside the entrance, with the big bin. */
-export const OUTSIDE = { x0: ROOM.W + 0.05, x1: ROOM.W + 3.1, z0: 3.0, z1: ROOM.D } as const;
+export const OUTSIDE = { x0: ROOM.W + 0.05, x1: ROOM.W + 5.5, z0: 3.0, z1: ROOM.D } as const;
+/** Vaping patio on the pavement past the parked car (4:00–4:30 PM break). */
+export const VAPE = { x: ROOM.W + 4.1, z: 6.4, r: 0.75 } as const;
 export const DUMPSTER = { x: ROOM.W + 1.75, z: 4.25 } as const;
+/** The big bin inside, by the entrance: everyone empties their desk bin into it at 5:30 PM. */
+export const MAIN_BIN = { x: ROOM.W - 0.38, z: 8.05 } as const;
+/** Dining table in front of the pantry (lunch). */
+export const DINING = { x: 12.95, z: 7.0, w: 2.6, d: 0.9 } as const;
+/** Stand-up circle in the front zone. */
+export const HUDDLE = { x: 7.4, z: 9.75, r: 1.1 } as const;
+/** Glass meeting room in the front-left corner. */
+export const MEETING = { x1: 4.4, z0: 8.65 } as const;
+/** Lounge in the front-right. */
+export const LOUNGE = { x: 12.9, z: 9.9 } as const;
 /** Whole diorama (room + outside), for camera framing and limits. */
 export const SCENE = { x0: 0, x1: OUTSIDE.x1, z0: 0, z1: ROOM.D } as const;
 /** Middle of the room volume: what the camera orbits by default. */
@@ -74,6 +89,8 @@ export const LANES = {
   right: 10.3,
   /** Through the pantry, past the counter. */
   pantry: 5.7,
+  /** Along the front zone, between the dining table and the lounge. */
+  lounge: 8.4,
 } as const;
 
 /** Font for 3D text (clock, signs). Served from /public so it works offline and in the installed app;

@@ -1,90 +1,125 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-/* Dark mode follows the OS setting, so shadcn's `dark:` utilities do too. */
-@custom-variant dark (@media (prefers-color-scheme: dark));
+/*
+ * Two theme designs, both mid-tone glass: Light (cool mist, not white) and Dark (deep slate-blue, not black).
+ * <html data-theme="light|dark" data-mode="light|dark"> is set before paint by the script in app/layout.tsx
+ * (choice saved in localStorage "hq:theme"; "system" follows the OS). shadcn's `dark:` utilities follow data-mode.
+ * Surfaces are translucent and blur what's behind them (see the `glass` utility below); the page backdrop is a few
+ * soft, low-saturation colour fields so the glass has something to blur.
+ */
+@custom-variant dark (&:where([data-mode="dark"], [data-mode="dark"] *));
 
-/* Layout: the office floor fills the left, the selected desk's panel sits on the right (a bottom sheet on phones).
-   Palette: cool daylight office in light mode, a night shift in dark mode; teal is the one accent. */
-:root {
-  --radius: 0.75rem;
+/* Light (also the no-JS fallback). */
+:root, [data-theme="light"] {
+  --radius: 0.875rem;
 
-  /* shadcn tokens */
-  --background: #eef1f4;
-  --foreground: #1b2733;
-  --card: #ffffff;
-  --card-foreground: #1b2733;
-  --popover: #ffffff;
-  --popover-foreground: #1b2733;
-  --primary: #0f7c86;
-  --primary-foreground: #ffffff;
-  --secondary: #e6ebef;
-  --secondary-foreground: #1b2733;
-  --muted: #f2f5f7;
-  --muted-foreground: #5a6876;
-  --accent: #e3f1f2;
-  --accent-foreground: #0b5960;
-  --destructive: #d64545;
-  --border: #d7dde3;
-  --input: #d7dde3;
-  --ring: #0f7c86;
+  --background: #dfe3ea;
+  --foreground: #1c2230;
+  --card: rgb(246 248 251 / 0.58);
+  --card-foreground: #1c2230;
+  --popover: rgb(244 246 250 / 0.88);
+  --popover-foreground: #1c2230;
+  --primary: #262d3d;
+  --primary-foreground: #f3f5f9;
+  --secondary: rgb(255 255 255 / 0.5);
+  --secondary-foreground: #1c2230;
+  --muted: rgb(255 255 255 / 0.42);
+  --muted-foreground: #5c6577;
+  --accent: rgb(109 125 214 / 0.14);
+  --accent-foreground: #3c4aa0;
+  --destructive: #d14848;
+  --border: rgb(96 108 135 / 0.2);
+  --input: rgb(96 108 135 / 0.24);
+  --ring: #7c8ae0;
+
+  /* glass: hairline light edge, top shine, soft shadow */
+  --glass-edge: rgb(255 255 255 / 0.7);
+  --glass-shine: rgb(255 255 255 / 0.65);
+  --glass-shadow: 0 1px 2px rgb(30 40 70 / 0.06), 0 18px 44px -22px rgb(30 40 70 / 0.38);
+  --glass-blur: 22px;
 
   /* status lamps */
-  --st-working: #2f80ed; --st-needs: #d98e04; --st-error: #d64545; --st-idle: #9aa6b2; --st-off: #c3cad1;
+  --st-working: #3b6fe0; --st-needs: #c27c06; --st-error: #d14848; --st-idle: #858ea0; --st-off: #b9bfca;
 
   /* shirt colours, one per employee */
   --c1: #e0a43a; --c2: #4a8fd8; --c3: #2f9e8f; --c4: #d46a6a; --c5: #8a6fd1; --c6: #5aa34f; --c7: #3f5c7a; --c8: #c46aa6;
 
+  /* the HQ logo tile */
+  --logo-a: #3b4458; --logo-b: #1e2433;
+
+  /* page backdrop colour fields */
+  --blob-a: rgb(168 178 232 / 0.55);
+  --blob-b: rgb(166 212 205 / 0.45);
+  --blob-c: rgb(236 206 192 / 0.45);
+
   /* SVG fallback office (no-WebGL devices) */
   --ink: var(--foreground); --ink-soft: var(--muted-foreground);
-  --floor-a: #e3e7ea; --floor-b: #dbe0e4; --floor-line: #cfd5da;
-  --wall-left: #c9d3d8; --wall-right: #d8e0e4; --wall-trim: #9fb0ba; --window: #bfe3f2;
-  --board: #fbfcfd; --board-ink: #33414d; --clock: #ffffff; --clock-ink: #1b2733;
+  --floor-a: #e3e5e8; --floor-b: #dcdfe3; --floor-line: #cfd3d8;
+  --wall-left: #cfd3d8; --wall-right: #dde0e4; --wall-trim: #9aa0a8; --window: #c9e3ef;
+  --board: #fbfcfd; --board-ink: #33393f; --clock: #ffffff; --clock-ink: #1b1f24;
   --desk-top: #e2c79c; --desk-left: #c5a576; --desk-right: #ae8f63;
-  --bezel: #26313b; --screen-idle: #3a4b5a; --screen-on: #7fd3e8; --screen-off: #2a333b; --screen-error: #e07a7a;
-  --screen-line: #5a6d7e; --screen-line-on: #ffffff;
-  --chair: #3c4752; --chair-leg: #59656f; --skin: #c68b63; --hair: #2b2220;
-  --tag: #ffffff; --tag-line: #cfd6dc; --tag-icon: #ffffff;
+  --bezel: #23262b; --screen-idle: #3a4450; --screen-on: #7fd3e8; --screen-off: #2a2e33; --screen-error: #e07a7a;
+  --screen-line: #5a6570; --screen-line-on: #ffffff;
+  --chair: #3a3e44; --chair-leg: #5b6067; --skin: #c68b63; --hair: #2b2220;
+  --tag: #ffffff; --tag-line: #d4d7db; --tag-icon: #ffffff;
   --pot-top: #6f7d77; --pot-left: #5d6a64; --pot-right: #4f5b56; --leaf-a: #4f9a6a; --leaf-b: #6bb383;
 
   color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0f151c;
-    --foreground: #e6edf3;
-    --card: #17202a;
-    --card-foreground: #e6edf3;
-    --popover: #17202a;
-    --popover-foreground: #e6edf3;
-    --primary: #4cc3cc;
-    --primary-foreground: #0b1a1c;
-    --secondary: #212c37;
-    --secondary-foreground: #e6edf3;
-    --muted: #1c2632;
-    --muted-foreground: #9aabb9;
-    --accent: #1b3438;
-    --accent-foreground: #bdeef1;
-    --destructive: #ff6b6b;
-    --border: #273341;
-    --input: #2c3947;
-    --ring: #4cc3cc;
+/* Dark: deep slate-blue, never black. */
+[data-theme="dark"] {
+  --background: #232a36;
+  --foreground: #e7eaf1;
+  --card: rgb(56 65 82 / 0.5);
+  --card-foreground: #e7eaf1;
+  --popover: rgb(42 49 63 / 0.9);
+  --popover-foreground: #e7eaf1;
+  --primary: #e4e8f2;
+  --primary-foreground: #20263a;
+  --secondary: rgb(255 255 255 / 0.08);
+  --secondary-foreground: #e7eaf1;
+  --muted: rgb(255 255 255 / 0.07);
+  --muted-foreground: #a6aec0;
+  --accent: rgb(154 168 240 / 0.16);
+  --accent-foreground: #c3ccfa;
+  --destructive: #f07a7a;
+  --border: rgb(255 255 255 / 0.1);
+  --input: rgb(255 255 255 / 0.14);
+  --ring: #9aa8f0;
 
-    --st-working: #5aa2ff; --st-needs: #f2b23a; --st-error: #ff6b6b; --st-idle: #6f7f8e; --st-off: #3a4652;
+  --glass-edge: rgb(255 255 255 / 0.12);
+  --glass-shine: rgb(255 255 255 / 0.09);
+  --glass-shadow: 0 1px 2px rgb(0 0 0 / 0.18), 0 22px 50px -24px rgb(5 8 20 / 0.6);
 
-    --floor-a: #1d2731; --floor-b: #19222b; --floor-line: #24303b;
-    --wall-left: #222e39; --wall-right: #283541; --wall-trim: #3b4b59; --window: #1d3550;
-    --board: #2b3844; --board-ink: #d8e2ea; --clock: #c9d3db; --clock-ink: #0f151c;
-    --desk-top: #8b6f4c; --desk-left: #6e5639; --desk-right: #5c472f;
-    --bezel: #0b0f13; --screen-idle: #22313d; --screen-on: #63c7e0; --screen-off: #141a20; --screen-error: #c95d5d;
-    --screen-line: #3e5263; --screen-line-on: #e9fbff;
-    --chair: #2b343d; --chair-leg: #45515c; --skin: #b07a55; --hair: #1a1412;
-    --tag: #1e2934; --tag-line: #34424f; --tag-icon: #0f151c;
-    --pot-top: #4e5a55; --pot-left: #414b47; --pot-right: #363f3b; --leaf-a: #3f7d56; --leaf-b: #569a6b;
+  --st-working: #6b9cff; --st-needs: #eeb04a; --st-error: #f07a7a; --st-idle: #8a93a5; --st-off: #4a5263;
+  --logo-a: #5a6684; --logo-b: #2d3446;
 
-    color-scheme: dark;
-  }
+  --blob-a: rgb(84 98 170 / 0.45);
+  --blob-b: rgb(52 104 104 / 0.38);
+  --blob-c: rgb(112 80 110 / 0.35);
+
+  --floor-a: #1c1f24; --floor-b: #181b1f; --floor-line: #262a30;
+  --wall-left: #23272d; --wall-right: #2a2e35; --wall-trim: #3d424a; --window: #1d3044;
+  --board: #2a2e34; --board-ink: #dfe3e8; --clock: #cfd3d8; --clock-ink: #111317;
+  --desk-top: #8b6f4c; --desk-left: #6e5639; --desk-right: #5c472f;
+  --bezel: #0b0c0e; --screen-idle: #252b33; --screen-on: #63c7e0; --screen-off: #14171a; --screen-error: #c95d5d;
+  --screen-line: #3e4650; --screen-line-on: #e9fbff;
+  --chair: #2b2f35; --chair-leg: #474c54; --skin: #b07a55; --hair: #1a1412;
+  --tag: #2c3340; --tag-line: #3d4554; --tag-icon: #111317;
+  --pot-top: #4e5a55; --pot-left: #414b47; --pot-right: #363f3b; --leaf-a: #3f7d56; --leaf-b: #569a6b;
+
+  color-scheme: dark;
+}
+
+/* Frosted glass surface: translucent fill, hairline light edge, top shine, soft shadow, backdrop blur. */
+@utility glass {
+  background-color: var(--card);
+  border: 1px solid var(--glass-edge);
+  box-shadow: inset 0 1px 0 var(--glass-shine), var(--glass-shadow);
+  backdrop-filter: blur(var(--glass-blur, 22px)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--glass-blur, 22px)) saturate(1.4);
 }
 
 @theme inline {
@@ -134,6 +169,20 @@
   h1, h2, h3 { font-family: var(--font-heading); text-wrap: balance; }
 }
 
+/* Popovers, dropdowns, sheets and cards are glass too. */
+[data-slot="popover-content"], [data-slot="select-content"], [data-slot="sheet-content"], [data-slot="card"] {
+  border-color: var(--glass-edge);
+  box-shadow: inset 0 1px 0 var(--glass-shine), var(--glass-shadow);
+  backdrop-filter: blur(22px) saturate(1.4);
+  -webkit-backdrop-filter: blur(22px) saturate(1.4);
+}
+[data-slot="sheet-content"] { background-color: var(--popover); }
+/* the selected tab is a brighter pane of glass (dark mode keeps shadcn's own) */
+[data-mode="light"] [data-slot="tabs-trigger"][data-state="active"] {
+  background-color: rgb(255 255 255 / 0.72);
+  box-shadow: 0 1px 2px rgb(30 40 70 / 0.08), inset 0 1px 0 rgb(255 255 255 / 0.9);
+}
+
 /* ---------- SVG fallback office ---------- */
 .scene { display: block; width: 100%; height: auto; max-width: 100%; }
 .desk { cursor: pointer; outline: none; }
@@ -169,4 +218,61 @@
   .hq-window { animation: hq-window-on 2.4s ease-in-out infinite both; }
   .hq-progress { animation: hq-progress 1.3s ease-in-out infinite; }
   .hq-tip { animation: hq-tip-in .35s ease-out both; }
+}
+
+/* ---------- toasts (sonner): card with a coloured accent bar and icon per type ---------- */
+[data-sonner-toast][data-styled="true"].hq-toast {
+  --accent: var(--foreground);
+  padding: 14px 16px 14px 18px;
+  gap: 10px;
+  align-items: flex-start;
+  overflow: hidden;
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  border: 1px solid var(--glass-edge) !important;
+  border-radius: 16px !important;
+  background: var(--popover) !important;
+  backdrop-filter: blur(22px) saturate(1.4);
+  -webkit-backdrop-filter: blur(22px) saturate(1.4);
+  box-shadow: inset 0 1px 0 var(--glass-shine), var(--glass-shadow);
+}
+.hq-toast::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--accent);
+  border-radius: 0 3px 3px 0;
+}
+[data-sonner-toast][data-styled="true"].hq-toast[data-type="success"] { --accent: #16a34a; }
+[data-sonner-toast][data-styled="true"].hq-toast[data-type="error"] { --accent: var(--st-error); }
+[data-sonner-toast][data-styled="true"].hq-toast[data-type="warning"] { --accent: var(--st-needs); }
+[data-sonner-toast][data-styled="true"].hq-toast[data-type="info"] { --accent: var(--st-working); }
+[data-sonner-toast][data-styled="true"].hq-toast[data-type="loading"] { --accent: var(--muted-foreground); }
+.hq-toast [data-icon] { color: var(--accent); margin-top: 1px; width: 18px !important; height: 18px !important; }
+.hq-toast .hq-toast-title { font-size: 14px; font-weight: 600; line-height: 1.35; }
+[data-sonner-toast][data-styled="true"] .hq-toast-description { font-size: 13px; color: var(--muted-foreground) !important; line-height: 1.4; }
+[data-sonner-toast][data-styled="true"] .hq-toast-close {
+  left: auto; right: 6px; top: 6px; transform: none;
+  width: 22px; height: 22px; border: 0; background: transparent; color: var(--muted-foreground);
+}
+[data-sonner-toast][data-styled="true"] .hq-toast-close:hover { background: var(--muted) !important; color: var(--foreground); }
+[data-sonner-toast][data-styled="true"].hq-toast [data-content] { padding-right: 18px; }
+[data-sonner-toast][data-styled="true"] .hq-toast-action {
+  background: var(--primary); color: var(--primary-foreground); border-radius: 8px; height: 28px; padding: 0 10px; font-weight: 600;
+}
+
+/* ---------- app backdrop: soft, muted colour fields behind the glass ---------- */
+body {
+  background-color: var(--background);
+  background-image:
+    radial-gradient(40rem 30rem at 8% 0%, var(--blob-a), transparent 70%),
+    radial-gradient(36rem 28rem at 95% 18%, var(--blob-b), transparent 70%),
+    radial-gradient(44rem 30rem at 55% 105%, var(--blob-c), transparent 70%);
+  background-attachment: fixed;
+}
+/* behind the 3D office (the canvas is transparent): a faint frosted pane with a soft centre glow */
+.scene-backdrop {
+  background:
+    radial-gradient(ellipse 75% 60% at 50% 45%, var(--glass-shine), transparent 75%),
+    linear-gradient(180deg, color-mix(in oklab, var(--card) 70%, transparent), color-mix(in oklab, var(--card) 35%, transparent));
 }

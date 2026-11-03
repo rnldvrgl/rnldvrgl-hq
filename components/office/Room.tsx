@@ -3,7 +3,7 @@
 import { Suspense, useMemo } from "react";
 import * as THREE from "three";
 import { RoundedBox, Text } from "@react-three/drei";
-import { ROOM, OFFICE, PAL, SCENE_FONT, type Palette } from "./palette";
+import { ROOM, OFFICE, FRONT_Z, PAL, SCENE_FONT, type Palette } from "./palette";
 import { Plant, TallPlant } from "./Furniture";
 import { useSkyMaterial } from "./Lighting";
 import { useSceneNow } from "./scene-clock-ui";
@@ -13,9 +13,9 @@ const WALL_T = 0.16;
 /** Window band on the walls: sill and head height. */
 const SILL = 0.75, HEAD = 2.3;
 /** Back-wall windows as [x from, x to]. */
-const BACK_WINDOWS: readonly (readonly [number, number])[] = [[0.45, 4.35], [6.95, 10.45]];
+const BACK_WINDOWS: readonly (readonly [number, number])[] = [[0.45, 3.85], [7.45, 10.45]];
 /** The wood-slat feature wall with the TV, between the windows. */
-const FEATURE = { x0: 4.55, x1: 6.75 } as const;
+const FEATURE = { x0: 4.05, x1: 7.25 } as const;
 
 /* ------------------------------------------------------------------ procedural textures */
 
@@ -82,7 +82,7 @@ type RoomProps = { pal: Palette; shadows: boolean; done: number; waiting: number
 export function Room({ pal, shadows, done, waiting, trashName }: RoomProps) {
   const { W, D, H } = ROOM;
   const planks = usePlankTexture(W, D);
-  const tileW = W - OFFICE.x0, tileD = D - OFFICE.z1;
+  const tileW = W - OFFICE.x0, tileD = FRONT_Z - OFFICE.z1;
   const tiles = useTileTexture(tileW, tileD);
   const sky = useSkyMaterial();
 
@@ -115,8 +115,8 @@ export function Room({ pal, shadows, done, waiting, trashName }: RoomProps) {
 
       {/* tall plants in the corners and by the windows */}
       <TallPlant pal={pal} shadows={shadows} position={[0.42, 0, 0.42]} />
-      <TallPlant pal={pal} shadows={shadows} position={[0.42, 0, D - 0.42]} scale={0.85} />
-      <Plant pal={pal} shadows={shadows} position={[6.0, 0, 0.42]} scale={0.8} />
+      <TallPlant pal={pal} shadows={shadows} position={[0.42, 0, FRONT_Z - 0.3]} scale={0.85} />
+      <Plant pal={pal} shadows={shadows} position={[10.4, 0, 0.32]} scale={0.8} />
     </group>
   );
 }
@@ -260,40 +260,51 @@ function Shelf({ pal, shadows, z, y, plantFirst = false }: { pal: Palette; shado
   );
 }
 
-/** Wall-mounted screen on the feature wall: today's tally and who's on trash duty. */
+/** The main TV: nearly the full width of the slat wall, so the numbers read from across the room. */
+const TV = { w: 2.95, h: 1.45, y: 1.45 } as const;
+
+/** Wall-mounted screen on the feature wall: today's tally in big numbers, and who's on trash duty. */
 function Dashboard({ pal, done, waiting, trashName }: { pal: Palette; done: number; waiting: number; trashName: string | null }) {
   const x = (FEATURE.x0 + FEATURE.x1) / 2;
+  const L = -TV.w / 2 + 0.16; // left text margin
   return (
-    <group position={[x, 1.5, 0.05]}>
-      <RoundedBox args={[1.78, 1.02, 0.05]} radius={0.015} smoothness={2}>
+    <group position={[x, TV.y, 0.05]}>
+      <RoundedBox args={[TV.w + 0.08, TV.h + 0.08, 0.06]} radius={0.02} smoothness={2}>
         <meshStandardMaterial color={pal.bezel} />
       </RoundedBox>
-      <mesh position={[0, 0, 0.027]}>
-        <planeGeometry args={[1.7, 0.94]} />
+      <mesh position={[0, 0, 0.032]}>
+        <planeGeometry args={[TV.w, TV.h]} />
         <meshStandardMaterial color={pal.board} emissive={pal.board} emissiveIntensity={0.6} />
       </mesh>
-      <mesh position={[-0.6, 0.33, 0.029]}>
-        <planeGeometry args={[0.32, 0.012]} />
-        <meshBasicMaterial color={pal.boardAccent} toneMapped={false} />
-      </mesh>
       <Suspense fallback={null}>
-        <Text font={SCENE_FONT} position={[-0.76, 0.38, 0.03]} fontSize={0.075} color={pal.boardAccent} anchorX="left" anchorY="bottom" letterSpacing={0.12}>
+        <Text font={SCENE_FONT} position={[L, TV.h / 2 - 0.14, 0.035]} fontSize={0.1} color={pal.boardAccent} anchorX="left" anchorY="middle" letterSpacing={0.14}>
           TODAY
         </Text>
-        <Text font={SCENE_FONT} position={[-0.76, 0.17, 0.03]} fontSize={0.11} color={pal.boardInk} anchorX="left" anchorY="middle">
-          {`${done} report${done === 1 ? "" : "s"} done`}
+        {/* two big tiles: reports done, waiting for you */}
+        <Text font={SCENE_FONT} position={[L, 0.08, 0.035]} fontSize={0.46} color={pal.boardInk} anchorX="left" anchorY="middle">
+          {String(done)}
         </Text>
-        <Text font={SCENE_FONT} position={[-0.76, -0.02, 0.03]} fontSize={0.11} color={waiting ? pal.needsInk : pal.boardInk} anchorX="left" anchorY="middle">
-          {`${waiting} waiting for you`}
+        <Text font={SCENE_FONT} position={[L, -0.27, 0.035]} fontSize={0.1} color={pal.boardInk} fillOpacity={0.85} anchorX="left" anchorY="middle" letterSpacing={0.04}>
+          {done === 1 ? "REPORT DONE" : "REPORTS DONE"}
         </Text>
-        <Text font={SCENE_FONT} position={[-0.76, -0.26, 0.03]} fontSize={0.065} color={pal.boardInk} fillOpacity={0.75} anchorX="left" anchorY="middle">
+        <Text font={SCENE_FONT} position={[0.05, 0.08, 0.035]} fontSize={0.46} color={waiting ? pal.needsInk : pal.boardInk} anchorX="left" anchorY="middle">
+          {String(waiting)}
+        </Text>
+        <Text font={SCENE_FONT} position={[0.05, -0.27, 0.035]} fontSize={0.1} color={waiting ? pal.needsInk : pal.boardInk} fillOpacity={0.85} anchorX="left" anchorY="middle" letterSpacing={0.04}>
+          WAITING FOR YOU
+        </Text>
+        <Text font={SCENE_FONT} position={[L, -TV.h / 2 + 0.14, 0.035]} fontSize={0.085} color={pal.boardInk} fillOpacity={0.75} anchorX="left" anchorY="middle" letterSpacing={0.06}>
           {trashName ? `TRASH DUTY  ${trashName.toUpperCase()} · 5:40 PM` : "TRASH DUTY  —"}
         </Text>
       </Suspense>
-      {/* a little bar chart on the right */}
-      {[0.18, 0.32, 0.24, 0.4, 0.3].map((h, i) => (
-        <mesh key={i} position={[0.42 + i * 0.075, -0.36 + h / 2, 0.029]}>
-          <planeGeometry args={[0.045, h]} />
+      {/* divider between the tiles, and a bar chart in the top-right corner (clear of the labels) */}
+      <mesh position={[-0.05, -0.05, 0.034]}>
+        <planeGeometry args={[0.008, 0.75]} />
+        <meshBasicMaterial color="#3c5566" toneMapped={false} />
+      </mesh>
+      {[0.22, 0.4, 0.3, 0.52, 0.36].map((h, i) => (
+        <mesh key={i} position={[TV.w / 2 - 0.66 + i * 0.11, 0.22 + (h * 0.8) / 2, 0.034]} scale={[1, 0.8, 1]}>
+          <planeGeometry args={[0.07, h]} />
           <meshBasicMaterial color={i === 3 ? pal.boardAccent : "#3c5566"} toneMapped={false} />
         </mesh>
       ))}
@@ -312,7 +323,7 @@ const NUMERALS: readonly (readonly [string, number, number])[] = Array.from({ le
 });
 
 /**
- * Wall clock on the left wall showing Manila time (or the previewed time), with numerals, a second hand,
+ * Wall clock on the left wall showing Philippine time (Mabalacat, Pampanga) (or the previewed time), with numerals, a second hand,
  * and a digital 12-hour readout (e.g. "7:42 PM") on an LED panel underneath.
  */
 function Clock({ pal }: { pal: Palette }) {
@@ -380,7 +391,7 @@ function Clock({ pal }: { pal: Palette }) {
             {DIGITAL.format(now)}
           </Text>
           <Text font={SCENE_FONT} position={[0, -0.08, 0.042]} fontSize={0.035} color={pal.ledDim} anchorX="center" anchorY="middle" letterSpacing={0.2}>
-            MANILA
+            MABALACAT
           </Text>
         </Suspense>
       </group>

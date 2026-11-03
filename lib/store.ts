@@ -8,6 +8,15 @@ import { trashDuty } from "@/lib/office-clock";
 
 export type NewReminder = { title: string; local: string; repeat: ReminderRepeat | null };
 
+export type WeatherKind = "clear" | "cloudy" | "rain" | "storm";
+export const WEATHER_KINDS: readonly WeatherKind[] = ["clear", "cloudy", "rain", "storm"];
+export type Weather = { kind: WeatherKind; tempC: number | null };
+
+const LOW_POWER_KEY = "hq:low-power";
+function readLowPower(): boolean {
+  try { return window.localStorage.getItem(LOW_POWER_KEY) === "1"; } catch { return false; }
+}
+
 /** The scene is showing another time of day: `at` (real ms) was the scene clock when `since` (real ms) was now. */
 export type TimeTravel = { at: number; since: number; label: string };
 
@@ -17,12 +26,20 @@ type OfficeStore = {
   hovered: EmployeeId | null;
   offline: boolean;
   timeTravel: TimeTravel | null;
+  /** Live Manila weather from /api/weather, and a preview override. */
+  weather: Weather | null;
+  weatherOverride: WeatherKind | null;
+  /** Fewer effects, no shadows, 30 fps: for older phones and battery. Remembered on this device. */
+  lowPower: boolean;
 
   hydrate: (data: OfficeState) => void;
   select: (id: EmployeeId | null) => void;
   hover: (id: EmployeeId | null) => void;
   /** Jump the 3D office to "HH:MM" Manila today (it keeps ticking from there), or back to live with null. */
   previewTime: (hhmm: string | null, label?: string) => void;
+  loadWeather: () => Promise<void>;
+  previewWeather: (kind: WeatherKind | null) => void;
+  setLowPower: (on: boolean) => void;
 
   refresh: () => Promise<void>;
   runNow: (id: EmployeeId) => Promise<void>;
@@ -60,6 +77,9 @@ export const useOffice = create<OfficeStore>()((set, get) => ({
   hovered: null,
   offline: false,
   timeTravel: null,
+  weather: null,
+  weatherOverride: null,
+  lowPower: typeof window === "undefined" ? false : readLowPower(),
 
   hydrate: (data) => set({ data }),
   select: (id) => set({ selected: id }),
@@ -69,6 +89,19 @@ export const useOffice = create<OfficeStore>()((set, get) => ({
     const p = manilaParts(new Date());
     const at = manilaInstant(p.year, p.month, p.day, hhmm).getTime();
     set({ timeTravel: { at, since: Date.now(), label: label ?? to12Hour(hhmm) } });
+  },
+
+  loadWeather: async () => {
+    try {
+      set({ weather: await call<Weather>("/api/weather", { cache: "no-store" }) });
+    } catch {
+      // keep the last weather; the office just shows clear skies until it loads
+    }
+  },
+  previewWeather: (kind) => set({ weatherOverride: kind }),
+  setLowPower: (on) => {
+    try { window.localStorage.setItem(LOW_POWER_KEY, on ? "1" : "0"); } catch { /* private mode: not remembered */ }
+    set({ lowPower: on });
   },
 
   refresh: async () => {
@@ -142,4 +175,10 @@ export function useTrashDuty(): EmployeeId | null {
   const employees = useOffice((s) => s.data.employees);
   useOffice((s) => s.timeTravel); // re-run when the previewed day changes
   return trashDuty(sceneNow(), (id) => employees.find((e) => e.id === id)?.enabled ?? true);
+}
+
+/** The weather the 3D office shows: the preview override, else live Manila weather, else clear. */
+export function sceneWeather(): WeatherKind {
+  const s = useOffice.getState();
+  return s.weatherOverride ?? s.weather?.kind ?? "clear";
 }

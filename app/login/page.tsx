@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ThemePicker } from "@/components/ThemePicker";
 
 const ERRORS: Record<string, string> = {
   owner: "HQ only opens for its owner. Sign in with the owner's email.",
@@ -79,8 +80,11 @@ function LoginForm() {
   }
 
   return (
-    <main className="grid min-h-dvh place-items-center px-[max(16px,env(safe-area-inset-left,0px))] pb-[env(safe-area-inset-bottom,0px)] pt-[env(safe-area-inset-top,0px)]">
-      <Card className="w-full max-w-sm">
+    <main className="relative grid min-h-dvh place-items-center px-[max(16px,env(safe-area-inset-left,0px))] pb-[env(safe-area-inset-bottom,0px)] pt-[env(safe-area-inset-top,0px)]">
+      <div className="absolute top-[max(16px,env(safe-area-inset-top,0px))] right-[max(16px,env(safe-area-inset-right,0px))]">
+        <ThemePicker />
+      </div>
+      <Card className="w-full max-w-sm rounded-3xl">
         <CardHeader>
           <p className="font-mono text-xs uppercase tracking-[0.08em] text-primary">rnldvrgl</p>
           <CardTitle className="text-2xl">HQ</CardTitle>

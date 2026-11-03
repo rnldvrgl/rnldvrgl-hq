@@ -3,14 +3,14 @@
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
-import { Coffee, Crown, Footprints, Sparkles } from "lucide-react";
+import { Coffee, Crown, Footprints, Megaphone, Sparkles } from "lucide-react";
 import { sceneNow } from "@/lib/store";
-import { manilaDay, manilaMinutes } from "@/lib/office-clock";
+import { isWeekday, manilaDay, manilaMinutes } from "@/lib/office-clock";
 import { TEAM } from "@/lib/team";
 import { DESK, PAL, type Palette } from "./palette";
 import { Person, applyPose, REST, type Look, type Pose, type PersonRig } from "./Person";
 import { Bubble } from "./Bubble";
-import { OWNER_CHAIR, WET_SIGN, janitorAt, ownerTourAt, sample } from "./routes";
+import { OWNER_CHAIR, WET_SIGN, janitorAt, ownerStandupAt, ownerTourAt, sample, type Route } from "./routes";
 import { useSceneNow } from "./scene-clock-ui";
 
 const STRIDE = 4.8;
@@ -26,6 +26,15 @@ function nearestEmployee(x: number, z: number): string | null {
   return best;
 }
 
+/** Where Ronald is: leading the stand-up, on a walk, or (null) at his desk. */
+function ownerOuting(now: Date): { route: Route; t: number; coffee: boolean; standup: boolean } | null {
+  const min = manilaMinutes(now);
+  const lead = ownerStandupAt(isWeekday(now), min);
+  if (lead) return { ...lead, coffee: false, standup: true };
+  const tour = ownerTourAt(manilaDay(now), min);
+  return tour ? { ...tour, standup: false } : null;
+}
+
 /**
  * Ronald: at his desk in the corner office, typing in bursts. Now and then he gets up and walks
  * the floor like a boss — hands clasped behind his back, stopping behind people to look at their
@@ -37,14 +46,16 @@ export function Owner({ pal, shadows, reducedMotion }: { pal: Palette; shadows: 
   const mug = useRef<THREE.Group>(null);
   const pose = useRef<Pose>({ ...REST });
   const look: Look = useMemo(() => ({
-    shirt: pal.ownerShirt, pants: "#2a2f36", skin: PAL.skin[0], hair: pal.hair, hairStyle: "neat", shoes: "#3b2a1e",
+    // Japanese street style: oversized charcoal hoodie, beige wide cargo pants, chunky white sneakers; Korean medium cut
+    shirt: "#2b2e34", pants: "#bba98b", skin: PAL.skin[0], hair: "#1c1714", hairStyle: "korean", shoes: "#f4f4f1",
+    outfit: "street", accent: "#f97316",
   }), [pal]);
 
   useFrame(({ clock }) => {
     const g = group.current, r = rig.current;
     if (!g || !r) return;
     const now = sceneNow();
-    const tour = ownerTourAt(manilaDay(now), manilaMinutes(now));
+    const tour = ownerOuting(now);
     const p = pose.current;
     Object.assign(p, REST);
     p.time = reducedMotion ? 0 : clock.elapsedTime;
@@ -71,6 +82,12 @@ export function Owner({ pal, shadows, reducedMotion }: { pal: Palette; shadows: 
       else if (s.act !== "rise" && s.act !== "sit" && s.act !== "coffee") p.armsBehind = 1;
       if (s.act === "coffee") p.bend = Math.sin(s.actT * Math.PI) * 0.3;
       if (s.act === "inspect") p.nod = s.actT > 0.3 && s.actT < 0.8 ? 1 : 0;
+      if (s.act === "lead") {
+        // talking the team through the day: hands out of his back, gesturing now and then
+        p.armsBehind = Math.sin(p.time * 0.5) > 0.2 ? 1 : 0;
+        p.typing = p.armsBehind ? 0 : 0.6;
+        p.nod = Math.sin(p.time * 1.3) > 0.5 ? 1 : 0;
+      }
     }
     if (mug.current) mug.current.visible = holdingMug;
     applyPose(r, p);
@@ -78,11 +95,12 @@ export function Owner({ pal, shadows, reducedMotion }: { pal: Palette; shadows: 
 
   // Bubble: once a second.
   const now = useSceneNow(1000);
-  const tour = ownerTourAt(manilaDay(now), manilaMinutes(now));
+  const tour = ownerOuting(now);
   let status = "Boss", detail = "Main office", Icon = Crown;
   if (tour) {
     const s = sample(tour.route, tour.t);
-    if (s.act === "coffee") { status = "Coffee"; detail = "Making a cup"; Icon = Coffee; }
+    if (tour.standup) { status = "Stand-up"; detail = s.act === "lead" ? "Leading the 9 AM stand-up" : "Heading to stand-up"; Icon = Megaphone; }
+    else if (s.act === "coffee") { status = "Coffee"; detail = "Making a cup"; Icon = Coffee; }
     else if (s.act === "inspect") { status = "Checking in"; detail = `Looking over ${nearestEmployee(s.x, s.z) ?? "the team"}'s work`; Icon = Footprints; }
     else { status = "Walking around"; detail = tour.coffee ? "Coffee run" : "Making the rounds"; Icon = Footprints; }
   }
@@ -107,6 +125,7 @@ export function Owner({ pal, shadows, reducedMotion }: { pal: Palette; shadows: 
         }
       />
       <Bubble
+        id="owner"
         position={[0, tour ? 2.3 : 1.95, 0]}
         icon={Icon}
         tone="owner"
@@ -202,8 +221,7 @@ export function Janitor({ pal, shadows, reducedMotion }: { pal: Palette; shadows
               </group>
             }
           />
-          {/* Html ignores `visible`, so the bubble is only rendered during a round */}
-          {onShift && <Bubble position={[0, 2.3, 0]} icon={Sparkles} tone="staff" name="Ben" status="Janitor" detail="Mopping the floor" zIndex={18} />}
+          {onShift && <Bubble id="janitor" position={[0, 2.3, 0]} icon={Sparkles} tone="staff" name="Ben" status="Janitor" detail="Mopping the floor" zIndex={18} />}
         </group>
         {/* mop bucket on wheels */}
         <group ref={cart}>

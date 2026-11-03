@@ -11,6 +11,7 @@ import { to12Hour } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { ICONS, LAMP, type LampKey } from "./icons";
 import { SHIRTS } from "./palette";
+import { NotificationSettings } from "@/components/NotificationSettings";
 
 gsap.registerPlugin(useGSAP);
 
@@ -38,6 +39,7 @@ export function Roster({ heading = true }: { heading?: boolean }) {
           <p className="text-sm text-muted-foreground">Pick a desk or a name to see reports, run someone now, or pause them.</p>
         </div>
       )}
+      <NotificationSettings />
       {trashId && (
         <p className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2 text-sm">
           <Trash2 className="size-4 shrink-0 text-muted-foreground" aria-hidden />

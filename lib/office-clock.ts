@@ -47,8 +47,25 @@ export const JANITOR_ROUNDS: readonly (readonly [number, number])[] = [
   [hm("18:00"), hm("19:00")],
 ];
 
-/** Every day at 5:40 PM, today's trash-duty employee collects every bin and takes it out. */
+/** 5:30 PM: everyone empties their desk bin into the main bin by the entrance. */
+export const TRASH_DROP_AT = hm("17:30");
+/** 5:40 PM: today's trash-duty employee takes the main bin's bag out to the dumpster. */
 export const TRASH_AT = hm("17:40");
+
+/** Weekday stand-up in the front zone (Ronald leads; Maya's morning brief is on screen). */
+export const STANDUP_FROM = hm("09:00");
+export const STANDUP_TO = hm("09:06");
+/** Lunch at the dining table for anyone who isn't busy. */
+export const LUNCH_FROM = hm("12:00");
+export const LUNCH_TO = hm("12:55");
+
+/** Afternoon vape break on the patio outside, for anyone who isn't busy. */
+export const VAPE_FROM = hm("16:00");
+export const VAPE_TO = hm("16:30");
+
+/** Manila weekday 0 (Sun)–6 (Sat). */
+export const manilaWeekday = (d: Date): number => new Date(d.getTime() + MANILA_OFFSET_MS).getUTCDay();
+export const isWeekday = (d: Date): boolean => { const w = manilaWeekday(d); return w >= 1 && w <= 5; };
 
 /** Days since 1970-01-01 in Manila: the rotation counter. */
 export const manilaDay = (d: Date): number => Math.floor((d.getTime() + MANILA_OFFSET_MS) / 86_400_000);
@@ -69,10 +86,13 @@ export function trashDuty(d: Date, isEnabled: (id: EmployeeId) => boolean): Empl
 /** Points in time the scene can jump to, to preview each part of the day. */
 export const PREVIEWS: readonly { id: string; label: string; at: string }[] = [
   { id: "janitor-am", label: "7:15 AM · Janitor mops", at: "07:15" },
-  { id: "morning", label: "9:00 AM · Morning", at: "09:00" },
+  { id: "morning", label: "8:15 AM · Morning", at: "08:15" },
+  { id: "standup", label: "9:00 AM · Stand-up", at: "09:00" },
   { id: "boss", label: "10:30 AM · Ronald walks around", at: "10:30" },
-  { id: "lunch", label: "12:15 PM · Lunch", at: "12:15" },
+  { id: "lunch", label: "12:00 PM · Lunch break", at: "12:00" },
   { id: "afternoon", label: "3:30 PM · Afternoon", at: "15:30" },
-  { id: "trash", label: "5:40 PM · Trash run", at: "17:40" },
+  { id: "vape", label: "4:00 PM · Vape break outside", at: "16:00" },
+  { id: "trash-drop", label: "5:30 PM · Everyone bins their trash", at: "17:30" },
+  { id: "trash", label: "5:40 PM · Trash goes out", at: "17:40" },
   { id: "night", label: "9:00 PM · Night", at: "21:00" },
 ];

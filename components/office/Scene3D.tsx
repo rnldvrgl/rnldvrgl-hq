@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, type RefObject } from "react";
 import * as THREE from "three";
-import { Canvas, useThree } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { AdaptiveDpr, CameraControls, CameraControlsImpl } from "@react-three/drei";
 import { useOffice, useTrashDuty } from "@/lib/store";
 import { TEAM, teamById } from "@/lib/team";
@@ -14,8 +14,11 @@ import { Employee3D } from "./Employee3D";
 import { OwnerOffice } from "./OwnerOffice";
 import { Owner, Janitor } from "./Staff";
 import { Amenities } from "./Amenities";
+import { Grounds } from "./Grounds";
 import { Lighting } from "./Lighting";
 import { BubbleZoomWatcher } from "./Bubble";
+import { Deliveries } from "./Deliveries";
+import { LabelLayer, LabelProjector } from "./Labels";
 import { SceneControls } from "./SceneControls";
 import { PAL, DESK, ROOM, SCENE, OFFICE } from "./palette";
 
@@ -164,6 +167,19 @@ function CameraRig({ reducedMotion, handle }: { reducedMotion: boolean; handle: 
   );
 }
 
+/**
+ * Low-power mode renders on demand: this asks for a frame 30 times a second instead of every display refresh.
+ */
+function ThirtyFps() {
+  const invalidate = useThree((s) => s.invalidate);
+  useEffect(() => {
+    const t = setInterval(() => invalidate(), 1000 / 30);
+    return () => clearInterval(t);
+  }, [invalidate]);
+  useFrame(() => undefined);
+  return null;
+}
+
 const manilaDate = (ms: number): string => new Date(ms + MANILA_OFFSET_MS).toISOString().slice(0, 10);
 
 export default function Scene3D() {
@@ -174,8 +190,17 @@ export default function Scene3D() {
   const duty = useTrashDuty();
   const rig = useRef<CameraRigHandle | null>(null);
   const pressAt = useRef<{ x: number; y: number } | null>(null);
+  const lowPower = useOffice((s) => s.lowPower);
+  const loadWeather = useOffice((s) => s.loadWeather);
   const pal = PAL;
-  const shadows = isDesktop;
+  const shadows = isDesktop && !lowPower;
+
+  // Live Manila weather for the windows, refreshed every 15 minutes.
+  useEffect(() => {
+    void loadWeather();
+    const t = setInterval(() => void loadWeather(), 15 * 60_000);
+    return () => clearInterval(t);
+  }, [loadWeather]);
 
   const todayKey = manilaDate(Date.now());
   const done = employees.flatMap((e) => e.runs).filter((r) =>
@@ -190,7 +215,8 @@ export default function Scene3D() {
       <Canvas
         orthographic
         shadows={shadows}
-        dpr={isDesktop ? [1, 2] : [1, 1.75]}
+        dpr={lowPower ? 1 : isDesktop ? [1, 2] : [1, 1.75]}
+        frameloop={lowPower ? "demand" : "always"}
         camera={{ position: defaultEye(centerOf(WHOLE).x, ROOM.H / 2, centerOf(WHOLE).z), zoom: 30, near: 0.1, far: 200 }}
         gl={{ antialias: true, alpha: true }}
         onPointerMissed={(e) => {
@@ -203,10 +229,13 @@ export default function Scene3D() {
         role="img"
       >
         <AdaptiveDpr pixelated={false} />
+        {lowPower && <ThirtyFps />}
         <Lighting shadows={shadows} />
         <BubbleZoomWatcher />
+        <LabelProjector />
         <Room pal={pal} shadows={shadows} done={done} waiting={waiting} trashName={duty ? teamById[duty].name : null} />
         <OwnerOffice pal={pal} shadows={shadows} reducedMotion={reducedMotion} />
+        <Grounds pal={pal} shadows={shadows} />
         <Amenities pal={pal} shadows={shadows} assignee={duty} />
         {TEAM.map((meta, i) => (
           <Desk3D key={meta.id} meta={meta} index={i} pal={pal} shadows={shadows} reducedMotion={reducedMotion} />
@@ -216,8 +245,11 @@ export default function Scene3D() {
         ))}
         <Owner pal={pal} shadows={shadows} reducedMotion={reducedMotion} />
         <Janitor pal={pal} shadows={shadows} reducedMotion={reducedMotion} />
+        <Deliveries />
         <CameraRig reducedMotion={reducedMotion} handle={rig} />
       </Canvas>
+
+      <LabelLayer />
 
       <SceneControls
         onReset={() => { select(null); rig.current?.reset(); }}
