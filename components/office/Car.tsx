@@ -338,7 +338,7 @@ function CarCard() {
   );
   return (
     <div
-      className="mb-2 w-60 rounded-2xl border border-white/40 bg-card/80 p-3 text-card-foreground shadow-xl backdrop-blur-xl motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95"
+      className="mb-2 w-60 rounded-2xl border border-white/40 bg-popover/95 p-3 text-card-foreground shadow-xl backdrop-blur-xl motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95"
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >

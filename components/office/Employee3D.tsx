@@ -169,10 +169,11 @@ export function Employee3D({ meta, index, pal, shadows, reducedMotion, duty }: P
               : Math.min(1, Math.max(0, (k - 0.22 - j * 0.035) / 0.55));
             c.visible = e > 0 && e < 1;
             const drift = wisp ? 0.04 : 0.16;
-            c.position.set(Math.sin(j * 2.1 + p.time * 0.6) * drift * e, (wisp ? 1.3 : 1.72) + e * (wisp ? 0.35 : 0.7), (wisp ? -0.32 : -0.22) - e * (wisp ? 0.05 : 0.45));
-            c.scale.setScalar(wisp ? 0.025 + e * 0.05 : 0.06 + e * 0.34);
+            // the cloud billows forward, then rises up through and above the pergola roof (2.5 m) so it stays visible
+            c.position.set(Math.sin(j * 2.1 + p.time * 0.6) * drift * (1 + e * 2), (wisp ? 1.3 : 1.72) + e * (wisp ? 0.45 : 1.45), (wisp ? -0.32 : -0.28) - Math.min(e, 0.4) * (wisp ? 0.1 : 0.7));
+            c.scale.setScalar(wisp ? 0.03 + e * 0.07 : 0.09 + e * 0.5);
             const mat = c instanceof THREE.Mesh ? c.material : null;
-            if (mat instanceof THREE.MeshStandardMaterial) mat.opacity = (wisp ? 0.35 : 0.75) * (1 - e) * (wisp && k < 0.2 ? 0 : 1);
+            if (mat instanceof THREE.MeshStandardMaterial) mat.opacity = (wisp ? 0.45 : 0.9) * (1 - Math.pow(e, 1.6)) * (wisp && k < 0.2 ? 0 : 1);
           });
         }
       }
@@ -260,7 +261,7 @@ export function Employee3D({ meta, index, pal, shadows, reducedMotion, duty }: P
         {[0, 1, 2, 3, 4, 5, 6, 7].map((j) => (
           <mesh key={j}>
             <icosahedronGeometry args={[1, 1]} />
-            <meshStandardMaterial color="#f1f4f7" emissive="#d9dee4" emissiveIntensity={0.25} transparent opacity={0.6} depthWrite={false} roughness={1} />
+            <meshStandardMaterial color="#ffffff" emissive="#eef2f6" emissiveIntensity={0.6} transparent opacity={0.6} depthWrite={false} roughness={1} />
           </mesh>
         ))}
       </group>
