@@ -157,8 +157,9 @@ export function Car({ shadows }: { shadows: boolean }) {
       {/* headlight beams: soft cones and pools of light on the pavement ahead (no real lights, so it stays cheap) */}
       <group ref={beams} visible={false}>
         {[-1, 1].map((s) => (
-          <mesh key={s} position={[s * 0.55, 0.38, -LENGTH / 2 - 1.15]} rotation={[-Math.PI / 2 + 0.12, 0, 0]}>
-            <coneGeometry args={[0.55, 2.2, 20, 1, true]} />
+          // the cone's tip (narrow end) sits at the headlight, its wide end 2.2 m ahead, dipping toward the road
+          <mesh key={s} position={[s * 0.62, 0.51, -LENGTH / 2 - 1.1]} rotation={[Math.PI / 2 - 0.12, 0, 0]}>
+            <coneGeometry args={[0.6, 2.2, 20, 1, true]} />
             <meshBasicMaterial color="#fff6dc" transparent opacity={0.12} depthWrite={false} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} toneMapped={false} />
           </mesh>
         ))}

@@ -98,17 +98,18 @@ function IconChip({ icon: Icon, tone, className }: { icon: LucideIcon; tone: Ton
 }
 
 function AiBadge({ provider, compact = false, className }: { provider: AiProvider; compact?: boolean; className?: string }) {
-  const label = provider === "claude" ? "Claude" : provider === "gemini" ? (compact ? "Backup" : "Gemini backup") : (compact ? "No AI" : "No AI key");
-  const tone: Tone = provider === "claude" ? "ok" : provider === "gemini" ? "needs" : "warn";
+  const backup = provider === "gemini" || provider === "groq";
+  const label = provider === "claude" ? "Claude" : backup ? (compact ? "Backup" : provider === "groq" ? "Groq backup" : "Gemini backup") : (compact ? "No AI" : "No AI key");
+  const tone: Tone = provider === "claude" ? "ok" : backup ? "needs" : "warn";
   return (
     <span
       className={cn(PILL, className)}
-      title={provider === "gemini" ? "Running on the free Gemini backup until ANTHROPIC_API_KEY is added." : provider === "claude" ? "Running on Claude" : "No AI key set"}
+      title={backup ? `Running on the free ${provider === "groq" ? "Groq" : "Gemini"} backup until ANTHROPIC_API_KEY is added.` : provider === "claude" ? "Running on Claude" : "No AI key set"}
     >
       <IconChip icon={Sparkles} tone={tone} />
       <span className="flex items-center gap-1.5">
         {label}
-        <span className={cn("size-1.5 rounded-full", provider === "claude" ? "bg-emerald-500" : provider === "gemini" ? "bg-needs" : "bg-error")} aria-hidden />
+        <span className={cn("size-1.5 rounded-full", provider === "claude" ? "bg-emerald-500" : backup ? "bg-needs" : "bg-error")} aria-hidden />
       </span>
     </span>
   );

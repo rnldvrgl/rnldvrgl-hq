@@ -104,6 +104,7 @@ export function Room({ pal, shadows, done, waiting, trashName }: RoomProps) {
       </mesh>
 
       <BackWall pal={pal} shadows={shadows} sky={sky} />
+      <FrontWall pal={pal} />
       <LeftWall pal={pal} shadows={shadows} />
 
       <Dashboard pal={pal} done={done} waiting={waiting} trashName={trashName} />
@@ -206,6 +207,42 @@ function Window({ pal, sky, length, position, rotY = 0 }: {
       <mesh position={[0, SILL - 0.01, 0.04]}>
         <boxGeometry args={[length + 0.08, 0.03, 0.12]} />
         <meshStandardMaterial color={pal.sill} />
+      </mesh>
+    </group>
+  );
+}
+
+/**
+ * The front wall (z = ROOM.D), as a glass storefront so the office stays visible from the camera side:
+ * a low base wall, floor-to-ceiling panes with slim black mullions, and a top rail.
+ */
+function FrontWall({ pal }: { pal: Palette }) {
+  const { W, D, H } = ROOM;
+  const BASE = 0.32;
+  const panes = Math.round(W / 1.55);
+  return (
+    <group>
+      <mesh position={[W / 2, BASE / 2, D + 0.04]}>
+        <boxGeometry args={[W + 0.08, BASE, 0.1]} />
+        <meshStandardMaterial color={pal.wallSide} />
+      </mesh>
+      <mesh position={[W / 2, (H + BASE) / 2, D + 0.04]}>
+        <planeGeometry args={[W, H - BASE]} />
+        <meshStandardMaterial color={pal.glass} transparent opacity={0.07} side={THREE.DoubleSide} depthWrite={false} roughness={0.05} />
+      </mesh>
+      {Array.from({ length: panes + 1 }, (_, i) => (
+        <mesh key={i} position={[(i * W) / panes, (H + BASE) / 2, D + 0.04]}>
+          <boxGeometry args={[0.045, H - BASE, 0.05]} />
+          <meshStandardMaterial color={pal.windowFrame} />
+        </mesh>
+      ))}
+      <mesh position={[W / 2, H + 0.025, D + 0.04]}>
+        <boxGeometry args={[W + 0.08, 0.05, 0.1]} />
+        <meshStandardMaterial color={pal.trim} />
+      </mesh>
+      <mesh position={[W / 2, BASE + 0.015, D + 0.04]}>
+        <boxGeometry args={[W, 0.03, 0.07]} />
+        <meshStandardMaterial color={pal.windowFrame} />
       </mesh>
     </group>
   );

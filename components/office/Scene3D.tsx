@@ -15,6 +15,7 @@ import { OwnerOffice } from "./OwnerOffice";
 import { Owner, Janitor } from "./Staff";
 import { Amenities } from "./Amenities";
 import { Grounds } from "./Grounds";
+import { Pets } from "./Pets";
 import { Lighting } from "./Lighting";
 import { BubbleZoomWatcher } from "./Bubble";
 import { Deliveries } from "./Deliveries";
@@ -236,6 +237,7 @@ export default function Scene3D() {
         <Room pal={pal} shadows={shadows} done={done} waiting={waiting} trashName={duty ? teamById[duty].name : null} />
         <OwnerOffice pal={pal} shadows={shadows} reducedMotion={reducedMotion} />
         <Grounds pal={pal} shadows={shadows} />
+        <Pets />
         <Amenities pal={pal} shadows={shadows} assignee={duty} />
         {TEAM.map((meta, i) => (
           <Desk3D key={meta.id} meta={meta} index={i} pal={pal} shadows={shadows} reducedMotion={reducedMotion} />

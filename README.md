@@ -77,21 +77,30 @@ Push it to a **new private GitHub repo** on your personal account.
     Why: the default email only has a link, and that link fails if it opens in a different browser from the one you signed in from. The code works anywhere, and the new link works in any browser too.
 7. Always open HQ at `http://localhost:3000`, not `127.0.0.1:3000`. They count as different sites, so a session from one doesn't carry over to the other.
 
-### 3a. Gemini backup (free, use this until Claude is ready)
+### 3a. Free backups: Groq and Gemini (use these until Claude is ready)
 
-While `ANTHROPIC_API_KEY` is empty, the office runs on Google's free Gemini API. The header badge shows which brain is active.
+While `ANTHROPIC_API_KEY` is empty, the office runs on free backups. Set up **Groq** (more generous free tier) and, optionally, **Gemini** as a second backup. When one hits its free-tier limit, that call moves to the next. The header badge shows which brain is active.
 
-1. Go to https://aistudio.google.com/apikey → **Create API key** (personal Google account) → `GEMINI_API_KEY`.
-2. Leave `GEMINI_MODEL=gemini-3.8-flash`. Google Search grounding is built in, so Hunter and Rhea can still search the web.
-3. Leave `BACKUP_ALLOW_PRIVATE=false`. Google may use free-tier prompts to improve its products, so **Maya, Iggy and Dex** (email, calendar, private repos) wait for Claude and say so on their desk. Hunter, Rhea, Rev, Cal, Ring and cover letters all work on the backup.
+**Groq (recommended first)**
+
+1. Go to https://console.groq.com, sign in (Google sign-in works), open **API Keys → Create API Key**, and copy it into `.env.local` as `GROQ_API_KEY`.
+2. Leave `GROQ_MODEL=llama-3.3-70b-versatile` for normal prompts, and `GROQ_SEARCH_MODEL=groq/compound` for Hunter and Rhea: Groq's compound system runs its own web search. If Groq renames a model, pick a current one at https://console.groq.com/docs/models and change it here.
+
+**Gemini (second backup, optional)**
+
+3. Go to https://aistudio.google.com/apikey → **Create API key** (personal Google account) → `GEMINI_API_KEY`. Leave `GEMINI_MODEL=gemini-3.8-flash`. Its Google Search grounding has a small daily free quota, which is why Gemini alone runs out quickly.
+
+**Both**
+
+4. Leave `BACKUP_ALLOW_PRIVATE=false`. Free tiers may use prompts to improve their products, so **Maya, Iggy and Dex** (email, calendar, private repos) wait for Claude and say so on their desk. Hunter, Rhea, Rev, Cal, Ring and cover letters all work on the backups.
 
 | Brain | When it's used |
 | --- | --- |
 | Claude | `ANTHROPIC_API_KEY` is set |
-| Gemini backup | No Claude key, or Claude rejects the key / is out of credit (that call only, never for private desks) |
-| None | Neither key set: desks show "No AI key yet" |
+| Groq, then Gemini | No Claude key, or Claude rejects the key / is out of credit (that call only, never for private desks). A backup at its limit passes the call to the next. |
+| None | No keys set: desks show "No AI key yet" |
 
-The free tier has daily limits. If Gemini hits one, the desk shows it and the next day's runs continue.
+If every backup is at its limit, the desk says so and the next scheduled run tries again. Adding the Claude key (step 3b) ends the limits.
 
 ### 3b. Claude API (free with Max, via monthly API credits)
 
@@ -377,5 +386,5 @@ You'll get one notification per desk (a newer one replaces the older), and tappi
 | Office shows the flat SVG, not 3D | The browser has WebGL turned off or unsupported. Enable hardware acceleration. |
 | `Cannot find module '@/components/ui/…'` | Run `npm run ui`. |
 | Maya, Iggy or Dex say "Waiting for your Claude key" | Expected on the Gemini backup. Add `ANTHROPIC_API_KEY` and redeploy. |
-| `Gemini free tier limit reached` | Wait for the daily reset, or add the Claude key. |
+| `Gemini free tier limit reached` / `Groq free tier limit reached` | Add the other backup (step 3a) so calls move over, wait for the reset, or add the Claude key. |
 | Desk stuck on "working" | It frees itself after 10 minutes; check Vercel → Logs for a timeout. |

@@ -62,7 +62,7 @@ export function isEmployeeId(id: string): id is EmployeeId {
 }
 
 /** Shape the office UI receives from /api/state. */
-export type AiProvider = "claude" | "gemini" | "none";
+export type AiProvider = "claude" | "groq" | "gemini" | "none";
 
 export type RunView = Pick<Tables<"runs">, "id" | "status" | "output" | "error" | "started_at" | "finished_at" | "trigger">;
 export type JobView = Pick<Tables<"jobs">, "id" | "role" | "company" | "link" | "salary_text" | "fit_score" | "fit_reason" | "status" | "date_found">;
