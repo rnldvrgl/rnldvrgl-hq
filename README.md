@@ -193,7 +193,7 @@ Use your **personal** Gmail for every step, not your work account. If you're sig
     Click **Authorize APIs**.
 18. Pick your personal Gmail. Google shows **"Google hasn't verified this app"**. That's normal for an app only you use: click **Continue** (or **Advanced → Go to rnldvrgl HQ (unsafe)**). On the permissions screen, **tick every checkbox** and click **Continue**.
 19. You're back in the Playground at **Step 2**. Click **Exchange authorization code for tokens**.
-20. Copy the **Refresh token** (it starts with `1//`) into `.env.local` as `GOOGLE_REFRESH_TOKEN`. Ignore the access token: it expires in an hour, and HQ makes fresh ones itself.
+20. The Playground now jumps ahead to **Step 3 (Configure request to API)** and folds Step 2 shut. **You don't need Step 3**: it's only for trying API calls. Click the **Step 2** heading on the left to open it again, then copy the **Refresh token** (it starts with `1//`) into `.env.local` as `GOOGLE_REFRESH_TOKEN`. Ignore the access token: it expires in an hour, and HQ makes fresh ones itself. If the Refresh token box is empty, open the gear icon, check **Use your own OAuth credentials** is ticked with your client ID and secret, and redo steps 17–19.
 21. Restart `npm run dev`. Open Maya's desk and press **Run now**. Her report should mention today's events and your unread count. If it says "Google token refresh failed", the refresh token or the client values don't match: redo steps 15–20.
 
 On Vercel, add the same three values under **Settings → Environment Variables** and redeploy (step 8).
@@ -317,7 +317,7 @@ The 3D office is in Mabalacat City, Pampanga and follows Philippine time, so eve
 | 9:00 AM (weekdays) | Stand-up: anyone who isn't busy gathers in the circle at the front, Ronald leads, and Maya's morning brief pops up on the screen. |
 | 12:00–12:55 PM | Lunch: anyone who isn't busy eats at the dining table by the pantry. |
 | 1 PM–6 PM | Afternoon: golden light, sunset from about 5:20 PM. |
-| 4:00–4:30 PM | Vape break: anyone who isn't busy goes out to the patio past the parked car. |
+| All day | Anyone idle hangs out on the vape patio past the parked car; when work comes in they walk back to their desk. Anyone showing an error goes to Ronald's office and waits on the sofa for help. |
 | 5:30 PM | Everyone empties their desk bin into the main bin by the entrance. |
 | 5:40 PM | Today's trash duty takes the main bin's bag out to the dumpster outside. The team takes turns, one per day. |
 | 7 PM | Idle employees go home. Anyone working, waiting for you or showing an error stays at their desk. |

@@ -20,6 +20,8 @@ import { Lighting } from "./Lighting";
 import { BubbleZoomWatcher } from "./Bubble";
 import { Deliveries } from "./Deliveries";
 import { LabelLayer, LabelProjector } from "./Labels";
+import { typingSources } from "@/lib/ambience";
+import { chairOf, OWNER_CHAIR } from "./routes";
 import { SceneControls } from "./SceneControls";
 import { PAL, DESK, ROOM, SCENE, OFFICE } from "./palette";
 
@@ -181,6 +183,38 @@ function ThirtyFps() {
   return null;
 }
 
+const ear = new THREE.Vector3();
+const smooth = (a: number, b: number, x: number) => { const k = Math.min(1, Math.max(0, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
+
+/**
+ * Feeds the ambience its typing sources: each working desk (and Ronald's) gets a loudness from how close
+ * you're looking at it. Zoomed out on the whole office it's silent; zoomed in, desks near the middle of the
+ * view are clear and ones toward the edge fade out. Stereo position follows where the desk is on screen.
+ */
+function SoundListener() {
+  const employees = useOffice((s) => s.data.employees);
+  const frame = useRef(0);
+  useFrame(({ camera }) => {
+    if (frame.current++ % 6) return; // ~10 times a second is plenty
+    const zoomK = smooth(50, 120, camera.zoom); // px per metre: whole office ≈ 45–55, a selected desk ≈ 110+
+    const place = (id: string, x: number, z: number, loud: boolean) => {
+      if (!loud || zoomK <= 0) { typingSources.delete(id); return; }
+      ear.set(x, 1.0, z).project(camera);
+      const r2 = ear.x * ear.x + ear.y * ear.y;
+      const inView = Math.abs(ear.x) < 1.1 && Math.abs(ear.y) < 1.1;
+      const gain = inView ? zoomK * Math.max(0, 1 - r2 / 1.3) : 0;
+      typingSources.set(id, { gain, pan: Math.max(-1, Math.min(1, ear.x)) * 0.8 });
+    };
+    for (const m of TEAM) {
+      const e = employees.find((x) => x.id === m.id);
+      const c = chairOf(m);
+      place(m.id, c.x, c.z, !!e?.enabled && e.status === "working");
+    }
+    place("owner", OWNER_CHAIR.x, OWNER_CHAIR.z, true);
+  });
+  return null;
+}
+
 const manilaDate = (ms: number): string => new Date(ms + MANILA_OFFSET_MS).toISOString().slice(0, 10);
 
 export default function Scene3D() {
@@ -234,6 +268,7 @@ export default function Scene3D() {
         <Lighting shadows={shadows} />
         <BubbleZoomWatcher />
         <LabelProjector />
+        <SoundListener />
         <Room pal={pal} shadows={shadows} done={done} waiting={waiting} trashName={duty ? teamById[duty].name : null} />
         <OwnerOffice pal={pal} shadows={shadows} reducedMotion={reducedMotion} />
         <Grounds pal={pal} shadows={shadows} />

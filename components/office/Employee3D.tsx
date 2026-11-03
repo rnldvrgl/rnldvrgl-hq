@@ -14,7 +14,7 @@ import { Bubble, type Tone } from "./Bubble";
 import { ICONS } from "./icons";
 import {
   actWindows, chairOf, commuteAt, deskCenterX, dropRoute, dropRunT, lunchRoute, lunchRunT, sample, standupRoute, standupRunT,
-  trashRoute, trashRunT, vapeRoute, vapeRunT, type Route, type Sample,
+  trashRoute, trashRunT, placeRoute, placeSpot, sample as sampleRoute, type Place, type Route, type Sample,
 } from "./routes";
 import { launchDelivery } from "./Deliveries";
 import { useSceneNow } from "./scene-clock-ui";
@@ -52,14 +52,39 @@ function activityOf(min: number, weekday: boolean, meta: EmployeeMeta, index: nu
     }
     const lunch = lunchRunT(min, meta.id);
     if (lunch !== null) return route("lunch", lunchRoute(meta.id), lunch);
-    const vape = vapeRunT(min, meta.id);
-    if (vape !== null) return route("vape", vapeRoute(meta.id), vape);
     const c = commuteAt(min, meta, index);
     if (c) return { kind: "route", route: c.route, t: c.t, reverse: c.reverse, purpose: c.reverse ? "arriving" : "leaving" };
     if (isAfterHours(min)) return { kind: "away", why: "home" };
   }
   return { kind: "seat" };
 }
+
+/** Vaping: a 7-second cycle (draw, exhale a cloud, chat), plus the cloud itself. */
+function vapePose(p: Pose, vapor: THREE.Group | null, reducedMotion: boolean): void {
+  const k = (p.time % 7) / 7;
+  p.mug = k < 0.2 ? 1 : 0;
+  p.nod = k > 0.6 && k < 0.8 ? 1 : 0;
+  if (!vapor) return;
+  vapor.visible = !reducedMotion;
+  if (reducedMotion) return;
+  vapor.children.forEach((c, j) => {
+    // puffs 0–5: the exhaled cloud (staggered, growing, drifting up and away); 6–7: a thin wisp in between
+    const wisp = j >= 6;
+    const e = wisp ? ((p.time * 0.5 + j * 0.5) % 1) : Math.min(1, Math.max(0, (k - 0.22 - j * 0.035) / 0.55));
+    c.visible = e > 0 && e < 1;
+    const drift = wisp ? 0.04 : 0.16;
+    // the cloud billows forward, then rises up through and above the pergola roof (2.5 m) so it stays visible
+    c.position.set(Math.sin(j * 2.1 + p.time * 0.6) * drift * (1 + e * 2), (wisp ? 1.3 : 1.72) + e * (wisp ? 0.45 : 1.45), (wisp ? -0.32 : -0.28) - Math.min(e, 0.4) * (wisp ? 0.1 : 0.7));
+    c.scale.setScalar(wisp ? 0.03 + e * 0.07 : 0.09 + e * 0.5);
+    const mat = c instanceof THREE.Mesh ? c.material : null;
+    if (mat instanceof THREE.MeshStandardMaterial) mat.opacity = (wisp ? 0.45 : 0.9) * (1 - Math.pow(e, 1.6)) * (wisp && k < 0.2 ? 0 : 1);
+  });
+}
+
+/** Where someone's status puts them between scheduled events. */
+const wantPlace = (status: EmployeeStatus): Place => (status === "idle" ? "vape" : status === "error" ? "boss" : "desk");
+
+type PlaceState = { init: boolean; at: Place; slot: number; to: Place; toSlot: number; route: Route | null; start: number };
 
 /** Is `t` past the middle of the first stop with this act? */
 function past(route: Route, act: "pickup" | "drop" | "toss", t: number): boolean {
@@ -96,15 +121,18 @@ export function Employee3D({ meta, index, pal, shadows, reducedMotion, duty }: P
   const vapor = useRef<THREE.Group>(null);
   const rig = useRef<PersonRig | null>(null);
   const pose = useRef<Pose>({ ...REST });
-  const live = useRef({ status, enabled, duty });
-  live.current = { status, enabled, duty };
+  // spot in Ronald's office among everyone currently showing an error (desk order)
+  const errorSlot = useOffice((s) => s.data.employees.filter((e) => e.enabled && e.status === "error").map((e) => e.id).indexOf(meta.id));
+  const live = useRef({ status, enabled, duty, errorSlot });
+  live.current = { status, enabled, duty, errorSlot };
+  const place = useRef<PlaceState>({ init: false, at: "desk", slot: 0, to: "desk", toSlot: 0, route: null, start: 0 });
   const hop = useRef({ prev: status, at: -10 });
   const chair = chairOf(meta);
 
   useFrame(({ clock }) => {
     const g = group.current, r = rig.current, b = body.current;
     if (!g || !r || !b) return;
-    const { status: st, enabled: en, duty: d } = live.current;
+    const { status: st, enabled: en, duty: d, errorSlot: es } = live.current;
     const now = sceneNow();
     const min = manilaMinutes(now);
     const a = activityOf(min, isWeekday(now), meta, index, st, en, d);
@@ -125,16 +153,52 @@ export function Employee3D({ meta, index, pal, shadows, reducedMotion, duty }: P
     if (vapor.current) vapor.current.visible = false;
     if (bag.current) bag.current.visible = false;
 
-    if (a.kind === "seat" || a.kind === "away") {
+    const ps = place.current;
+    const walkAlong = (smp: Sample, reverse: boolean) => {
+      g.position.set(smp.x, 0, smp.z);
+      g.rotation.y = smp.heading;
+      p.walk = smp.moving ? 1 : 0;
+      p.stride = reducedMotion ? 0 : smp.dist * STRIDE;
+      if (smp.act === "rise") p.sit = reverse ? smp.actT : 1 - smp.actT;
+      if (smp.act === "sit") p.sit = reverse ? 1 - smp.actT : smp.actT;
+    };
+
+    if (a.kind === "away") {
+      ps.init = true; ps.at = "desk"; ps.route = null;
       g.position.set(chair.x, 0, chair.z);
       g.rotation.y = 0;
       p.sit = 1;
-      if (a.kind === "seat") {
+    } else if (a.kind === "seat") {
+      // between scheduled events: go where the status says (idle → vape patio, error → Ronald's office, else desk)
+      const nowS = performance.now() / 1000;
+      const want = wantPlace(st);
+      const slot = want === "boss" ? Math.max(0, es) : 0;
+      if (!ps.init) { ps.init = true; ps.at = want; ps.slot = slot; } // first frame: already there
+      if (ps.route && nowS - ps.start >= ps.route.duration) { ps.at = ps.to; ps.slot = ps.toSlot; ps.route = null; }
+      if (!ps.route && (ps.at !== want || (want === "boss" && ps.slot !== slot))) {
+        ps.route = placeRoute(meta.id, ps.at, want, ps.slot, slot);
+        ps.to = want; ps.toSlot = slot; ps.start = nowS;
+      }
+      if (ps.route) {
+        walkAlong(sampleRoute(ps.route, nowS - ps.start), false);
+      } else if (ps.at === "desk") {
+        g.position.set(chair.x, 0, chair.z);
+        g.rotation.y = 0;
+        p.sit = 1;
         if (st === "working") p.typing = 1;
         else if (st === "needs_you") p.wave = reducedMotion ? 0.6 : 1;
         else p.typing = 0.15 + Math.max(0, Math.sin(p.time * 0.5)) * 0.25; // the occasional idle keystroke
+      } else {
+        const spot = placeSpot(meta, ps.at, ps.slot);
+        g.position.set(spot.x, 0, spot.z);
+        g.rotation.y = spot.face ?? 0;
+        if (spot.seated) p.sit = 1;
+        if (ps.at === "vape") vapePose(p, vapor.current, reducedMotion);
+        else p.nod = Math.sin(p.time * 0.35) > 0.9 ? 1 : 0; // waiting for Ronald, the odd glance up
       }
     } else {
+      ps.init = true; ps.at = "desk"; ps.route = null; // scheduled routes start and end at the desk
+
       const s = sampleActivity(a);
       g.position.set(s.x, 0, s.z);
       g.rotation.y = s.heading;
@@ -150,33 +214,7 @@ export function Employee3D({ meta, index, pal, shadows, reducedMotion, duty }: P
         p.mug = Math.max(0, Math.sin(p.time * 0.9)) > 0.75 ? 1 : 0;
         p.nod = Math.sin(p.time * 0.3) > 0.6 ? 1 : 0;
       }
-      if (s.act === "vape") {
-        // a 7-second cycle: draw (hand to mouth), exhale a cloud, chat
-        const k = (p.time % 7) / 7;
-        p.mug = k < 0.2 ? 1 : 0;
-        p.nod = k > 0.6 && k < 0.8 ? 1 : 0;
-      }
-      if (vapor.current) {
-        const on = s.act === "vape" && !reducedMotion;
-        vapor.current.visible = on;
-        if (on) {
-          const k = (p.time % 7) / 7;
-          vapor.current.children.forEach((c, j) => {
-            // puffs 0–5: the exhaled cloud (staggered, growing, drifting up and away); 6–7: a thin wisp in between
-            const wisp = j >= 6;
-            const e = wisp
-              ? ((p.time * 0.5 + j * 0.5) % 1)
-              : Math.min(1, Math.max(0, (k - 0.22 - j * 0.035) / 0.55));
-            c.visible = e > 0 && e < 1;
-            const drift = wisp ? 0.04 : 0.16;
-            // the cloud billows forward, then rises up through and above the pergola roof (2.5 m) so it stays visible
-            c.position.set(Math.sin(j * 2.1 + p.time * 0.6) * drift * (1 + e * 2), (wisp ? 1.3 : 1.72) + e * (wisp ? 0.45 : 1.45), (wisp ? -0.32 : -0.28) - Math.min(e, 0.4) * (wisp ? 0.1 : 0.7));
-            c.scale.setScalar(wisp ? 0.03 + e * 0.07 : 0.09 + e * 0.5);
-            const mat = c instanceof THREE.Mesh ? c.material : null;
-            if (mat instanceof THREE.MeshStandardMaterial) mat.opacity = (wisp ? 0.45 : 0.9) * (1 - Math.pow(e, 1.6)) * (wisp && k < 0.2 ? 0 : 1);
-          });
-        }
-      }
+      if (s.act === "vape") vapePose(p, vapor.current, reducedMotion);
       if (s.act === "listen") p.nod = Math.sin(p.time * 0.4 + index) > 0.85 ? 1 : 0;
       // bags: a small one from your desk bin to the main bin; the collector's big one out to the dumpster
       if (bag.current && (a.purpose === "drop" || a.purpose === "collect")) {
@@ -196,7 +234,7 @@ export function Employee3D({ meta, index, pal, shadows, reducedMotion, duty }: P
   const now = useSceneNow(1000);
   const min = manilaMinutes(now);
   const activity = activityOf(min, isWeekday(now), meta, index, status, enabled, duty);
-  const seated = activity.kind === "seat" || (activity.kind === "route" && activity.purpose === "lunch" && sample(activity.route, activity.t).act === "eat");
+  const seated = (activity.kind === "seat" && !place.current.route && placeSpot(meta, place.current.at, place.current.slot).seated) || (activity.kind === "route" && activity.purpose === "lunch" && sample(activity.route, activity.t).act === "eat");
   let tone: Tone = "idle", label = "Idle", detail: string | undefined, Icon = ICONS[meta.icon], busy = false, attention = false, chip: string | undefined = shirt;
 
   if (activity.kind === "away") {
@@ -224,10 +262,14 @@ export function Employee3D({ meta, index, pal, shadows, reducedMotion, duty }: P
     tone = "needs"; label = "Needs you"; attention = !reducedMotion; Icon = BellRing; chip = undefined;
     detail = clip(emp?.summary) ?? "Tap to review";
   } else if (status === "error") {
-    tone = "error"; label = "Error"; Icon = TriangleAlert; chip = undefined; detail = "Tap to see what happened";
+    tone = "error"; label = "Error"; Icon = TriangleAlert; chip = undefined;
+    detail = place.current.route ? "Going to Ronald for help" : place.current.at === "boss" ? "Waiting in Ronald's office" : "Tap to see what happened";
   } else {
     const next = nextSlot(meta.schedule, now);
-    detail = meta.schedule.kind === "always" ? "Checks every 5 minutes" : next ? `Next ${formatManilaSoon(next, now)}` : meta.title;
+    const nextText = meta.schedule.kind === "always" ? "Checks every 5 minutes" : next ? `Next ${formatManilaSoon(next, now)}` : meta.title;
+    if (place.current.route && place.current.to === "vape") { label = "Break"; Icon = Wind; chip = undefined; detail = "Heading out for a vape"; }
+    else if (place.current.at === "vape" && !place.current.route) { label = "On break"; Icon = Wind; chip = undefined; detail = `Vape area · ${nextText}`; }
+    else detail = nextText;
   }
   if (duty === meta.id && activity.kind === "seat" && min < 17 * 60 + 40) detail = `${detail ?? ""}${detail ? " · " : ""}trash duty 5:40 PM`;
 

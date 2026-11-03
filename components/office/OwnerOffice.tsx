@@ -321,7 +321,7 @@ function BossDecor({ pal, shadows }: { pal: Palette; shadows: boolean }) {
           <planeGeometry args={[1.7, 1.6]} />
           <meshStandardMaterial color="#cfccc4" roughness={1} />
         </mesh>
-        <group position={[0.55, 0, 0]} rotation={[0, -Math.PI / 2, 0]}>
+        <group position={[0.55, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
           <RoundedBox args={[1.45, 0.28, 0.78]} radius={0.06} smoothness={2} position={[0, 0.22, 0]} castShadow={shadows}>
             <meshStandardMaterial color="#2f3338" roughness={0.8} />
           </RoundedBox>

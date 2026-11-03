@@ -24,18 +24,22 @@ type Key = {
 };
 
 const K = (h: number, m: number, rest: Omit<Key, "at">): Key => ({ at: h * 60 + m, ...rest });
-const NIGHT_KEY = { ambient: 0.24, ambientColor: "#8f9fd6", hemi: 0.18, sun: 0.35, sunColor: "#9db4ff", skyTop: "#050b18", skyBottom: "#16264a", lamps: 1, night: 1 };
+const NIGHT_KEY = { ambient: 0.16, ambientColor: "#7d8fcf", hemi: 0.12, sun: 0.28, sunColor: "#9db4ff", skyTop: "#050b18", skyBottom: "#16264a", lamps: 1, night: 1 };
+/**
+ * Morning: crisp and bright. Lunch: the brightest, neutral white. Afternoon: warm and golden with a lower sun.
+ * Golden hour → dusk: amber, then purple, office lights on. Night: dark blue, lit by the office lamps.
+ */
 const KEYS: Key[] = [
   K(0, 0, NIGHT_KEY),
   K(5, 15, NIGHT_KEY),
-  K(6, 15, { ambient: 0.42, ambientColor: "#ffd9c0", hemi: 0.3, sun: 0.75, sunColor: "#ffb27a", skyTop: "#f2a07b", skyBottom: "#ffdca6", lamps: 0.6, night: 0.25 }),
-  K(8, 0, { ambient: 0.68, ambientColor: "#fff1e0", hemi: 0.42, sun: 1.25, sunColor: "#ffe2b5", skyTop: "#7fbfeb", skyBottom: "#e3f2fb", lamps: 0.15, night: 0 }),
-  K(11, 30, { ambient: 0.85, ambientColor: "#ffffff", hemi: 0.5, sun: 1.55, sunColor: "#fffaf0", skyTop: "#5aaee8", skyBottom: "#d4ecfd", lamps: 0, night: 0 }),
-  K(13, 0, { ambient: 0.85, ambientColor: "#ffffff", hemi: 0.5, sun: 1.55, sunColor: "#fffaf0", skyTop: "#5aaee8", skyBottom: "#d4ecfd", lamps: 0, night: 0 }),
-  K(15, 30, { ambient: 0.72, ambientColor: "#ffefdc", hemi: 0.45, sun: 1.3, sunColor: "#ffd59e", skyTop: "#86bde6", skyBottom: "#ffe3bd", lamps: 0.1, night: 0 }),
-  K(17, 20, { ambient: 0.56, ambientColor: "#ffd3b0", hemi: 0.36, sun: 1.0, sunColor: "#ff9d5c", skyTop: "#6f6eaa", skyBottom: "#ffa86b", lamps: 0.55, night: 0.1 }),
-  K(18, 30, { ambient: 0.34, ambientColor: "#b9b4e0", hemi: 0.24, sun: 0.45, sunColor: "#ff8a5c", skyTop: "#232a58", skyBottom: "#c0607a", lamps: 1, night: 0.6 }),
-  K(19, 45, NIGHT_KEY),
+  K(6, 15, { ambient: 0.36, ambientColor: "#ffc9a8", hemi: 0.26, sun: 0.75, sunColor: "#ff9e6a", skyTop: "#f29a78", skyBottom: "#ffd9a2", lamps: 0.6, night: 0.25 }),
+  K(8, 0, { ambient: 0.6, ambientColor: "#f6f8ff", hemi: 0.42, sun: 1.3, sunColor: "#fff1d8", skyTop: "#79bdee", skyBottom: "#e4f3fc", lamps: 0.1, night: 0 }),
+  K(11, 30, { ambient: 0.92, ambientColor: "#ffffff", hemi: 0.56, sun: 1.75, sunColor: "#fffdf6", skyTop: "#4fa9ea", skyBottom: "#d2ecff", lamps: 0, night: 0 }),
+  K(13, 0, { ambient: 0.9, ambientColor: "#ffffff", hemi: 0.55, sun: 1.7, sunColor: "#fffaf0", skyTop: "#56abe8", skyBottom: "#d6ecfd", lamps: 0, night: 0 }),
+  K(15, 0, { ambient: 0.62, ambientColor: "#ffe4c2", hemi: 0.42, sun: 1.45, sunColor: "#ffc983", skyTop: "#82b9e2", skyBottom: "#ffe0b3", lamps: 0.05, night: 0 }),
+  K(17, 0, { ambient: 0.46, ambientColor: "#ffc69a", hemi: 0.32, sun: 1.2, sunColor: "#ff9548", skyTop: "#7a6fa8", skyBottom: "#ffa365", lamps: 0.45, night: 0.08 }),
+  K(18, 15, { ambient: 0.28, ambientColor: "#a99ccf", hemi: 0.2, sun: 0.45, sunColor: "#ff7a4a", skyTop: "#252a5a", skyBottom: "#c45f78", lamps: 1, night: 0.6 }),
+  K(19, 30, NIGHT_KEY),
   K(24, 0, NIGHT_KEY),
 ];
 
@@ -212,7 +216,7 @@ export function Lighting({ shadows }: { shadows: boolean }) {
       const angle = 0.35 + dayK * (Math.PI - 0.7);
       const isNight = light.night > 0.5;
       const x = isNight ? CENTER.x - 6 : CENTER.x + Math.cos(angle) * 11;
-      const y = isNight ? 13 : 5 + Math.sin(angle) * 10;
+      const y = isNight ? 13 : 2.5 + Math.sin(angle) * 12.5;
       sun.current.position.set(x, y, CENTER.z + 7);
     }
     // on a dark rainy day the office lights come on too

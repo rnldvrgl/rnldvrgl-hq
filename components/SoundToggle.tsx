@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Volume2, VolumeX } from "lucide-react";
-import type { Ambience } from "@/lib/ambience";
+import { setSound } from "@/lib/ambience";
 import { cn } from "@/lib/utils";
 
 const KEY = "hq:sound";
@@ -20,21 +20,13 @@ function save(on: boolean) {
  */
 export function SoundToggle({ className, compact = false }: { className?: string; compact?: boolean }) {
   const [on, setOn] = useState(false);
-  const engine = useRef<Ambience | null>(null);
-
-  const ensure = async (): Promise<Ambience> => {
-    if (!engine.current) {
-      const { Ambience } = await import("@/lib/ambience");
-      engine.current = new Ambience();
-    }
-    return engine.current;
-  };
 
   // remembered "on": start at the first tap or key press (the browser needs a gesture before playing audio)
   useEffect(() => {
     if (!readSaved()) return;
     setOn(true);
-    const go = () => { void ensure().then((a) => a.start()); };
+    // if this first tap is the mute button itself, its click runs after this and turns it back off
+    const go = () => { if (readSaved()) void setSound(true); };
     window.addEventListener("pointerdown", go, { once: true });
     window.addEventListener("keydown", go, { once: true });
     return () => {
@@ -43,22 +35,18 @@ export function SoundToggle({ className, compact = false }: { className?: string
     };
   }, []);
 
-  useEffect(() => () => { void engine.current?.stop(); }, []);
-
-  const toggle = async () => {
+  const toggle = () => {
     const next = !on;
     setOn(next);
     save(next);
-    const a = await ensure();
-    if (next) await a.start();
-    else await a.stop();
+    void setSound(next);
   };
 
   const label = on ? "Mute office sounds" : "Play office sounds";
   return (
     <button
       type="button"
-      onClick={() => { void toggle(); }}
+      onClick={toggle}
       aria-pressed={on}
       aria-label={label}
       title={label}

@@ -1,14 +1,21 @@
 "use client";
 
-import { sceneNow, sceneWeather, useOffice } from "@/lib/store";
+import { sceneNow, sceneWeather } from "@/lib/store";
 import { manilaMinutes } from "@/lib/office-clock";
 
 /**
  * The office's background sound, generated live with Web Audio (no audio files):
- *   room tone (soft brown noise), the AC hum during office hours, keyboard clatter that follows
- *   how many people are working, birds by day, crickets at night, traffic passing now and then,
- *   rain when it rains and thunder in storms. It reads the scene clock and weather, so previews sound right too.
+ *   room tone (soft brown noise), the AC hum during office hours, keyboard clatter from each working desk
+ *   (positional: loud when you're zoomed in on that desk, quiet or silent when it's far off or out of view),
+ *   birds by day, crickets at night, traffic passing now and then, rain when it rains and thunder in storms.
+ *   It reads the scene clock and weather, so previews sound right too.
  */
+
+/**
+ * Typing sources, written by the 3D scene (see SoundListener in Scene3D): per desk, how loud it should be
+ * from where you're looking (0 = inaudible) and where it sits left/right on screen (-1…1).
+ */
+export const typingSources = new Map<string, { gain: number; pan: number }>();
 
 function noiseBuffer(ctx: AudioContext, seconds: number, color: "white" | "pink" | "brown"): AudioBuffer {
   const len = Math.floor(ctx.sampleRate * seconds);
@@ -43,7 +50,7 @@ export class Ambience {
   private white: AudioBuffer;
   private brown: AudioBuffer;
   private timer: ReturnType<typeof setInterval> | null = null;
-  private nextKey = 0;
+  private nextKey = new Map<string, number>();
   private nextBird = 0;
   private nextCar = 0;
   private nextThunder = 0;
@@ -166,18 +173,20 @@ export class Ambience {
     const night = min < 360 || min >= 1110;
     const weather = sceneWeather();
     const raining = weather === "rain" || weather === "storm";
-    const working = useOffice.getState().data.employees.filter((e) => e.status === "working").length;
 
     this.set(this.ac, min >= 480 && min < 1140 ? 0.012 : 0);
     this.set(this.rain, raining ? (weather === "storm" ? 0.16 : 0.1) : 0);
     this.set(this.crickets, night && !raining ? 0.0045 : 0);
     this.set(this.room, night ? 0.03 : 0.05);
 
-    // keyboards: bursts of clicks, more people working = denser
-    if (working > 0 && now >= this.nextKey) {
-      this.burst({ dur: 0.03, gain: 0.025 + Math.random() * 0.03, type: "highpass", freq: 2400 + Math.random() * 1500, pan: Math.random() * 1.2 - 0.6 });
+    // keyboards: each audible desk types in its own bursts, at its own loudness and stereo position
+    for (const [id, src] of typingSources) {
+      if (src.gain < 0.03) continue;
+      const due = this.nextKey.get(id) ?? 0;
+      if (now < due) continue;
+      this.burst({ dur: 0.03, gain: (0.02 + Math.random() * 0.03) * src.gain, type: "highpass", freq: 2400 + Math.random() * 1500, pan: src.pan });
       const pause = Math.random() < 0.08 ? 0.6 + Math.random() * 1.2 : 0.07 + Math.random() * 0.15;
-      this.nextKey = now + pause / Math.min(3, working);
+      this.nextKey.set(id, now + pause);
     }
     // birds by day (not in the rain)
     if (!night && !raining && now >= this.nextBird) {
@@ -195,4 +204,25 @@ export class Ambience {
       this.nextThunder = now + 9 + Math.random() * 10;
     }
   }
+}
+
+/* ------------------------------------------------------------------ one engine, switched in order */
+
+let engine: Ambience | null = null;
+let queue: Promise<void> = Promise.resolve();
+
+/**
+ * Turn the ambience on or off. There's only ever one engine, and requests run one after another,
+ * so a quick on→off (or a tap that starts it while also pressing mute) always ends in the last state asked for.
+ */
+export function setSound(on: boolean): Promise<void> {
+  queue = queue.then(async () => {
+    if (!engine) {
+      if (!on) return;
+      engine = new Ambience();
+    }
+    if (on) await engine.start();
+    else await engine.stop();
+  }).catch((e: unknown) => { console.warn("sound:", e instanceof Error ? e.message : e); });
+  return queue;
 }

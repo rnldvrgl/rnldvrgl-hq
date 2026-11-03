@@ -91,7 +91,6 @@ export const PREVIEWS: readonly { id: string; label: string; at: string }[] = [
   { id: "boss", label: "10:30 AM · Ronald walks around", at: "10:30" },
   { id: "lunch", label: "12:00 PM · Lunch break", at: "12:00" },
   { id: "afternoon", label: "3:30 PM · Afternoon", at: "15:30" },
-  { id: "vape", label: "4:00 PM · Vape break outside", at: "16:00" },
   { id: "trash-drop", label: "5:30 PM · Everyone bins their trash", at: "17:30" },
   { id: "trash", label: "5:40 PM · Trash goes out", at: "17:40" },
   { id: "night", label: "9:00 PM · Night", at: "21:00" },

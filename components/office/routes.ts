@@ -500,3 +500,67 @@ export function actWindows(route: Route, act: Act): [number, number][] {
   for (const e of route.entries) if (e.kind === "wait" && e.act === act) out.push([e.t0, e.t1]);
   return out;
 }
+
+/* ------------------------------------------------------------------ where people wait, by status */
+
+/**
+ * Between scheduled events, people go where their status puts them: idle → hang out on the vape patio,
+ * error → wait in Ronald's office for help, anything else → at their desk.
+ */
+export type Place = "desk" | "vape" | "boss";
+
+/** Waiting spots in Ronald's office: the two sofa seats (sitting), then two standing spots by the coffee table. */
+export const BOSS_SPOTS: readonly (Waypoint & { seated: boolean })[] = [
+  { x: 14.86, z: 2.86, face: Math.PI / 2, seated: true },
+  { x: 14.86, z: 3.54, face: Math.PI / 2, seated: true },
+  { x: 13.55, z: 2.62, face: headingOf(0.6, 0.4), seated: false },
+  { x: 13.45, z: 3.55, face: headingOf(0.7, -0.2), seated: false },
+];
+
+/** Path from the employee's own lane point (exclusive) to the place's spot (inclusive, no stop). */
+function placePath(m: EmployeeMeta, place: Exclude<Place, "desk">, slot: number): Pt[] {
+  const c = chairOf(m);
+  const lane = laneZOf(m);
+  if (place === "vape") {
+    const spot = VAPE_SPOTS[indexOf(m.id)];
+    return [...toEntrance(P(c.x, lane)), DOOR, DOOR_OUT, P(DOOR_OUT.x + 0.35, OUTSIDE_LANE_Z), P(VAPE.x - VAPE.r - 0.45, OUTSIDE_LANE_Z), spot];
+  }
+  const spot = BOSS_SPOTS[slot % BOSS_SPOTS.length];
+  const toMid = lane === LANES.front ? [P(LANES.right, LANES.front), P(LANES.right, LANES.mid)] : [];
+  return [...toMid, OFFICE_DOOR_OUT, OFFICE_DOOR_IN, P(13.0, 2.75), P(14.35, 2.75), spot];
+}
+
+/** The pose someone holds once they've arrived. */
+export function placeSpot(m: EmployeeMeta, place: Place, slot: number): Waypoint & { seated: boolean } {
+  if (place === "desk") return { ...chairOf(m), face: FACE_BACK, seated: true };
+  if (place === "vape") return { ...VAPE_SPOTS[indexOf(m.id)], seated: false };
+  return BOSS_SPOTS[slot % BOSS_SPOTS.length];
+}
+
+const placeRoutes = new Map<string, Route>();
+
+/** Walk from one place to another, via the employee's own lane. `fromSlot` / `toSlot` pick the boss-office spot. */
+export function placeRoute(id: EmployeeId, from: Place, to: Place, fromSlot: number, toSlot: number): Route {
+  const key = `${id}|${from}|${to}|${fromSlot}|${toSlot}`;
+  const cached = placeRoutes.get(key);
+  if (cached) return cached;
+  const m = metaOf(id);
+  const c = chairOf(m);
+  const lane = P(c.x, laneZOf(m));
+  const pts: Waypoint[] = [];
+  if (from === "desk") pts.push(...outOfChair(m));
+  else {
+    const spot = placeSpot(m, from, fromSlot);
+    pts.push(spot.seated ? { ...spot, wait: 0.9, act: "rise" } : spot);
+    pts.push(...placePath(m, from, fromSlot).slice(0, -1).reverse(), lane);
+  }
+  if (to === "desk") pts.push(...intoChair(m));
+  else {
+    const path = placePath(m, to, toSlot);
+    const spot = placeSpot(m, to, toSlot);
+    pts.push(...path.slice(0, -1), spot.seated ? { ...spot, wait: 0.9, act: "sit" } : { ...spot, wait: 0.4 });
+  }
+  const route = compile(pts, WALK);
+  placeRoutes.set(key, route);
+  return route;
+}
