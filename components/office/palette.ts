@@ -63,7 +63,7 @@ export const MAIN_BIN = { x: ROOM.W - 0.38, z: 8.05 } as const;
 /** Dining table in front of the pantry (lunch). */
 export const DINING = { x: 12.95, z: 7.0, w: 2.6, d: 0.9 } as const;
 /** Stand-up circle in the front zone. */
-export const HUDDLE = { x: 7.4, z: 9.75, r: 1.1 } as const;
+export const HUDDLE = { x: 7.4, z: 9.6, r: 1.05 } as const;
 /** Glass meeting room in the front-left corner. */
 export const MEETING = { x1: 4.4, z0: 8.65 } as const;
 /** Lounge in the front-right. */

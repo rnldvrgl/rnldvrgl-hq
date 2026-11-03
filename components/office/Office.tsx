@@ -11,6 +11,7 @@ import { isEmployeeId, teamById, type AiProvider, type OfficeState } from "@/lib
 import { useIsDesktop } from "@/hooks/use-media";
 import { cn } from "@/lib/utils";
 import { ThemePicker } from "@/components/ThemePicker";
+import { SoundToggle } from "@/components/SoundToggle";
 import { OfficeScene } from "./OfficeScene";
 import { DeskPanel, Reminders } from "./DeskPanel";
 import { PHASE_ICON, PHASE_LABEL, phaseOf, useSceneNow } from "./scene-clock-ui";
@@ -272,6 +273,7 @@ function DesktopOffice() {
           <Metrics working={working} waiting={waiting} reminders={reminders} />
           <ClockBadge />
           <AiBadge provider={provider} />
+          <SoundToggle />
           <ThemePicker />
         </div>
       </header>
@@ -346,6 +348,7 @@ function PhoneOffice() {
             <Metrics working={working} waiting={waiting} compact />
             <ClockBadge short className="max-[389px]:hidden" />
             <AiBadge provider={provider} compact className="hidden sm:inline-flex" />
+            <SoundToggle compact />
             <ThemePicker compact />
           </div>
         </div>

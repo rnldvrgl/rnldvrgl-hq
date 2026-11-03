@@ -6,7 +6,7 @@ import { useFrame } from "@react-three/fiber";
 import { RoundedBox } from "@react-three/drei";
 import { useOffice } from "@/lib/store";
 import { OUTSIDE, ROOM, SCENE, type Palette } from "./palette";
-import { getGlowTexture, light } from "./Lighting";
+import { StreetLamp } from "./StreetLamp";
 
 /**
  * Everything around the building, so the diorama sits in a neighbourhood instead of a void:
@@ -136,14 +136,7 @@ function Jeepney({ shadows }: { shadows: boolean }) {
 export function Grounds({ pal, shadows }: { pal: Palette; shadows: boolean }) {
   const edge = useEdgeFade();
   const ends = useEndFade();
-  const glow = useMemo(() => getGlowTexture(), []);
-  const lamps = useRef<(THREE.MeshStandardMaterial | null)[]>([]);
-  const pools = useRef<(THREE.MeshBasicMaterial | null)[]>([]);
-  useFrame(() => {
-    lamps.current.forEach((m) => { if (m) m.emissiveIntensity = 0.1 + light.lamps * 2.2; });
-    pools.current.forEach((m) => { if (m) m.opacity = light.lamps * 0.4; });
-  });
-  const lampXs = [0, 8, 16, OUTSIDE.x1 + 3];
+  const lampXs = [-6, 0, 8, 16, OUTSIDE.x1 + 3, OUTSIDE.x1 + 10];
   const roadW = ROAD_X.x1 - ROAD_X.x0, roadCx = (ROAD_X.x0 + ROAD_X.x1) / 2;
 
   return (
@@ -183,27 +176,8 @@ export function Grounds({ pal, shadows }: { pal: Palette; shadows: boolean }) {
       ))}
       <Jeepney shadows={shadows} />
 
-      {/* street lamps along the sidewalk */}
-      {lampXs.map((x, i) => (
-        <group key={x} position={[x, 0, SIDEWALK.z1 - 0.25]}>
-          <mesh position={[0, 1.4, 0]}>
-            <cylinderGeometry args={[0.04, 0.06, 2.8, 8]} />
-            <meshStandardMaterial color="#2b3238" />
-          </mesh>
-          <mesh position={[0, 2.78, 0.25]}>
-            <boxGeometry args={[0.16, 0.06, 0.6]} />
-            <meshStandardMaterial color="#2b3238" />
-          </mesh>
-          <mesh position={[0, 2.74, 0.45]}>
-            <boxGeometry args={[0.13, 0.03, 0.24]} />
-            <meshStandardMaterial ref={(m) => { lamps.current[i] = m; }} color="#fff3d6" emissive="#ffd28a" emissiveIntensity={0.1} toneMapped={false} />
-          </mesh>
-          <mesh position={[0, -0.1, 0.9]} rotation={[-Math.PI / 2, 0, 0]}>
-            <planeGeometry args={[3, 3]} />
-            <meshBasicMaterial ref={(m) => { pools.current[i] = m; }} map={glow} color="#ffcf8a" transparent opacity={0} depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} />
-          </mesh>
-        </group>
-      ))}
+      {/* street lamps along the sidewalk, arms reaching over the street */}
+      {lampXs.map((x) => <StreetLamp key={x} position={[x, 0, SIDEWALK.z1 - 0.25]} ground={-0.1} />)}
 
       {/* trees and a low hedge line along the back */}
       {TREES.map(([x, z, s]) => <Tree key={`${x}${z}`} position={[x, -0.12, z]} scale={s} shadows={shadows} />)}

@@ -77,8 +77,8 @@ function MeetingRoom({ pal, shadows }: Common) {
   const cx = x1 / 2, cz = (z0 + D) / 2;
   return (
     <group>
-      <mesh position={[cx, 0.006, cz]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow={shadows}>
-        <planeGeometry args={[x1 - 0.1, D - z0 - 0.1]} />
+      <mesh position={[cx + 0.05, 0.006, cz - 0.05]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow={shadows}>
+        <planeGeometry args={[x1 - 0.3, D - z0 - 0.35]} />
         <meshStandardMaterial color="#c9ced3" roughness={1} />
       </mesh>
       {/* back pane (door gap on the right end) and side pane */}
@@ -155,11 +155,11 @@ function Huddle({ pal, shadows }: Common) {
   return (
     <group>
       <mesh position={[HUDDLE.x, 0.007, HUDDLE.z]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow={shadows}>
-        <circleGeometry args={[HUDDLE.r + 0.3, 48]} />
+        <circleGeometry args={[HUDDLE.r + 0.25, 48]} />
         <meshStandardMaterial color="#d6e4e0" roughness={1} />
       </mesh>
       <mesh position={[HUDDLE.x, 0.009, HUDDLE.z]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[HUDDLE.r + 0.2, HUDDLE.r + 0.27, 48]} />
+        <ringGeometry args={[HUDDLE.r + 0.15, HUDDLE.r + 0.21, 48]} />
         <meshBasicMaterial color={pal.selected} />
       </mesh>
       {/* screen on a stand, facing the circle */}
@@ -225,8 +225,8 @@ function Lounge({ pal, shadows }: Common) {
   const lx = LOUNGE.x, lz = LOUNGE.z, sz = ROOM.D - 0.5;
   return (
     <group>
-      <mesh position={[lx, 0.008, lz]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow={shadows}>
-        <planeGeometry args={[3.4, 2.1]} />
+      <mesh position={[lx, 0.008, lz - 0.2]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow={shadows}>
+        <planeGeometry args={[3.2, 1.9]} />
         <meshStandardMaterial color={pal.rugLounge} roughness={1} />
       </mesh>
       <group position={[lx, 0, sz]}>

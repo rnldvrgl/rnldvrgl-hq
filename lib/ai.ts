@@ -185,34 +185,72 @@ async function askGemini(opts: AskOptions): Promise<string> {
 /* ------------------------------------------------------------------ Groq (OpenAI-compatible) */
 
 type GroqResponse = { choices?: { message?: { content?: string | null }; finish_reason?: string }[] };
+/** A way to ask Groq: a model, optionally with Groq's built-in browser-search tool. */
+type GroqRoute = { model: string; browserSearch?: boolean };
 
 /**
- * Groq's free tier. Plain prompts use GROQ_MODEL; prompts that need the web use GROQ_SEARCH_MODEL,
- * Groq's "compound" system, which runs its own web search. Both can be changed in .env.local.
+ * Groq's model names change and some (like the "compound" web-search systems) aren't enabled on every account,
+ * so each kind of prompt has a list to try. The first one that works is remembered for the rest of the process.
+ * GROQ_MODEL / GROQ_SEARCH_MODEL in .env.local go first when set.
  */
-async function askGroq(opts: AskOptions): Promise<string> {
-  const search = !!opts.webSearch;
-  const model = search ? optionalEnv("GROQ_SEARCH_MODEL") ?? "groq/compound" : optionalEnv("GROQ_MODEL") ?? "llama-3.3-70b-versatile";
-  const domains = opts.webSearch?.allowedDomains;
-  const prompt = domains?.length ? `${opts.prompt}\n\nOnly use results from these sites: ${domains.join(", ")}.` : opts.prompt;
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+function groqRoutes(search: boolean): GroqRoute[] {
+  const custom = optionalEnv(search ? "GROQ_SEARCH_MODEL" : "GROQ_MODEL");
+  const list: GroqRoute[] = search
+    ? [
+        { model: "groq/compound" }, { model: "compound-beta" }, { model: "groq/compound-mini" }, { model: "compound-beta-mini" },
+        { model: "openai/gpt-oss-120b", browserSearch: true }, { model: "openai/gpt-oss-20b", browserSearch: true },
+      ]
+    : [{ model: "llama-3.3-70b-versatile" }, { model: "openai/gpt-oss-120b" }, { model: "llama-3.1-8b-instant" }];
+  return custom ? [{ model: custom, browserSearch: search && custom.startsWith("openai/gpt-oss") }, ...list.filter((r) => r.model !== custom)] : list;
+}
+const groqWorking: { search?: GroqRoute | null; plain?: GroqRoute | null } = {};
+
+/** This route can't be used on this account (unknown model, no access, tool not supported). */
+const notAvailable = (status: number, body: string) =>
+  status === 404 || /model_not_found|does not exist|do not have access|not supported|unknown tool|tool_use_failed/i.test(body);
+
+async function groqCall(route: GroqRoute, opts: AskOptions, prompt: string): Promise<Response> {
+  return fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${env("GROQ_API_KEY")}` },
     body: JSON.stringify({
-      model,
+      model: route.model,
       max_tokens: Math.max(1024, opts.maxTokens ?? 2000),
       messages: [...(opts.system ? [{ role: "system", content: opts.system }] : []), { role: "user", content: prompt }],
+      ...(route.browserSearch ? { tools: [{ type: "browser_search" }], tool_choice: "auto" } : {}),
     }),
   });
-  if (!res.ok) {
-    const body = await res.text();
-    if (res.status === 429) throw new RateLimitError("Groq free tier limit reached for now.");
-    throw new Error(`Groq API ${res.status}: ${body.slice(0, 300)}`);
+}
+
+/** Groq's free tier: plain prompts on a chat model, web prompts on a model that can search. */
+async function askGroq(opts: AskOptions): Promise<string> {
+  const search = !!opts.webSearch;
+  const key = search ? "search" : "plain";
+  const domains = opts.webSearch?.allowedDomains;
+  const prompt = domains?.length ? `${opts.prompt}\n\nOnly use results from these sites: ${domains.join(", ")}.` : opts.prompt;
+  if (groqWorking[key] === null) throw new RateLimitError("Groq has no web-search model on this account; using the next backup.");
+
+  const routes = groqWorking[key] ? [groqWorking[key]] : groqRoutes(search);
+  for (const route of routes) {
+    const res = await groqCall(route, opts, prompt);
+    if (!res.ok) {
+      const body = await res.text();
+      if (res.status === 429) throw new RateLimitError("Groq free tier limit reached for now.");
+      if (notAvailable(res.status, body)) {
+        console.warn(`[ai] Groq: ${route.model}${route.browserSearch ? " + browser search" : ""} isn't available, trying the next one.`);
+        continue;
+      }
+      throw new Error(`Groq API ${res.status}: ${body.slice(0, 300)}`);
+    }
+    groqWorking[key] = route;
+    const data = (await res.json()) as GroqResponse;
+    const text = data.choices?.[0]?.message?.content?.trim();
+    if (!text) throw new Error(`Groq returned no text (${data.choices?.[0]?.finish_reason ?? "unknown reason"}).`);
+    return text;
   }
-  const data = (await res.json()) as GroqResponse;
-  const text = data.choices?.[0]?.message?.content?.trim();
-  if (!text) throw new Error(`Groq returned no text (${data.choices?.[0]?.finish_reason ?? "unknown reason"}).`);
-  return text;
+  // none of them work here: hand this kind of prompt to the next backup from now on
+  groqWorking[key] = null;
+  throw new RateLimitError(`Groq has no ${search ? "web-search" : "chat"} model available on this account; using the next backup.`);
 }
 
 /* ------------------------------------------------------------------ helpers */

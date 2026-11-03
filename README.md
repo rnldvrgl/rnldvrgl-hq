@@ -84,7 +84,7 @@ While `ANTHROPIC_API_KEY` is empty, the office runs on free backups. Set up **Gr
 **Groq (recommended first)**
 
 1. Go to https://console.groq.com, sign in (Google sign-in works), open **API Keys → Create API Key**, and copy it into `.env.local` as `GROQ_API_KEY`.
-2. Leave `GROQ_MODEL=llama-3.3-70b-versatile` for normal prompts, and `GROQ_SEARCH_MODEL=groq/compound` for Hunter and Rhea: Groq's compound system runs its own web search. If Groq renames a model, pick a current one at https://console.groq.com/docs/models and change it here.
+2. Leave `GROQ_MODEL` and `GROQ_SEARCH_MODEL` empty. HQ tries Groq's current models itself and remembers the first that works. Hunter and Rhea need web search, so for them it tries Groq's "compound" systems, then gpt-oss with Groq's browser search. If your account has none of those, their searches go to Gemini instead. To force a model, put a name from https://console.groq.com/docs/models in either setting.
 
 **Gemini (second backup, optional)**
 

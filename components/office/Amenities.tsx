@@ -8,13 +8,13 @@ import { sceneNow } from "@/lib/store";
 import { manilaMinutes, TRASH_AT, hm } from "@/lib/office-clock";
 import type { EmployeeId } from "@/lib/team";
 import { DUMPSTER, ENTRANCE, OFFICE, OUTSIDE, ROOM, SCENE_FONT, type Palette } from "./palette";
-import { Plant } from "./Furniture";
-import { getGlowTexture, light } from "./Lighting";
+
 import { actWindows, trashRoute } from "./routes";
 import { Dining, FrontZone } from "./FrontZone";
 import { TrashBins } from "./Trash";
 import { Rain } from "./Weather";
 import { Car } from "./Car";
+import { StreetLamp } from "./StreetLamp";
 import { VapeArea } from "./Vape";
 
 type Common = { pal: Palette; shadows: boolean };
@@ -258,9 +258,6 @@ function Outside({ pal, shadows, assignee }: Common & { assignee: EmployeeId | n
     const w = x1 - x0, d = z1 - z0;
     const lid = useRef<THREE.Group>(null);
     const bags = useRef<THREE.Group>(null);
-    const lampHead = useRef<THREE.MeshStandardMaterial>(null);
-    const pool = useRef<THREE.MeshBasicMaterial>(null);
-    const glow = useMemo(() => getGlowTexture(), []);
     const toss = useMemo(() => (assignee ? actWindows(trashRoute(assignee), "toss")[0] ?? null : null), [assignee]);
 
     useFrame((_, dt) => {
@@ -273,8 +270,6 @@ function Outside({ pal, shadows, assignee }: Common & { assignee: EmployeeId | n
         }
         // today's bags sit in the bin from the trash run until the garbage truck at 6 AM
         if (bags.current) bags.current.visible = (toss !== null && t >= toss[0] + 1) || min < hm("06:00");
-        if (lampHead.current) lampHead.current.emissiveIntensity = 0.1 + light.lamps * 2.2;
-        if (pool.current) pool.current.opacity = light.lamps * 0.45;
     });
 
     return (
@@ -354,26 +349,8 @@ function Outside({ pal, shadows, assignee }: Common & { assignee: EmployeeId | n
             <Condenser pal={pal} shadows={shadows} position={[ROOM.W + 0.55, 0, OUTSIDE.z0 + 0.25]} on={officeAcOn} />
             <Condenser pal={pal} shadows={shadows} position={[ROOM.W + 1.45, 0, OUTSIDE.z0 + 0.25]} on={floorAcOn} />
 
-            {/* street lamp, on at night */}
-            {/* far corner of the pavement, clear of the parked car */}
-            <group position={[x1 - 0.35, 0, z0 + 0.35]}>
-                <mesh position={[0, 1.3, 0]}>
-                    <cylinderGeometry args={[0.035, 0.05, 2.6, 8]} />
-                    <meshStandardMaterial color="#2b3238" />
-                </mesh>
-                <mesh position={[-0.2, 2.58, 0]}>
-                    <boxGeometry args={[0.5, 0.06, 0.18]} />
-                    <meshStandardMaterial color="#2b3238" />
-                </mesh>
-                <mesh position={[-0.35, 2.54, 0]}>
-                    <boxGeometry args={[0.24, 0.03, 0.14]} />
-                    <meshStandardMaterial ref={lampHead} color="#fff3d6" emissive="#ffd28a" emissiveIntensity={0.1} toneMapped={false} />
-                </mesh>
-                <mesh position={[-0.6, 0.012, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-                    <planeGeometry args={[2.4, 2.4]} />
-                    <meshBasicMaterial ref={pool} map={glow} color="#ffcf8a" transparent opacity={0} depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} />
-                </mesh>
-            </group>
+            {/* street lamp in the far corner of the pavement, clear of the parked car */}
+            <StreetLamp position={[x1 - 0.35, 0, z0 + 0.35]} rotY={-Math.PI / 2} />
         </group>
     );
 }

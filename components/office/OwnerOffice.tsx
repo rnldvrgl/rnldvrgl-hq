@@ -80,8 +80,8 @@ export function OwnerOffice({ pal, shadows, reducedMotion }: { pal: Palette; sha
         <boxGeometry args={[ow, 0.004, Z1]} />
         <meshStandardMaterial color={pal.officeFloor} />
       </mesh>
-      <mesh position={[MX + 0.1, 0.008, 1.35]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow={shadows}>
-        <planeGeometry args={[3.0, 2.3]} />
+      <mesh position={[MX + 0.05, 0.008, 1.55]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow={shadows}>
+        <planeGeometry args={[2.8, 1.9]} />
         <meshStandardMaterial color="#3a3d42" roughness={1} />
       </mesh>
 
