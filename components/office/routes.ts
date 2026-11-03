@@ -5,12 +5,12 @@
  */
 import { TEAM, type EmployeeId, type EmployeeMeta } from "@/lib/team";
 import {
-  hm, JANITOR_ROUNDS, TRASH_AT, TRASH_DROP_AT, HOME_FROM, BACK_AT, LUNCH_FROM, LUNCH_TO, STANDUP_FROM, STANDUP_TO, VAPE_FROM, VAPE_TO,
+  hm, JANITOR_ROUNDS, TRASH_AT, TRASH_DROP_AT, HOME_FROM, BACK_AT, LUNCH_FROM, LUNCH_TO, STANDUP_FROM, STANDUP_TO, VAPE_FROM, VAPE_TO, MEETING_FROM, MEETING_TO,
 } from "@/lib/office-clock";
-import { DESK, DINING, DUMPSTER, ENTRANCE, HUDDLE, LANES, MAIN_BIN, OFFICE, ROOM, VAPE } from "./palette";
+import { DESK, DINING, DUMPSTER, ENTRANCE, HUDDLE, LANES, MAIN_BIN, MEETING, OFFICE, ROOM, VAPE } from "./palette";
 
 export type Pt = { readonly x: number; readonly z: number };
-export type Act = "rise" | "sit" | "pickup" | "drop" | "toss" | "inspect" | "coffee" | "look" | "eat" | "listen" | "lead" | "vape";
+export type Act = "rise" | "sit" | "pickup" | "drop" | "toss" | "inspect" | "coffee" | "look" | "eat" | "listen" | "lead" | "vape" | "meet";
 export type Waypoint = Pt & { wait?: number; act?: Act; face?: number; bin?: number };
 
 type Entry =
@@ -301,6 +301,52 @@ export const vapeRoute = memo((id: EmployeeId): Route => {
 export function vapeRunT(min: number, id: EmployeeId): number | null {
   const t = (min - VAPE_FROM) * 60 - indexOf(id) * VAPE_STAGGER_S;
   return t >= 0 && t <= vapeRoute(id).duration ? t : null;
+}
+
+/* ------------------------------------------------------------------ 2:00 PM team sync in the meeting room */
+
+/** Centre of the meeting table (the room runs from x 0 to MEETING.x1, z MEETING.z0 to the front wall). */
+export const MEETING_TABLE = { x: MEETING.x1 / 2 + 0.15, z: (MEETING.z0 + ROOM.D) / 2 } as const;
+/** Eight seats: three along each side, one at each end. Index = desk order. */
+export const MEETING_SEATS: readonly Waypoint[] = [
+  ...[-0.75, 0, 0.75].flatMap((dx): Waypoint[] => [
+    { x: MEETING_TABLE.x + dx, z: MEETING_TABLE.z - 0.85, face: FACE_FRONT },
+    { x: MEETING_TABLE.x + dx, z: MEETING_TABLE.z + 0.85, face: FACE_BACK },
+  ]),
+  { x: MEETING_TABLE.x - 1.5, z: MEETING_TABLE.z, face: headingOf(1, 0) },
+  { x: MEETING_TABLE.x + 1.5, z: MEETING_TABLE.z, face: headingOf(-1, 0) },
+];
+/** The gap in the meeting room's back glass, and the aisle just inside its right-hand glass. */
+const MEET_DOOR_OUT = P(MEETING.x1 - 0.5, LANES.lounge);
+const MEET_DOOR_IN = P(MEETING.x1 - 0.5, MEETING.z0 + 0.3);
+const MEET_AISLE_X = MEETING.x1 - 0.25;
+const MEETING_STAGGER_S = 4;
+
+export const meetingRoute = memo((id: EmployeeId): Route => {
+  const m = metaOf(id);
+  const i = indexOf(id);
+  const seat = MEETING_SEATS[i % MEETING_SEATS.length];
+  const toDoor = isBackRow(m)
+    ? (() => { const aisle = deskCenterX(m) < 5 ? LANES.left : LANES.right; return [P(aisle, LANES.mid), P(aisle, LANES.lounge), MEET_DOOR_OUT]; })()
+    : [P(deskCenterX(m), LANES.lounge), MEET_DOOR_OUT];
+  // from the door: along the back strip (back-side seats, left end), or down the inside aisle (front side, right end)
+  const backSide = seat.z < MEETING_TABLE.z - 0.1;
+  const leftEnd = seat.x < MEETING_TABLE.x - 1.2;
+  const inside: Pt[] = backSide || leftEnd
+    ? [MEET_DOOR_IN, P(leftEnd ? seat.x - 0.3 : seat.x, MEET_DOOR_IN.z), ...(leftEnd ? [P(seat.x - 0.3, seat.z)] : [])]
+    : [MEET_DOOR_IN, P(MEET_AISLE_X, MEET_DOOR_IN.z), P(MEET_AISLE_X, seat.z > MEETING_TABLE.z + 0.1 ? ROOM.D - 0.2 : seat.z),
+       ...(seat.z > MEETING_TABLE.z + 0.1 ? [P(seat.x, ROOM.D - 0.2)] : [])];
+  const face = seat.face ?? FACE_BACK;
+  return timedTrip(m, [...toDoor, ...inside],
+    [{ ...seat, wait: 0.9, act: "sit", face }],
+    { ...seat, act: "meet", face },
+    [{ ...seat, wait: 0.9, act: "rise", face }],
+    (MEETING_TO - MEETING_FROM) * 60 - i * MEETING_STAGGER_S, WALK);
+});
+
+export function meetingRunT(min: number, id: EmployeeId): number | null {
+  const t = (min - MEETING_FROM) * 60 - indexOf(id) * MEETING_STAGGER_S;
+  return t >= 0 && t <= meetingRoute(id).duration ? t : null;
 }
 
 /* ------------------------------------------------------------------ 9:00 stand-up */

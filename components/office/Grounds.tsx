@@ -15,10 +15,10 @@ import { StreetLamp } from "./StreetLamp";
  */
 
 const CX = (SCENE.x0 + SCENE.x1) / 2, CZ = ROOM.D / 2;
-const GROUND = { w: 64, d: 56 } as const;
-const SIDEWALK = { z0: ROOM.D + 0.05, z1: ROOM.D + 1.4 } as const;
-const ROAD = { z0: SIDEWALK.z1, z1: SIDEWALK.z1 + 6.2 } as const;
-const ROAD_X = { x0: -10, x1: OUTSIDE.x1 + 12 } as const;
+export const GROUND = { w: 64, d: 56 } as const;
+export const SIDEWALK = { z0: ROOM.D + 0.05, z1: ROOM.D + 1.4 } as const;
+export const ROAD = { z0: SIDEWALK.z1, z1: SIDEWALK.z1 + 6.2 } as const;
+export const ROAD_X = { x0: -10, x1: OUTSIDE.x1 + 12 } as const;
 
 /** Radial alpha (opaque centre → clear edge), for the island edge. */
 function useEdgeFade(): THREE.CanvasTexture {

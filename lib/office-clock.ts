@@ -55,6 +55,9 @@ export const TRASH_AT = hm("17:40");
 /** Weekday stand-up in the front zone (Ronald leads; Maya's morning brief is on screen). */
 export const STANDUP_FROM = hm("09:00");
 export const STANDUP_TO = hm("09:06");
+/** Weekday team sync in the glass meeting room, for anyone who isn't busy. */
+export const MEETING_FROM = hm("14:00");
+export const MEETING_TO = hm("14:15");
 /** Lunch at the dining table for anyone who isn't busy. */
 export const LUNCH_FROM = hm("12:00");
 export const LUNCH_TO = hm("12:55");
@@ -90,6 +93,7 @@ export const PREVIEWS: readonly { id: string; label: string; at: string }[] = [
   { id: "standup", label: "9:00 AM · Stand-up", at: "09:00" },
   { id: "boss", label: "10:30 AM · Ronald walks around", at: "10:30" },
   { id: "lunch", label: "12:00 PM · Lunch break", at: "12:00" },
+  { id: "meeting", label: "2:00 PM · Team sync (meeting room)", at: "14:00" },
   { id: "afternoon", label: "3:30 PM · Afternoon", at: "15:30" },
   { id: "trash-drop", label: "5:30 PM · Everyone bins their trash", at: "17:30" },
   { id: "trash", label: "5:40 PM · Trash goes out", at: "17:40" },

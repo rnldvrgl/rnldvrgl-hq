@@ -3,7 +3,7 @@
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
-import { BellRing, House, Pause, Trash2, TriangleAlert, LogIn, LogOut, UtensilsCrossed, Users, Wind } from "lucide-react";
+import { BellRing, House, Pause, Trash2, TriangleAlert, LogIn, LogOut, UtensilsCrossed, Users, Wind, Presentation } from "lucide-react";
 import { useOffice, useEmployee, sceneNow } from "@/lib/store";
 import { isAfterHours, isWeekday, manilaMinutes } from "@/lib/office-clock";
 import { formatManilaSoon, nextSlot } from "@/lib/time";
@@ -14,7 +14,7 @@ import { Bubble, type Tone } from "./Bubble";
 import { ICONS } from "./icons";
 import {
   actWindows, chairOf, commuteAt, deskCenterX, dropRoute, dropRunT, lunchRoute, lunchRunT, sample, standupRoute, standupRunT,
-  trashRoute, trashRunT, placeRoute, placeSpot, sample as sampleRoute, type Place, type Route, type Sample,
+  trashRoute, trashRunT, meetingRoute, meetingRunT, placeRoute, placeSpot, sample as sampleRoute, type Place, type Route, type Sample,
 } from "./routes";
 import { launchDelivery } from "./Deliveries";
 import { useSceneNow } from "./scene-clock-ui";
@@ -25,7 +25,7 @@ const PANTS = ["#2f3a4a", "#3b3f46", "#4b5563", "#1f2937"] as const;
 /** Radians of stride per metre walked. */
 const STRIDE = 4.8;
 
-type Purpose = "collect" | "drop" | "lunch" | "standup" | "vape" | "leaving" | "arriving";
+type Purpose = "collect" | "drop" | "lunch" | "standup" | "meeting" | "vape" | "leaving" | "arriving";
 type Activity =
   | { kind: "seat" }
   | { kind: "away"; why: "home" | "paused" }
@@ -49,6 +49,10 @@ function activityOf(min: number, weekday: boolean, meta: EmployeeMeta, index: nu
     if (weekday) {
       const t = standupRunT(min, meta.id);
       if (t !== null) return route("standup", standupRoute(meta.id), t);
+    }
+    if (weekday) {
+      const t = meetingRunT(min, meta.id);
+      if (t !== null) return route("meeting", meetingRoute(meta.id), t);
     }
     const lunch = lunchRunT(min, meta.id);
     if (lunch !== null) return route("lunch", lunchRoute(meta.id), lunch);
@@ -215,6 +219,12 @@ export function Employee3D({ meta, index, pal, shadows, reducedMotion, duty }: P
         p.nod = Math.sin(p.time * 0.3) > 0.6 ? 1 : 0;
       }
       if (s.act === "vape") vapePose(p, vapor.current, reducedMotion);
+      if (s.act === "meet") {
+        p.sit = 1;
+        // taking notes, nodding along, the odd word
+        p.typing = Math.sin(p.time * 0.45 + index) > 0.4 ? 0.45 : 0;
+        p.nod = Math.sin(p.time * 0.6 + index * 2) > 0.85 ? 1 : 0;
+      }
       if (s.act === "listen") p.nod = Math.sin(p.time * 0.4 + index) > 0.85 ? 1 : 0;
       // bags: a small one from your desk bin to the main bin; the collector's big one out to the dumpster
       if (bag.current && (a.purpose === "drop" || a.purpose === "collect")) {
@@ -234,7 +244,8 @@ export function Employee3D({ meta, index, pal, shadows, reducedMotion, duty }: P
   const now = useSceneNow(1000);
   const min = manilaMinutes(now);
   const activity = activityOf(min, isWeekday(now), meta, index, status, enabled, duty);
-  const seated = (activity.kind === "seat" && !place.current.route && placeSpot(meta, place.current.at, place.current.slot).seated) || (activity.kind === "route" && activity.purpose === "lunch" && sample(activity.route, activity.t).act === "eat");
+  const meetingSeated = activity.kind === "route" && activity.purpose === "meeting" && sample(activity.route, activity.t).act === "meet";
+  const seated = meetingSeated || (activity.kind === "seat" && !place.current.route && placeSpot(meta, place.current.at, place.current.slot).seated) || (activity.kind === "route" && activity.purpose === "lunch" && sample(activity.route, activity.t).act === "eat");
   let tone: Tone = "idle", label = "Idle", detail: string | undefined, Icon = ICONS[meta.icon], busy = false, attention = false, chip: string | undefined = shirt;
 
   if (activity.kind === "away") {
@@ -252,6 +263,8 @@ export function Employee3D({ meta, index, pal, shadows, reducedMotion, duty }: P
       tone = "idle"; label = "Lunch"; Icon = UtensilsCrossed; detail = "Back 12:55 PM";
     } else if (activity.purpose === "vape") {
       tone = "idle"; label = "Vape break"; Icon = Wind; detail = "Outside · back 4:30 PM";
+    } else if (activity.purpose === "meeting") {
+      tone = "idle"; label = "Team sync"; Icon = Presentation; detail = "Meeting room · until 2:15 PM";
     } else if (activity.purpose === "standup") {
       tone = "idle"; label = "Stand-up"; Icon = Users; detail = "Daily 9:00 AM";
     } else if (activity.purpose === "leaving") { tone = "off"; label = "Heading home"; Icon = LogOut; detail = "See you at 7 AM"; }

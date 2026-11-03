@@ -6,11 +6,11 @@ import { useFrame } from "@react-three/fiber";
 import { RoundedBox, Text } from "@react-three/drei";
 import { Sun } from "lucide-react";
 import { sceneNow, useEmployee } from "@/lib/store";
-import { isWeekday, LUNCH_FROM, LUNCH_TO, manilaMinutes, STANDUP_FROM, STANDUP_TO } from "@/lib/office-clock";
+import { isWeekday, LUNCH_FROM, LUNCH_TO, manilaMinutes, MEETING_FROM, MEETING_TO, STANDUP_FROM, STANDUP_TO } from "@/lib/office-clock";
 import { DINING, FRONT_Z, HUDDLE, LOUNGE, MEETING, ROOM, SCENE_FONT, type Palette } from "./palette";
 import { OfficeChair, Plant, TallPlant } from "./Furniture";
 import { light } from "./Lighting";
-import { DINING_SEATS, STANDUP_SCREEN } from "./routes";
+import { DINING_SEATS, MEETING_SEATS, STANDUP_SCREEN } from "./routes";
 import { useBubbleMode } from "./Bubble";
 import { Label } from "./Labels";
 import { useSceneNow } from "./scene-clock-ui";
@@ -72,6 +72,9 @@ function GlassPane({ pal, from, to }: { pal: Palette; from: [number, number]; to
 
 /** Glass meeting room in the front-left corner: table for six, a wall screen, a whiteboard rail. */
 function MeetingRoom({ pal, shadows }: Common) {
+  const now = useSceneNow(1000);
+  const min = manilaMinutes(now);
+  const syncing = isWeekday(now) && min >= MEETING_FROM && min < MEETING_TO;
   const { x1, z0 } = MEETING;
   const D = ROOM.D;
   const cx = x1 / 2, cz = (z0 + D) / 2;
@@ -99,11 +102,11 @@ function MeetingRoom({ pal, shadows }: Common) {
           <meshStandardMaterial color={pal.trim} />
         </mesh>
       ))}
-      {[-0.75, 0, 0.75].flatMap((dx) => [-1, 1].map((side) => (
-        <group key={`${dx}${side}`} position={[cx + 0.15 + dx, 0, cz + side * 0.85]} rotation={[0, side > 0 ? 0 : Math.PI, 0]}>
+      {MEETING_SEATS.map((seat, i) => (
+        <group key={i} position={[seat.x, 0, seat.z]} rotation={[0, seat.face ?? 0, 0]}>
           <OfficeChair pal={pal} shadows={shadows} position={[0, 0, 0]} color="#3b4c5c" />
         </group>
-      )))}
+      ))}
       {/* wall screen on the left wall */}
       <group position={[0.04, 1.45, cz]} rotation={[0, Math.PI / 2, 0]}>
         <RoundedBox args={[1.5, 0.86, 0.04]} radius={0.012} smoothness={2}>
@@ -115,7 +118,7 @@ function MeetingRoom({ pal, shadows }: Common) {
         </mesh>
         <Suspense fallback={null}>
           <Text font={SCENE_FONT} position={[0, 0.05, 0.03]} fontSize={0.09} color="#dbeafe" anchorX="center" anchorY="middle">
-            Q4 ROADMAP
+            {syncing ? "TEAM SYNC" : "Q4 ROADMAP"}
           </Text>
           <Text font={SCENE_FONT} position={[0, -0.12, 0.03]} fontSize={0.05} color="#93c5fd" anchorX="center" anchorY="middle">
             rnldvrgl HQ
