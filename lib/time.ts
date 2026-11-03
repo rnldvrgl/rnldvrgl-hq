@@ -81,3 +81,27 @@ export function formatManila(iso: string | null | undefined): string {
 export function formatManilaClock(d: Date): string {
   return MANILA_CLOCK.format(d);
 }
+
+/** The next scheduled slot after `now`, within the coming week, or null for "always"/"manual". */
+export function nextSlot(schedule: Schedule, now = new Date()): Date | null {
+  if (schedule.kind !== "times") return null;
+  for (let add = 0; add < 8; add++) {
+    const p = manilaParts(new Date(now.getTime() + add * 86_400_000));
+    if (!schedule.days.includes(p.weekday)) continue;
+    const next = schedule.times
+      .map((t) => manilaInstant(p.year, p.month, p.day, t))
+      .filter((slot) => slot > now)
+      .sort((a, b) => a.getTime() - b.getTime())[0];
+    if (next) return next;
+  }
+  return null;
+}
+
+const MANILA_TIME = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit", hour12: true });
+const MANILA_WEEKDAY = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", weekday: "short" });
+
+/** "7:30 PM" today, "Tue 7:30 AM" on another day (Manila). */
+export function formatManilaSoon(d: Date, now = new Date()): string {
+  const sameDay = manilaParts(d).isoDate === manilaParts(now).isoDate;
+  return sameDay ? MANILA_TIME.format(d) : `${MANILA_WEEKDAY.format(d)} ${MANILA_TIME.format(d)}`;
+}

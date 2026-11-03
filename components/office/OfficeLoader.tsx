@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import type { OfficeState } from "@/lib/team";
+import { LoadingScreen } from "./LoadingScreen";
 
 /**
  * The office is rendered in the browser only: WebGL, GSAP and matchMedia all need `window`,
@@ -9,7 +10,7 @@ import type { OfficeState } from "@/lib/team";
  */
 const Office = dynamic(() => import("./Office"), {
   ssr: false,
-  loading: () => <p className="p-6 text-sm text-muted-foreground">Unlocking the office…</p>,
+  loading: () => <LoadingScreen label="Unlocking the office" />,
 });
 
 export function OfficeLoader({ initial }: { initial: OfficeState }) {

@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { useOffice } from "@/lib/store";
 import { IsoScene } from "@/components/IsoScene";
+import { LoadingScreen } from "./LoadingScreen";
 
 const Scene3D = dynamic(() => import("./Scene3D"), {
   ssr: false,
-  loading: () => <div className="grid size-full place-items-center text-sm text-muted-foreground">Opening the office…</div>,
+  loading: () => <LoadingScreen compact label="Opening the office" />,
 });
 
 function hasWebGL() {
@@ -34,7 +35,7 @@ export function OfficeScene() {
     return () => clearInterval(t);
   }, [webgl]);
 
-  if (webgl === null) return null;
+  if (webgl === null) return <LoadingScreen compact label="Opening the office" />;
   if (!webgl) return <IsoScene state={data} selected={selected} onSelect={select} now={now} />;
   return <Scene3D />;
 }

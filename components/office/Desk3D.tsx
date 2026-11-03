@@ -1,15 +1,15 @@
 "use client";
 
-import { useRef } from "react";
+import { Suspense, useMemo, useRef } from "react";
 import * as THREE from "three";
-import { Html, RoundedBox } from "@react-three/drei";
+import { useFrame } from "@react-three/fiber";
+import { RoundedBox, Text } from "@react-three/drei";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
-import { useOffice, useEmployee } from "@/lib/store";
+import { useOffice, useEmployee, sceneNow } from "@/lib/store";
+import { isAfterHours, manilaMinutes } from "@/lib/office-clock";
 import type { EmployeeMeta } from "@/lib/team";
-import { cn } from "@/lib/utils";
-import { DESK, SHIRTS, type Palette } from "./palette";
-import { ICONS, LAMP, type LampKey } from "./icons";
+import { DESK, SHIRTS, SCENE_FONT, type Palette } from "./palette";
 import { OfficeChair, Plant } from "./Furniture";
 
 gsap.registerPlugin(useGSAP);
@@ -28,8 +28,9 @@ const CODE_LINES: readonly (readonly [number, number, number])[] = [
 type Props = { meta: EmployeeMeta; index: number; pal: Palette; shadows: boolean; reducedMotion: boolean };
 
 /**
- * One desk: furniture, monitor, the employee (seen from behind, facing their screen) and a floating name tag.
- * GSAP drives three animations: the drop-in on load, typing while working, and a little hop when a job finishes.
+ * One workstation: white desk with an oak edge, drawer pedestal, a waterfall side panel with the
+ * employee's name on it, a fabric privacy divider, a monitor on an arm, and their chair.
+ * The person sitting here is <Employee3D>, so they can get up and walk around.
  */
 export function Desk3D({ meta, index, pal, shadows, reducedMotion }: Props) {
   const emp = useEmployee(meta.id);
@@ -39,62 +40,45 @@ export function Desk3D({ meta, index, pal, shadows, reducedMotion }: Props) {
   const hover = useOffice((s) => s.hover);
 
   const root = useRef<THREE.Group>(null);
-  const body = useRef<THREE.Group>(null);
-  const head = useRef<THREE.Mesh>(null);
-  const armL = useRef<THREE.Group>(null);
-  const armR = useRef<THREE.Group>(null);
   const screen = useRef<THREE.MeshStandardMaterial>(null);
+  const lines = useRef<THREE.Group>(null);
   const pad = useRef<THREE.MeshBasicMaterial>(null);
-  const prevStatus = useRef(emp?.status);
 
   const enabled = emp?.enabled ?? true;
   const status = emp?.status ?? "idle";
-  const working = enabled && status === "working";
-  const lampKey: LampKey = !enabled ? "off" : status;
   const shirt = SHIRTS[meta.color - 1];
-  const Icon = ICONS[meta.icon];
   const { W, D, H } = DESK;
-  const screenColor = !enabled ? pal.screenOff : status === "error" ? pal.screenError : working ? pal.screenOn : pal.screenIdle;
+  const colors = useMemo(() => ({
+    on: new THREE.Color(pal.screenOn), idle: new THREE.Color(pal.screenIdle), off: new THREE.Color(pal.screenOff),
+    error: new THREE.Color(pal.screenError), needs: new THREE.Color(pal.screenNeeds),
+  }), [pal]);
 
-  // 1. Drop in on first load, staggered by desk.
+  // Drop in on first load, staggered by desk.
   useGSAP(() => {
     if (!root.current || reducedMotion) return;
     gsap.from(root.current.position, { y: 2.2, duration: 0.9, delay: 0.15 + index * 0.07, ease: "bounce.out" });
     gsap.from(root.current.scale, { x: 0.85, y: 0.85, z: 0.85, duration: 0.6, delay: 0.15 + index * 0.07, ease: "back.out(2)" });
   }, []);
 
-  // 2. Typing loop while working: head bob, arms tapping, screen flicker.
-  useGSAP(() => {
-    if (!head.current || !armL.current || !armR.current || !screen.current) return;
-    if (!working || reducedMotion) {
-      gsap.to(head.current.position, { y: 1.36, duration: 0.3 });
-      gsap.to([armL.current.rotation, armR.current.rotation], { x: 1.05, duration: 0.3 });
-      screen.current.emissiveIntensity = working ? 0.9 : 0.25;
-      return;
-    }
-    const tl = gsap.timeline({ repeat: -1 });
-    tl.to(armL.current.rotation, { x: 1.25, duration: 0.12, yoyo: true, repeat: 1, ease: "sine.inOut" })
-      .to(armR.current.rotation, { x: 1.25, duration: 0.12, yoyo: true, repeat: 1, ease: "sine.inOut" }, "<0.12");
-    gsap.to(head.current.position, { y: 1.39, duration: 0.45, yoyo: true, repeat: -1, ease: "sine.inOut" });
-    gsap.fromTo(screen.current, { emissiveIntensity: 0.7 }, { emissiveIntensity: 1.15, duration: 0.8, yoyo: true, repeat: -1, ease: "sine.inOut" });
-  }, { dependencies: [working, reducedMotion], revertOnUpdate: true });
-
-  // 3. Little hop when a run finishes.
-  useGSAP(() => {
-    const was = prevStatus.current;
-    prevStatus.current = status;
-    if (was === "working" && status !== "working" && body.current && !reducedMotion) {
-      gsap.timeline()
-        .to(body.current.position, { y: 0.18, duration: 0.18, ease: "power2.out" })
-        .to(body.current.position, { y: 0, duration: 0.45, ease: "bounce.out" });
-    }
-  }, { dependencies: [status, reducedMotion] });
-
-  // 4. Highlight under the desk on hover / select.
+  // Highlight under the desk on hover / select.
   useGSAP(() => {
     if (!pad.current) return;
     gsap.to(pad.current, { opacity: selected ? 0.3 : hovered ? 0.14 : 0, duration: 0.25 });
   }, { dependencies: [selected, hovered] });
+
+  // The screen follows the status; it's switched off when they've gone home or are paused.
+  useFrame(({ clock }) => {
+    const m = screen.current;
+    if (!m) return;
+    const home = status === "idle" && isAfterHours(manilaMinutes(sceneNow()));
+    const off = !enabled || home;
+    const c = off ? colors.off : status === "working" ? colors.on : status === "error" ? colors.error : status === "needs_you" ? colors.needs : colors.idle;
+    m.color.copy(c);
+    m.emissive.copy(c);
+    const flicker = status === "working" && !reducedMotion ? Math.sin(clock.elapsedTime * 4) * 0.15 : 0;
+    m.emissiveIntensity = off ? 0.05 : status === "working" ? 1 + flicker : 0.55;
+    if (lines.current) lines.current.visible = !off && status !== "error";
+  });
 
   return (
     <group
@@ -109,111 +93,148 @@ export function Desk3D({ meta, index, pal, shadows, reducedMotion }: Props) {
       onPointerOut={() => { hover(null); document.body.style.cursor = ""; }}
     >
       {/* selection pad */}
-      <mesh position={[W / 2, 0.006, D / 2 + 0.4]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[W + 0.6, D + 1.4]} />
+      <mesh position={[W / 2, 0.016, D / 2 + 0.45]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[W + 0.5, D + 1.5]} />
         <meshBasicMaterial ref={pad} color={pal.selected} transparent opacity={0} depthWrite={false} />
       </mesh>
 
-      {/* desk: rounded top, drawer pedestal on the left, metal T-leg on the right, modesty panel */}
-      <RoundedBox args={[W, 0.05, D]} radius={0.02} smoothness={2} position={[W / 2, H, D / 2]} castShadow={shadows} receiveShadow={shadows}>
-        <meshStandardMaterial color={pal.deskTop} />
+      {/* desktop: white top with an oak edge band */}
+      <RoundedBox args={[W, 0.045, D]} radius={0.018} smoothness={2} position={[W / 2, H, D / 2]} castShadow={shadows} receiveShadow={shadows}>
+        <meshStandardMaterial color={pal.deskTop} roughness={0.5} />
       </RoundedBox>
-      <mesh position={[W / 2, H - 0.035, D + 0.002]}>
-        <boxGeometry args={[W - 0.1, 0.012, 0.012]} />
-        <meshStandardMaterial color={shirt} emissive={shirt} emissiveIntensity={working ? 0.6 : 0.15} />
+      <mesh position={[W / 2, H - 0.03, D / 2]}>
+        <boxGeometry args={[W - 0.01, 0.018, D - 0.01]} />
+        <meshStandardMaterial color={pal.deskEdge} />
       </mesh>
-      <mesh position={[0.26, (H - 0.025) / 2, D / 2 + 0.02]} castShadow={shadows}>
-        <boxGeometry args={[0.42, H - 0.025, D - 0.12]} />
-        <meshStandardMaterial color={pal.deskSide} />
+      {/* status strip in their colour under the front edge */}
+      <mesh position={[W / 2 + 0.2, H - 0.04, D + 0.001]}>
+        <boxGeometry args={[W - 0.6, 0.012, 0.01]} />
+        <meshStandardMaterial color={shirt} emissive={shirt} emissiveIntensity={status === "working" ? 0.9 : 0.2} toneMapped={false} />
+      </mesh>
+
+      {/* drawer pedestal on the left */}
+      <mesh position={[0.24, (H - 0.04) / 2, D / 2 + 0.02]} castShadow={shadows}>
+        <boxGeometry args={[0.42, H - 0.04, D - 0.1]} />
+        <meshStandardMaterial color={pal.drawer} />
       </mesh>
       {DRAWERS.map(([y, h]) => (
-        <group key={y} position={[0.26, y, D - 0.035]}>
+        <group key={y} position={[0.24, y, D - 0.028]}>
           <mesh>
-            <boxGeometry args={[0.38, h, 0.012]} />
-            <meshStandardMaterial color={pal.drawer} />
+            <boxGeometry args={[0.39, h - 0.01, 0.01]} />
+            <meshStandardMaterial color={pal.deskTop} />
           </mesh>
-          <mesh position={[0, h / 2 - 0.035, 0.012]}>
-            <boxGeometry args={[0.12, 0.015, 0.015]} />
+          <mesh position={[0, h / 2 - 0.035, 0.01]}>
+            <boxGeometry args={[0.14, 0.012, 0.012]} />
             <meshStandardMaterial color={pal.handle} />
           </mesh>
         </group>
       ))}
-      <mesh position={[W - 0.1, (H - 0.025) / 2, D / 2]} castShadow={shadows}>
-        <boxGeometry args={[0.05, H - 0.025, 0.05]} />
-        <meshStandardMaterial color={pal.deskMetal} />
+
+      {/* waterfall side panel on the right, with a stripe in their colour */}
+      <mesh position={[W - 0.02, (H - 0.03) / 2, D / 2]} castShadow={shadows}>
+        <boxGeometry args={[0.04, H - 0.03, D]} />
+        <meshStandardMaterial color={pal.deskTop} />
       </mesh>
-      <mesh position={[W - 0.1, 0.015, D / 2]}>
-        <boxGeometry args={[0.06, 0.03, D - 0.1]} />
-        <meshStandardMaterial color={pal.deskMetal} />
-      </mesh>
-      <mesh position={[(W + 0.34) / 2, H - 0.22, 0.05]}>
-        <boxGeometry args={[W - 0.58, 0.36, 0.025]} />
-        <meshStandardMaterial color={pal.deskSide} />
+      <mesh position={[W + 0.002, 0.6, D / 2]} rotation={[0, Math.PI / 2, 0]}>
+        <planeGeometry args={[D - 0.12, 0.03]} />
+        <meshBasicMaterial color={shirt} toneMapped={false} />
       </mesh>
 
-      {/* monitor: base, neck, slim panel, screen with a few "code" lines, cable down the back */}
-      <mesh position={[W / 2, H + 0.033, 0.2]}>
-        <boxGeometry args={[0.28, 0.015, 0.18]} />
-        <meshStandardMaterial color={pal.bezel} />
-      </mesh>
-      <mesh position={[W / 2, H + 0.17, 0.16]}>
-        <boxGeometry args={[0.045, 0.28, 0.03]} />
-        <meshStandardMaterial color={pal.bezel} />
-      </mesh>
-      <RoundedBox args={[0.86, 0.5, 0.025]} radius={0.01} smoothness={2} position={[W / 2, H + 0.42, 0.2]} castShadow={shadows}>
-        <meshStandardMaterial color={pal.bezel} />
-      </RoundedBox>
-      <mesh position={[W / 2, H + 0.42, 0.214]}>
-        <planeGeometry args={[0.83, 0.47]} />
-        <meshStandardMaterial ref={screen} color={screenColor} emissive={screenColor} emissiveIntensity={0.25} toneMapped={false} />
-      </mesh>
-      {enabled && status !== "error" && CODE_LINES.map(([x, y, w], i) => (
-        <mesh key={i} position={[W / 2 - 0.36 + x + w / 2, H + 0.42 + y, 0.2155]}>
-          <planeGeometry args={[w, 0.018]} />
-          <meshBasicMaterial color={pal.screenLine} transparent opacity={working ? 0.85 : 0.3} toneMapped={false} />
+      {/* name plate: a tilted acrylic block on the front-right corner, facing you */}
+      <group position={[W - 0.25, H + 0.025, D - 0.09]}>
+        <mesh position={[0, 0.07, 0]} rotation={[-0.3, 0, 0]} castShadow={shadows}>
+          <boxGeometry args={[0.44, 0.15, 0.02]} />
+          <meshStandardMaterial color={pal.bezel} roughness={0.4} />
         </mesh>
-      ))}
-      <mesh position={[W / 2 + 0.06, (H + 0.15) / 2, 0.1]}>
-        <boxGeometry args={[0.012, H + 0.15, 0.012]} />
-        <meshStandardMaterial color={pal.bezel} />
-      </mesh>
-      {working && <pointLight position={[W / 2, H + 0.4, 0.5]} color={pal.screenOn} intensity={0.8} distance={1.6} />}
+        <mesh position={[0, 0.012, 0.01]}>
+          <boxGeometry args={[0.46, 0.024, 0.08]} />
+          <meshStandardMaterial color={shirt} />
+        </mesh>
+        <group position={[0, 0.07, 0.012]} rotation={[-0.3, 0, 0]}>
+          <Suspense fallback={null}>
+            <Text font={SCENE_FONT} position={[0, 0.018, 0]} fontSize={0.075} color="#ffffff" anchorX="center" anchorY="middle" letterSpacing={0.03}>
+              {meta.name}
+            </Text>
+            <Text font={SCENE_FONT} position={[0, -0.04, 0]} fontSize={0.03} color={shirt} anchorX="center" anchorY="middle" letterSpacing={0.08} maxWidth={0.42}>
+              {meta.title.toUpperCase()}
+            </Text>
+          </Suspense>
+        </group>
+      </group>
 
-      {/* keyboard, mouse on a pad, mug */}
-      <RoundedBox args={[0.46, 0.022, 0.15]} radius={0.006} smoothness={1} position={[W / 2, H + 0.036, 0.58]}>
+      {/* fabric privacy divider along the back edge */}
+      <RoundedBox args={[W, 0.4, 0.04]} radius={0.015} smoothness={2} position={[W / 2, H + 0.2, 0.02]} castShadow={shadows}>
+        <meshStandardMaterial color={pal.divider} roughness={1} />
+      </RoundedBox>
+
+      {/* monitor on an arm clamped to the back edge */}
+      <mesh position={[W / 2, H + 0.05, 0.07]}>
+        <boxGeometry args={[0.07, 0.06, 0.07]} />
+        <meshStandardMaterial color={pal.metal} />
+      </mesh>
+      <mesh position={[W / 2, H + 0.2, 0.08]}>
+        <cylinderGeometry args={[0.016, 0.016, 0.28, 8]} />
+        <meshStandardMaterial color={pal.metal} />
+      </mesh>
+      <mesh position={[W / 2, H + 0.36, 0.13]} rotation={[Math.PI / 2 - 0.4, 0, 0]}>
+        <cylinderGeometry args={[0.013, 0.013, 0.14, 8]} />
+        <meshStandardMaterial color={pal.metal} />
+      </mesh>
+      <RoundedBox args={[0.9, 0.52, 0.024]} radius={0.01} smoothness={2} position={[W / 2, H + 0.44, 0.2]} castShadow={shadows}>
         <meshStandardMaterial color={pal.bezel} />
       </RoundedBox>
-      <mesh position={[W / 2, H + 0.049, 0.58]}>
+      <mesh position={[W / 2, H + 0.445, 0.213]}>
+        <planeGeometry args={[0.87, 0.49]} />
+        <meshStandardMaterial ref={screen} color={pal.screenIdle} emissive={pal.screenIdle} emissiveIntensity={0.5} toneMapped={false} />
+      </mesh>
+      <group ref={lines}>
+        {CODE_LINES.map(([x, y, w], i) => (
+          <mesh key={i} position={[W / 2 - 0.38 + x + w / 2, H + 0.445 + y, 0.2145]}>
+            <planeGeometry args={[w, 0.018]} />
+            <meshBasicMaterial color={pal.screenLine} transparent opacity={status === "working" ? 0.85 : 0.3} toneMapped={false} />
+          </mesh>
+        ))}
+      </group>
+
+      {/* keyboard, mouse on a pad, notebook */}
+      <RoundedBox args={[0.46, 0.022, 0.15]} radius={0.006} smoothness={1} position={[W / 2, H + 0.034, 0.58]}>
+        <meshStandardMaterial color={pal.bezel} />
+      </RoundedBox>
+      <mesh position={[W / 2, H + 0.047, 0.58]}>
         <boxGeometry args={[0.42, 0.004, 0.12]} />
         <meshStandardMaterial color={pal.keycap} />
       </mesh>
-      <mesh position={[W / 2 + 0.42, H + 0.027, 0.6]}>
+      <mesh position={[W / 2 + 0.42, H + 0.025, 0.6]}>
         <boxGeometry args={[0.24, 0.004, 0.2]} />
         <meshStandardMaterial color={pal.mousepad} />
       </mesh>
-      <mesh position={[W / 2 + 0.42, H + 0.04, 0.62]} scale={[0.032, 0.018, 0.05]}>
+      <mesh position={[W / 2 + 0.42, H + 0.038, 0.62]} scale={[0.032, 0.018, 0.05]}>
         <sphereGeometry args={[1, 12, 8]} />
         <meshStandardMaterial color={pal.bezel} />
       </mesh>
-      <mesh position={[W - 0.18, H + 0.08, 0.3]} castShadow={shadows}>
-        <cylinderGeometry args={[0.05, 0.045, 0.11, 12]} />
+      <mesh position={[W - 0.26, H + 0.028, 0.3]} rotation={[0, 0.2, 0]}>
+        <boxGeometry args={[0.2, 0.012, 0.27]} />
         <meshStandardMaterial color={shirt} />
       </mesh>
+      <mesh position={[W - 0.26, H + 0.035, 0.3]} rotation={[0, 0.2, 0]}>
+        <boxGeometry args={[0.18, 0.004, 0.25]} />
+        <meshStandardMaterial color="#f8f6f0" />
+      </mesh>
 
-      {/* desk lamp on even desks, a little plant on odd ones */}
+      {/* desk lamp on even desks, a little plant and a mug on odd ones */}
       {index % 2 === 0 ? (
-        <group position={[0.16, H + 0.025, 0.5]}>
+        <group position={[0.16, H + 0.022, 0.42]}>
           <mesh position={[0, 0.01, 0]}>
             <cylinderGeometry args={[0.07, 0.08, 0.02, 12]} />
             <meshStandardMaterial color={pal.bezel} />
           </mesh>
           <mesh position={[0, 0.19, 0]}>
             <cylinderGeometry args={[0.012, 0.012, 0.36, 6]} />
-            <meshStandardMaterial color={pal.deskMetal} />
+            <meshStandardMaterial color={pal.metal} />
           </mesh>
           <mesh position={[0.09, 0.37, 0]}>
             <boxGeometry args={[0.2, 0.018, 0.018]} />
-            <meshStandardMaterial color={pal.deskMetal} />
+            <meshStandardMaterial color={pal.metal} />
           </mesh>
           <mesh position={[0.18, 0.33, 0]}>
             <coneGeometry args={[0.07, 0.1, 12, 1, true]} />
@@ -225,68 +246,16 @@ export function Desk3D({ meta, index, pal, shadows, reducedMotion }: Props) {
           </mesh>
         </group>
       ) : (
-        <Plant pal={pal} shadows={shadows} position={[0.2, H + 0.025, 0.45]} scale={0.3} />
-      )}
-
-      {/* the employee, seated with their back to us */}
-      {enabled && (
-        <group ref={body}>
-          <mesh position={[W / 2, 0.88, D + 0.42]} castShadow={shadows}>
-            <capsuleGeometry args={[0.2, 0.28, 6, 16]} />
+        <>
+          <Plant pal={pal} shadows={shadows} position={[0.2, H + 0.022, 0.38]} scale={0.3} />
+          <mesh position={[0.45, H + 0.075, 0.62]} castShadow={shadows}>
+            <cylinderGeometry args={[0.045, 0.04, 0.1, 12]} />
             <meshStandardMaterial color={shirt} />
           </mesh>
-          <mesh ref={head} position={[W / 2, 1.36, D + 0.4]} castShadow={shadows}>
-            <sphereGeometry args={[0.17, 24, 16]} />
-            <meshStandardMaterial color={pal.hair} />
-          </mesh>
-          {[-1, 1].map((side) => (
-            <mesh key={side} position={[W / 2 + side * 0.17, 1.34, D + 0.42]}>
-              <sphereGeometry args={[0.04, 12, 8]} />
-              <meshStandardMaterial color={pal.skin} />
-            </mesh>
-          ))}
-          {/* arms reach forward to the keyboard; GSAP taps them while working */}
-          <group ref={armL} position={[W / 2 - 0.22, 1.02, D + 0.38]} rotation={[1.05, 0, 0.12]}>
-            <mesh position={[0, -0.18, 0]}>
-              <capsuleGeometry args={[0.055, 0.3, 4, 10]} />
-              <meshStandardMaterial color={shirt} />
-            </mesh>
-          </group>
-          <group ref={armR} position={[W / 2 + 0.22, 1.02, D + 0.38]} rotation={[1.05, 0, -0.12]}>
-            <mesh position={[0, -0.18, 0]}>
-              <capsuleGeometry args={[0.055, 0.3, 4, 10]} />
-              <meshStandardMaterial color={shirt} />
-            </mesh>
-          </group>
-        </group>
+        </>
       )}
 
       <OfficeChair pal={pal} shadows={shadows} position={[W / 2, 0, D + 0.45]} color={pal.chair} />
-
-      {/* floating name tag */}
-      <Html position={[W / 2, H + 1.05, 0.25]} center zIndexRange={[20, 0]}>
-        <button
-          type="button"
-          onClick={() => select(meta.id)}
-          onMouseEnter={() => hover(meta.id)}
-          onMouseLeave={() => hover(null)}
-          aria-label={`${meta.name}, ${meta.title}`}
-          aria-pressed={selected}
-          className={cn(
-            "flex items-center gap-2 whitespace-nowrap rounded-full border bg-card/95 py-1 pl-1 pr-3 text-sm font-semibold shadow-sm backdrop-blur transition-transform select-none",
-            "hover:scale-105 focus-visible:outline-2 focus-visible:outline-ring",
-            selected ? "border-primary ring-2 ring-primary/30" : "border-border",
-            !enabled && "opacity-60",
-          )}
-          style={{ fontFamily: "var(--font-display)" }}
-        >
-          <span className="grid size-6 place-items-center rounded-full text-white" style={{ background: shirt }}>
-            <Icon className="size-3.5" aria-hidden />
-          </span>
-          {meta.name}
-          <span className={cn("size-2 rounded-full", LAMP[lampKey])} aria-hidden />
-        </button>
-      </Html>
     </group>
   );
 }

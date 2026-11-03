@@ -16,12 +16,44 @@ export function Plant({ pal, shadows, position, scale = 1 }: { pal: Palette; sha
     <group position={position} scale={scale}>
       <mesh position={[0, 0.2, 0]} castShadow={shadows}>
         <cylinderGeometry args={[0.2, 0.16, 0.4, 16]} />
-        <meshStandardMaterial color={pal.pot} />
+        <meshStandardMaterial color={pal.pot} roughness={0.6} />
+      </mesh>
+      <mesh position={[0, 0.39, 0]}>
+        <cylinderGeometry args={[0.18, 0.18, 0.02, 16]} />
+        <meshStandardMaterial color="#5a4632" />
       </mesh>
       {LEAVES.map(([x, y, z, r], i) => (
         <mesh key={i} position={[x, 0.4 + y, z]} castShadow={shadows}>
           <icosahedronGeometry args={[r, 0]} />
           <meshStandardMaterial color={i % 2 ? pal.leafA : pal.leafB} flatShading />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+/** Big leaves of a fiddle-leaf fig as [x, y, z, size, tilt]. */
+const FIG: readonly (readonly [number, number, number, number, number])[] = [
+  [0.16, 1.0, 0.04, 0.2, 0.5], [-0.14, 1.12, 0.06, 0.22, -0.6], [0.05, 1.3, -0.12, 0.2, 0.2], [-0.08, 1.45, 0.1, 0.19, -0.3],
+  [0.15, 1.55, -0.02, 0.18, 0.7], [-0.02, 1.68, 0.0, 0.17, 0.0], [0.2, 1.25, 0.12, 0.17, 0.9], [-0.18, 1.35, -0.1, 0.18, -0.9],
+];
+
+/** Tall floor plant in a ceramic planter (a fiddle-leaf fig), about 1.8 m. */
+export function TallPlant({ pal, shadows, position, scale = 1 }: { pal: Palette; shadows: boolean; position: Vec3; scale?: number }) {
+  return (
+    <group position={position} scale={scale}>
+      <mesh position={[0, 0.25, 0]} castShadow={shadows}>
+        <cylinderGeometry args={[0.24, 0.2, 0.5, 18]} />
+        <meshStandardMaterial color={pal.potDark} roughness={0.5} />
+      </mesh>
+      <mesh position={[0, 0.88, 0]}>
+        <cylinderGeometry args={[0.025, 0.035, 0.8, 6]} />
+        <meshStandardMaterial color={pal.woodDark} />
+      </mesh>
+      {FIG.map(([x, y, z, r, tilt], i) => (
+        <mesh key={i} position={[x, y, z]} rotation={[tilt * 0.4, i * 1.3, tilt]} scale={[1, 1.35, 0.35]} castShadow={shadows}>
+          <sphereGeometry args={[r, 7, 5]} />
+          <meshStandardMaterial color={i % 3 === 0 ? pal.leafC : i % 2 ? pal.leafA : pal.leafB} flatShading />
         </mesh>
       ))}
     </group>

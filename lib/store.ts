@@ -3,18 +3,26 @@
 import { create } from "zustand";
 import type { EmployeeId, EmployeeView, OfficeState } from "@/lib/team";
 import type { JobStatus, ReminderRepeat } from "@/lib/supabase/database.types";
+import { manilaInstant, manilaParts, to12Hour } from "@/lib/time";
+import { trashDuty } from "@/lib/office-clock";
 
 export type NewReminder = { title: string; local: string; repeat: ReminderRepeat | null };
+
+/** The scene is showing another time of day: `at` (real ms) was the scene clock when `since` (real ms) was now. */
+export type TimeTravel = { at: number; since: number; label: string };
 
 type OfficeStore = {
   data: OfficeState;
   selected: EmployeeId | null;
   hovered: EmployeeId | null;
   offline: boolean;
+  timeTravel: TimeTravel | null;
 
   hydrate: (data: OfficeState) => void;
   select: (id: EmployeeId | null) => void;
   hover: (id: EmployeeId | null) => void;
+  /** Jump the 3D office to "HH:MM" Manila today (it keeps ticking from there), or back to live with null. */
+  previewTime: (hhmm: string | null, label?: string) => void;
 
   refresh: () => Promise<void>;
   runNow: (id: EmployeeId) => Promise<void>;
@@ -51,10 +59,17 @@ export const useOffice = create<OfficeStore>()((set, get) => ({
   selected: null,
   hovered: null,
   offline: false,
+  timeTravel: null,
 
   hydrate: (data) => set({ data }),
   select: (id) => set({ selected: id }),
   hover: (id) => set({ hovered: id }),
+  previewTime: (hhmm, label) => {
+    if (!hhmm) return set({ timeTravel: null });
+    const p = manilaParts(new Date());
+    const at = manilaInstant(p.year, p.month, p.day, hhmm).getTime();
+    set({ timeTravel: { at, since: Date.now(), label: label ?? to12Hour(hhmm) } });
+  },
 
   refresh: async () => {
     try {
@@ -115,3 +130,16 @@ export const useOffice = create<OfficeStore>()((set, get) => ({
 /** Convenience selectors */
 export const useEmployee = (id: EmployeeId | null): EmployeeView | null =>
   useOffice((s) => (id ? s.data.employees.find((e) => e.id === id) ?? null : null));
+
+/** The 3D office's clock: real time, or the previewed time of day while time travel is on. */
+export function sceneNow(): Date {
+  const tt = useOffice.getState().timeTravel;
+  return tt ? new Date(tt.at + (Date.now() - tt.since)) : new Date();
+}
+
+/** Who has trash duty today (by the scene clock), skipping paused employees. */
+export function useTrashDuty(): EmployeeId | null {
+  const employees = useOffice((s) => s.data.employees);
+  useOffice((s) => s.timeTravel); // re-run when the previewed day changes
+  return trashDuty(sceneNow(), (id) => employees.find((e) => e.id === id)?.enabled ?? true);
+}

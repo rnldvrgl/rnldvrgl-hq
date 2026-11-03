@@ -3,16 +3,23 @@
 import { useRef } from "react";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
-import { useOffice } from "@/lib/store";
+import { Trash2 } from "lucide-react";
+import { useOffice, useTrashDuty } from "@/lib/store";
 import { TEAM, teamById } from "@/lib/team";
+import { TRASH_AT } from "@/lib/office-clock";
+import { to12Hour } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { ICONS, LAMP, type LampKey } from "./icons";
 import { SHIRTS } from "./palette";
 
 gsap.registerPlugin(useGSAP);
 
+/** TRASH_AT (minutes after midnight) as "5:40 PM". */
+const TRASH_LABEL = to12Hour(`${String(Math.floor(TRASH_AT / 60)).padStart(2, "0")}:${String(TRASH_AT % 60).padStart(2, "0")}`);
+
 /** The team list: a second way into every desk, and the main one on small phones. */
-export function Roster() {
+export function Roster({ heading = true }: { heading?: boolean }) {
+  const trashId = useTrashDuty();
   const employees = useOffice((s) => s.data.employees);
   const select = useOffice((s) => s.select);
   const hover = useOffice((s) => s.hover);
@@ -25,10 +32,21 @@ export function Roster() {
 
   return (
     <div ref={scope} className="grid gap-3">
-      <div>
-        <h2 className="text-xl font-semibold">Team</h2>
-        <p className="text-sm text-muted-foreground">Pick a desk or a name to see reports, run someone now, or pause them.</p>
-      </div>
+      {heading && (
+        <div>
+          <h2 className="text-xl font-semibold">Team</h2>
+          <p className="text-sm text-muted-foreground">Pick a desk or a name to see reports, run someone now, or pause them.</p>
+        </div>
+      )}
+      {trashId && (
+        <p className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2 text-sm">
+          <Trash2 className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+          <span className="min-w-0">
+            Trash duty today: <b className="font-semibold">{teamById[trashId].name}</b>
+            <span className="text-muted-foreground"> · {TRASH_LABEL}</span>
+          </span>
+        </p>
+      )}
       <ul className="grid gap-1">
         {TEAM.map((m) => {
           const e = employees.find((x) => x.id === m.id);

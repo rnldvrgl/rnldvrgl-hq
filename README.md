@@ -263,6 +263,26 @@ Apple doesn't offer a web API for Reminders, so an iOS **Shortcut** does the syn
 
 ---
 
+## A day in the office
+
+The 3D office follows Manila time, so every screen shows the same moment:
+
+| When | What happens |
+|---|---|
+| 6 AM–11:30 AM | Morning light: a warm sunrise in the windows, then bright day. |
+| 7:00 AM | Everyone walks in from the street and sits down. |
+| 7–8 AM, 12–1 PM, 6–7 PM | Ben the janitor mops the aisles (wet-floor sign out). |
+| 11:30 AM–1 PM | Lunch: the brightest part of the day. |
+| 1 PM–6 PM | Afternoon: golden light, sunset from about 5:20 PM. |
+| 5:40 PM | Today's trash duty walks round every bin and takes the bag out to the big bin outside. The team takes turns, one per day. |
+| 7 PM | Idle employees go home. Anyone working, waiting for you or showing an error stays at their desk. |
+| Night | City lights in the windows, office lights on, screens off on empty desks. |
+| Through the day | Ronald gets up now and then (every half hour from 9:30 AM to 4:30 PM, and at random), walks the floor and looks over people's shoulders, sometimes via the coffee machine. |
+
+The ACs run 8 AM–7 PM on the floor and 7:30 AM–10:30 PM in the corner office.
+
+Use the clock button at the top left of the office to jump to any of these moments. It keeps ticking from there; **Back to live** returns to now. Change the times in `lib/office-clock.ts`.
+
 ## Costs (rough, per month)
 
 | Item | Estimate |
@@ -296,3 +316,4 @@ Apple doesn't offer a web API for Reminders, so an iOS **Shortcut** does the syn
 | Maya, Iggy or Dex say "Waiting for your Claude key" | Expected on the Gemini backup. Add `ANTHROPIC_API_KEY` and redeploy. |
 | `Gemini free tier limit reached` | Wait for the daily reset, or add the Claude key. |
 | Desk stuck on "working" | It frees itself after 10 minutes; check Vercel → Logs for a timeout. |
+| Name tags or status bubbles missing after `npm install` | Delete `.next` and restart `npm run dev`. The build cache doesn't notice the drei patch changing. |

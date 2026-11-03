@@ -1,104 +1,308 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
-import { Text } from "@react-three/drei";
-import { MANILA_OFFSET_MS } from "@/lib/time";
-import { ROOM, type Palette, SCENE_FONT } from "./palette";
-import { Plant } from "./Furniture";
+import { Suspense, useMemo } from "react";
+import * as THREE from "three";
+import { RoundedBox, Text } from "@react-three/drei";
+import { ROOM, OFFICE, PAL, SCENE_FONT, type Palette } from "./palette";
+import { Plant, TallPlant } from "./Furniture";
+import { useSkyMaterial } from "./Lighting";
+import { useSceneNow } from "./scene-clock-ui";
 
 const TAU = Math.PI * 2;
+const WALL_T = 0.16;
+/** Window band on the walls: sill and head height. */
+const SILL = 0.75, HEAD = 2.3;
+/** Back-wall windows as [x from, x to]. */
+const BACK_WINDOWS: readonly (readonly [number, number])[] = [[0.45, 4.35], [6.95, 10.45]];
+/** The wood-slat feature wall with the TV, between the windows. */
+const FEATURE = { x0: 4.55, x1: 6.75 } as const;
 
-/** Floor, two back walls with windows, a whiteboard with today's tally, a Manila clock and a plant. */
-export function Room({ pal, shadows, done, waiting }: { pal: Palette; shadows: boolean; done: number; waiting: number }) {
+/* ------------------------------------------------------------------ procedural textures */
+
+function canvasTexture(size: number, draw: (g: CanvasRenderingContext2D) => void, repeat: [number, number]): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = c.height = size;
+  const g = c.getContext("2d");
+  if (g) draw(g);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(...repeat);
+  t.anisotropy = 4;
+  return t;
+}
+
+/** Light oak planks running left–right, 20 cm wide. One tile of texture covers 2 × 2 m. */
+function usePlankTexture(w: number, d: number): THREE.CanvasTexture {
+  return useMemo(() => canvasTexture(512, (g) => {
+    const rows = 10, rowH = 512 / rows;
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    for (let r = 0; r < rows; r++) {
+      let x = -rnd() * 300;
+      while (x < 512) {
+        const len = 180 + rnd() * 260;
+        const tone = 0.93 + rnd() * 0.12;
+        g.fillStyle = `rgb(${Math.round(217 * tone)}, ${Math.round(194 * tone)}, ${Math.round(160 * tone)})`;
+        g.fillRect(x, r * rowH, len, rowH);
+        // grain
+        g.strokeStyle = "rgba(120, 84, 48, 0.08)";
+        for (let k = 0; k < 4; k++) {
+          const y = r * rowH + 4 + rnd() * (rowH - 8);
+          g.beginPath(); g.moveTo(x, y); g.lineTo(x + len, y + (rnd() - 0.5) * 4); g.stroke();
+        }
+        g.fillStyle = "rgba(110, 78, 44, 0.35)";
+        g.fillRect(x, r * rowH, 2, rowH);
+        x += len;
+      }
+      g.fillStyle = "rgba(110, 78, 44, 0.3)";
+      g.fillRect(0, r * rowH, 512, 1.5);
+    }
+  }, [w / 2, d / 2]), [w, d]);
+}
+
+/** 60 cm porcelain tiles for the pantry and entrance. One texture tile = 1.2 m. */
+function useTileTexture(w: number, d: number): THREE.CanvasTexture {
+  return useMemo(() => canvasTexture(256, (g) => {
+    g.fillStyle = PAL.tile; g.fillRect(0, 0, 256, 256);
+    g.fillStyle = "rgba(0,0,0,0.035)"; g.fillRect(0, 0, 128, 128); g.fillRect(128, 128, 128, 128);
+    g.fillStyle = PAL.tileSeam;
+    g.fillRect(0, 0, 256, 2); g.fillRect(0, 127, 256, 2); g.fillRect(0, 0, 2, 256); g.fillRect(127, 0, 2, 256);
+  }, [w / 1.2, d / 1.2]), [w, d]);
+}
+
+/* ------------------------------------------------------------------ room */
+
+type RoomProps = { pal: Palette; shadows: boolean; done: number; waiting: number; trashName: string | null };
+
+/**
+ * The building shell: oak floor, tiled pantry, two walls with tall windows onto the city
+ * (the sky changes with the time of day), a slatted feature wall with the team dashboard, shelves and the clock.
+ */
+export function Room({ pal, shadows, done, waiting, trashName }: RoomProps) {
   const { W, D, H } = ROOM;
+  const planks = usePlankTexture(W, D);
+  const tileW = W - OFFICE.x0, tileD = D - OFFICE.z1;
+  const tiles = useTileTexture(tileW, tileD);
+  const sky = useSkyMaterial();
+
   return (
     <group>
-      {/* floor + tile lines */}
-      <mesh position={[W / 2, -0.05, D / 2]} receiveShadow={shadows}>
-        <boxGeometry args={[W, 0.1, D]} />
-        <meshStandardMaterial color={pal.floor} />
+      {/* floor slab with the plank texture, and a tiled pantry/entrance area */}
+      <mesh position={[W / 2, -0.06, D / 2]} receiveShadow={shadows}>
+        <boxGeometry args={[W, 0.12, D]} />
+        <meshStandardMaterial attach="material-0" color={pal.trim} />
+        <meshStandardMaterial attach="material-1" color={pal.trim} />
+        <meshStandardMaterial attach="material-2" map={planks} roughness={0.75} />
+        <meshStandardMaterial attach="material-3" color={pal.trim} />
+        <meshStandardMaterial attach="material-4" color={pal.trim} />
+        <meshStandardMaterial attach="material-5" color={pal.trim} />
       </mesh>
-      {Array.from({ length: Math.floor(W) }, (_, i) => (
-        <mesh key={`gx${i}`} position={[i + 1, 0.002, D / 2]}>
-          <boxGeometry args={[0.015, 0.001, D]} />
-          <meshBasicMaterial color={pal.floorLine} />
-        </mesh>
-      ))}
-      {Array.from({ length: Math.floor(D) }, (_, i) => (
-        <mesh key={`gz${i}`} position={[W / 2, 0.002, i + 1]}>
-          <boxGeometry args={[W, 0.001, 0.015]} />
-          <meshBasicMaterial color={pal.floorLine} />
-        </mesh>
-      ))}
-
-      {/* back walls */}
-      <mesh position={[-0.08, H / 2, D / 2]} receiveShadow={shadows}>
-        <boxGeometry args={[0.16, H, D]} />
-        <meshStandardMaterial color={pal.wallLeft} />
-      </mesh>
-      <mesh position={[W / 2, H / 2, -0.08]} receiveShadow={shadows}>
-        <boxGeometry args={[W + 0.16, H, 0.16]} />
-        <meshStandardMaterial color={pal.wallRight} />
-      </mesh>
-      <mesh position={[W / 2, H + 0.04, -0.08]}>
-        <boxGeometry args={[W + 0.2, 0.08, 0.2]} />
-        <meshStandardMaterial color={pal.trim} />
-      </mesh>
-      <mesh position={[-0.08, H + 0.04, D / 2]}>
-        <boxGeometry args={[0.2, 0.08, D]} />
-        <meshStandardMaterial color={pal.trim} />
+      <mesh position={[OFFICE.x0 + tileW / 2, 0.003, OFFICE.z1 + tileD / 2]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow={shadows}>
+        <planeGeometry args={[tileW, tileD]} />
+        <meshStandardMaterial map={tiles} roughness={0.45} />
       </mesh>
 
-      {/* windows on the right wall */}
-      {[2.3, 8.5].map((x) => (
-        <group key={x} position={[x, 1.55, 0.005]}>
-          <mesh>
-            <boxGeometry args={[2.1, 1.25, 0.03]} />
-            <meshStandardMaterial color={pal.trim} />
-          </mesh>
-          <mesh position={[0, 0, 0.02]}>
-            <planeGeometry args={[1.95, 1.1]} />
-            <meshStandardMaterial color={pal.window} emissive={pal.window} emissiveIntensity={pal.windowGlow} />
-          </mesh>
-          <mesh position={[0, 0, 0.03]}>
-            <boxGeometry args={[0.04, 1.1, 0.01]} />
-            <meshStandardMaterial color={pal.trim} />
-          </mesh>
-        </group>
-      ))}
+      <BackWall pal={pal} shadows={shadows} sky={sky} />
+      <LeftWall pal={pal} shadows={shadows} />
 
-      {/* whiteboard */}
-      <group position={[5.4, 1.45, 0.01]}>
-        <mesh>
-          <boxGeometry args={[2.5, 1.2, 0.04]} />
-          <meshStandardMaterial color={pal.trim} />
-        </mesh>
-        <mesh position={[0, 0, 0.025]}>
-          <planeGeometry args={[2.38, 1.08]} />
-          <meshStandardMaterial color={pal.board} />
-        </mesh>
-        <Suspense fallback={null}>
-          <Text font={SCENE_FONT} position={[-1.06, 0.34, 0.03]} fontSize={0.13} color={pal.boardInk} anchorX="left" anchorY="middle" letterSpacing={0.08}>
-            TODAY
-          </Text>
-          <Text font={SCENE_FONT} position={[-1.06, 0.08, 0.03]} fontSize={0.12} color={pal.boardInk} anchorX="left" anchorY="middle">
-            {`${done} report${done === 1 ? "" : "s"} done`}
-          </Text>
-          <Text font={SCENE_FONT} position={[-1.06, -0.14, 0.03]} fontSize={0.12} color={waiting ? pal.needsInk : pal.boardInk} anchorX="left" anchorY="middle">
-            {`${waiting} waiting for you`}
-          </Text>
-        </Suspense>
-      </group>
-
+      <Dashboard pal={pal} done={done} waiting={waiting} trashName={trashName} />
       <Clock pal={pal} />
 
-      {/* plant in the corner */}
-      <Plant pal={pal} shadows={shadows} position={[0.45, 0, 0.45]} />
+      {/* floating shelves on the left wall: books, a plant, a trophy */}
+      <Shelf pal={pal} shadows={shadows} z={1.35} y={1.45} />
+      <Shelf pal={pal} shadows={shadows} z={6.0} y={1.45} plantFirst />
+
+      {/* tall plants in the corners and by the windows */}
+      <TallPlant pal={pal} shadows={shadows} position={[0.42, 0, 0.42]} />
+      <TallPlant pal={pal} shadows={shadows} position={[0.42, 0, D - 0.42]} scale={0.85} />
+      <Plant pal={pal} shadows={shadows} position={[6.0, 0, 0.42]} scale={0.8} />
+    </group>
+  );
+}
+
+/** The back wall (z = 0), built around two window openings. */
+function BackWall({ pal, shadows, sky }: { pal: Palette; shadows: boolean; sky: THREE.Material }) {
+  const { W, H } = ROOM;
+  const z = -WALL_T / 2;
+  // solid stretches between and beside the windows
+  const solids: [number, number][] = [];
+  let from = -WALL_T;
+  for (const [a, b] of BACK_WINDOWS) { solids.push([from, a]); from = b; }
+  solids.push([from, W + WALL_T]);
+
+  return (
+    <group>
+      {solids.map(([a, b]) => (
+        <mesh key={a} position={[(a + b) / 2, H / 2, z]} receiveShadow={shadows}>
+          <boxGeometry args={[b - a, H, WALL_T]} />
+          <meshStandardMaterial color={pal.wall} />
+        </mesh>
+      ))}
+      {BACK_WINDOWS.map(([a, b]) => (
+        <group key={a}>
+          <mesh position={[(a + b) / 2, SILL / 2, z]} receiveShadow={shadows}>
+            <boxGeometry args={[b - a, SILL, WALL_T]} />
+            <meshStandardMaterial color={pal.wall} />
+          </mesh>
+          <mesh position={[(a + b) / 2, (HEAD + H) / 2, z]}>
+            <boxGeometry args={[b - a, H - HEAD, WALL_T]} />
+            <meshStandardMaterial color={pal.wall} />
+          </mesh>
+          <Window pal={pal} sky={sky} length={b - a} position={[(a + b) / 2, 0, 0]} />
+        </group>
+      ))}
+      {/* top cap: the cut line of the diorama */}
+      <mesh position={[W / 2, H + 0.025, z]}>
+        <boxGeometry args={[W + WALL_T * 2, 0.05, WALL_T + 0.02]} />
+        <meshStandardMaterial color={pal.trim} />
+      </mesh>
+      {/* baseboard */}
+      <mesh position={[W / 2, 0.05, 0.008]}>
+        <boxGeometry args={[W, 0.1, 0.016]} />
+        <meshStandardMaterial color={pal.baseboard} />
+      </mesh>
+      {/* wood slat feature wall behind the dashboard */}
+      <group position={[0, 0, 0.01]}>
+        {Array.from({ length: Math.floor((FEATURE.x1 - FEATURE.x0) / 0.09) }, (_, i) => (
+          <mesh key={i} position={[FEATURE.x0 + 0.045 + i * 0.09, H / 2, 0.012]}>
+            <boxGeometry args={[0.055, H - 0.02, 0.024]} />
+            <meshStandardMaterial color={i % 2 ? pal.slat : pal.slatDark} />
+          </mesh>
+        ))}
+      </group>
+    </group>
+  );
+}
+
+/** A window opening along local x, sky inside, black aluminium frame with mullions and a white sill. */
+function Window({ pal, sky, length, position, rotY = 0 }: {
+  pal: Palette; sky: THREE.Material; length: number; position: [number, number, number]; rotY?: number;
+}) {
+  const h = HEAD - SILL;
+  const panes = Math.max(2, Math.round(length / 1.1));
+  return (
+    <group position={position} rotation={[0, rotY, 0]}>
+      <mesh position={[0, SILL + h / 2, -WALL_T + 0.02]} material={sky}>
+        <planeGeometry args={[length, h]} />
+      </mesh>
+      {/* frame */}
+      {[SILL + 0.02, HEAD - 0.02].map((y) => (
+        <mesh key={y} position={[0, y, -0.03]}>
+          <boxGeometry args={[length, 0.04, 0.05]} />
+          <meshStandardMaterial color={pal.windowFrame} />
+        </mesh>
+      ))}
+      {Array.from({ length: panes + 1 }, (_, i) => (
+        <mesh key={i} position={[-length / 2 + (i * length) / panes, SILL + h / 2, -0.03]}>
+          <boxGeometry args={[0.04, h, 0.05]} />
+          <meshStandardMaterial color={pal.windowFrame} />
+        </mesh>
+      ))}
+      <mesh position={[0, SILL + 0.62, -0.03]}>
+        <boxGeometry args={[length, 0.025, 0.04]} />
+        <meshStandardMaterial color={pal.windowFrame} />
+      </mesh>
+      <mesh position={[0, SILL - 0.01, 0.04]}>
+        <boxGeometry args={[length + 0.08, 0.03, 0.12]} />
+        <meshStandardMaterial color={pal.sill} />
+      </mesh>
+    </group>
+  );
+}
+
+/** The left wall (x = 0): deep green accent paint, baseboard and top cap. */
+function LeftWall({ pal, shadows }: { pal: Palette; shadows: boolean }) {
+  const { D, H } = ROOM;
+  return (
+    <group>
+      <mesh position={[-WALL_T / 2, H / 2, D / 2]} receiveShadow={shadows}>
+        <boxGeometry args={[WALL_T, H, D]} />
+        <meshStandardMaterial color={pal.wallSide} />
+      </mesh>
+      <mesh position={[0.004, H / 2, D / 2]} rotation={[0, Math.PI / 2, 0]} receiveShadow={shadows}>
+        <planeGeometry args={[D - 0.3, H]} />
+        <meshStandardMaterial color={pal.accentWall} roughness={0.95} />
+      </mesh>
+      <mesh position={[-WALL_T / 2, H + 0.025, D / 2]}>
+        <boxGeometry args={[WALL_T + 0.02, 0.05, D]} />
+        <meshStandardMaterial color={pal.trim} />
+      </mesh>
+      <mesh position={[0.012, 0.05, D / 2]}>
+        <boxGeometry args={[0.016, 0.1, D]} />
+        <meshStandardMaterial color={pal.baseboard} />
+      </mesh>
+    </group>
+  );
+}
+
+/** Floating wall shelf on the left wall, with books, a small plant and a trophy. */
+function Shelf({ pal, shadows, z, y, plantFirst = false }: { pal: Palette; shadows: boolean; z: number; y: number; plantFirst?: boolean }) {
+  const BOOKS = ["#c2410c", "#1f3a52", "#e0a43a", "#2f9e8f", "#8a6fd1", "#f4f1ea"];
+  return (
+    <group position={[0, y, z]} rotation={[0, Math.PI / 2, 0]}>
+      <mesh position={[0, 0, 0.13]} castShadow={shadows}>
+        <boxGeometry args={[1.3, 0.04, 0.24]} />
+        <meshStandardMaterial color={pal.wood} />
+      </mesh>
+      {BOOKS.map((c, i) => (
+        <mesh key={c} position={[(plantFirst ? 0.05 : -0.55) + i * 0.065, 0.13 + (i % 3) * 0.012, 0.13]} rotation={[0, 0, i === 5 ? -0.25 : 0]}>
+          <boxGeometry args={[0.05, 0.22 + (i % 3) * 0.025, 0.17]} />
+          <meshStandardMaterial color={c} />
+        </mesh>
+      ))}
+      <Plant pal={pal} shadows={shadows} position={[plantFirst ? -0.45 : 0.42, 0.02, 0.13]} scale={0.28} />
+      <mesh position={[plantFirst ? -0.15 : 0.12, 0.09, 0.13]}>
+        <cylinderGeometry args={[0.03, 0.05, 0.14, 10]} />
+        <meshStandardMaterial color="#d4a017" metalness={0.6} roughness={0.3} />
+      </mesh>
+    </group>
+  );
+}
+
+/** Wall-mounted screen on the feature wall: today's tally and who's on trash duty. */
+function Dashboard({ pal, done, waiting, trashName }: { pal: Palette; done: number; waiting: number; trashName: string | null }) {
+  const x = (FEATURE.x0 + FEATURE.x1) / 2;
+  return (
+    <group position={[x, 1.5, 0.05]}>
+      <RoundedBox args={[1.78, 1.02, 0.05]} radius={0.015} smoothness={2}>
+        <meshStandardMaterial color={pal.bezel} />
+      </RoundedBox>
+      <mesh position={[0, 0, 0.027]}>
+        <planeGeometry args={[1.7, 0.94]} />
+        <meshStandardMaterial color={pal.board} emissive={pal.board} emissiveIntensity={0.6} />
+      </mesh>
+      <mesh position={[-0.6, 0.33, 0.029]}>
+        <planeGeometry args={[0.32, 0.012]} />
+        <meshBasicMaterial color={pal.boardAccent} toneMapped={false} />
+      </mesh>
+      <Suspense fallback={null}>
+        <Text font={SCENE_FONT} position={[-0.76, 0.38, 0.03]} fontSize={0.075} color={pal.boardAccent} anchorX="left" anchorY="bottom" letterSpacing={0.12}>
+          TODAY
+        </Text>
+        <Text font={SCENE_FONT} position={[-0.76, 0.17, 0.03]} fontSize={0.11} color={pal.boardInk} anchorX="left" anchorY="middle">
+          {`${done} report${done === 1 ? "" : "s"} done`}
+        </Text>
+        <Text font={SCENE_FONT} position={[-0.76, -0.02, 0.03]} fontSize={0.11} color={waiting ? pal.needsInk : pal.boardInk} anchorX="left" anchorY="middle">
+          {`${waiting} waiting for you`}
+        </Text>
+        <Text font={SCENE_FONT} position={[-0.76, -0.26, 0.03]} fontSize={0.065} color={pal.boardInk} fillOpacity={0.75} anchorX="left" anchorY="middle">
+          {trashName ? `TRASH DUTY  ${trashName.toUpperCase()} · 5:40 PM` : "TRASH DUTY  —"}
+        </Text>
+      </Suspense>
+      {/* a little bar chart on the right */}
+      {[0.18, 0.32, 0.24, 0.4, 0.3].map((h, i) => (
+        <mesh key={i} position={[0.42 + i * 0.075, -0.36 + h / 2, 0.029]}>
+          <planeGeometry args={[0.045, h]} />
+          <meshBasicMaterial color={i === 3 ? pal.boardAccent : "#3c5566"} toneMapped={false} />
+        </mesh>
+      ))}
     </group>
   );
 }
 
 const DIGITAL = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit", hour12: true });
+const MANILA_OFFSET_MS = 8 * 3600_000;
 
 /** Numerals 1–12 as [label, x, y] on the clock face. */
 const NUMERALS: readonly (readonly [string, number, number])[] = Array.from({ length: 12 }, (_, i) => {
@@ -108,16 +312,11 @@ const NUMERALS: readonly (readonly [string, number, number])[] = Array.from({ le
 });
 
 /**
- * Wall clock on the left wall showing Manila time, with numerals, a second hand,
+ * Wall clock on the left wall showing Manila time (or the previewed time), with numerals, a second hand,
  * and a digital 12-hour readout (e.g. "7:42 PM") on an LED panel underneath.
- * Local +x on the wall reads left-to-right from the camera.
  */
 function Clock({ pal }: { pal: Palette }) {
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(t);
-  }, []);
+  const now = useSceneNow(1000);
   const manila = new Date(now.getTime() + MANILA_OFFSET_MS);
   const h = manila.getUTCHours() % 12, m = manila.getUTCMinutes(), s = manila.getUTCSeconds();
   const second = -(s / 60) * TAU;
@@ -125,7 +324,7 @@ function Clock({ pal }: { pal: Palette }) {
   const hour = -((h + m / 60) / 12) * TAU;
 
   return (
-    <group position={[0.02, 1.9, 4.6]} rotation={[0, Math.PI / 2, 0]}>
+    <group position={[0.02, 1.95, 4.25]} rotation={[0, Math.PI / 2, 0]}>
       <mesh rotation={[Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[0.36, 0.36, 0.05, 40]} />
         <meshStandardMaterial color={pal.trim} />

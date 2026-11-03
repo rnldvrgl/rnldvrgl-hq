@@ -4,7 +4,7 @@ import { useRef, useState, type SubmitEvent } from "react";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { toast } from "sonner";
-import { Play, Pause, CheckCheck, X, Copy, ExternalLink, Trash2, ShieldCheck, Smartphone } from "lucide-react";
+import { Play, Pause, CheckCheck, X, Copy, ExternalLink, Trash2, ShieldCheck, Smartphone, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -94,7 +94,7 @@ export function DeskPanel({ id, onClose }: { id: EmployeeId; onClose?: () => voi
 
       <div data-anim className="flex flex-wrap gap-2">
         <Button disabled={busy || emp.status === "working"} onClick={() => act(() => runNow(id), `${meta.name} is on it.`)}>
-          <Play /> {emp.status === "working" ? "Working…" : "Run now"}
+          {emp.status === "working" ? <><Loader2 className="animate-spin" aria-hidden /> Working…</> : <><Play /> Run now</>}
         </Button>
         <Button variant="outline" disabled={busy}
           onClick={() => act(() => setEnabled(id, !emp.enabled), emp.enabled ? `${meta.name} is paused.` : `${meta.name} is back at the desk.`)}>
@@ -128,7 +128,9 @@ export function DeskPanel({ id, onClose }: { id: EmployeeId; onClose?: () => voi
               </p>
               {latest.error
                 ? <p className="text-sm text-destructive">{latest.error}</p>
-                : <Report text={latest.output ?? "Still working…"} />}
+                : latest.output
+                  ? <Report text={latest.output} />
+                  : <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" aria-hidden /> Still working…</p>}
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">No reports yet. Press Run now to see {meta.name} work.</p>
@@ -202,7 +204,7 @@ function Pipeline() {
                   catch (e) { fail(e, "Couldn't draft the letter."); }
                   finally { setDrafting(null); }
                 }}>
-                {drafting === j.id ? "Drafting…" : "Cover letter"}
+                {drafting === j.id ? <><Loader2 className="animate-spin" aria-hidden /> Drafting…</> : "Cover letter"}
               </Button>
             </div>
             {letter?.id === j.id && (
@@ -231,15 +233,18 @@ export function Reminders() {
   const [title, setTitle] = useState("");
   const [local, setLocal] = useState("");
   const [repeat, setRepeat] = useState<RepeatChoice>("once");
+  const [adding, setAdding] = useState(false);
 
   async function add(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!local) return toast.error("Pick a date for the reminder.");
+    setAdding(true);
     try {
       await addReminder({ title, local, repeat: repeat === "once" ? null : repeat });
       setTitle(""); setLocal(""); setRepeat("once");
       toast.success("Reminder added.");
     } catch (err) { fail(err, "Couldn't add the reminder."); }
+    finally { setAdding(false); }
   }
 
   return (
@@ -265,7 +270,9 @@ export function Reminders() {
             </SelectContent>
           </Select>
         </div>
-        <Button type="submit" className="col-span-2">Add reminder</Button>
+        <Button type="submit" className="col-span-2" disabled={adding}>
+          {adding ? <><Loader2 className="animate-spin" aria-hidden /> Adding…</> : "Add reminder"}
+        </Button>
       </form>
       {reminders.length === 0 && <p className="text-sm text-muted-foreground">Nothing coming up.</p>}
       <ul className="grid gap-2">

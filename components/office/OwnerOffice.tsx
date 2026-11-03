@@ -3,16 +3,12 @@
 import { Suspense, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
-import { Html, RoundedBox, Text } from "@react-three/drei";
-import { gsap } from "gsap";
-import { useGSAP } from "@gsap/react";
-import { Crown } from "lucide-react";
+import { RoundedBox, Text } from "@react-three/drei";
 import { OFFICE, ROOM, type Palette, SCENE_FONT } from "./palette";
-import { OfficeChair, Plant, type Vec3 } from "./Furniture";
-
-gsap.registerPlugin(useGSAP);
-
-const OWNER_NAME = "Ronald";
+import { OfficeChair, Plant, TallPlant, type Vec3 } from "./Furniture";
+import { AirCon, officeAcOn } from "./Amenities";
+import { light } from "./Lighting";
+import { OWNER_NAME } from "./Staff";
 
 const { x0: X0, x1: X1, z1: Z1 } = OFFICE;
 /** Middle of the office along x: the executive desk, monitors and chair line up on it. */
@@ -53,64 +49,17 @@ function Glass({ pal, position, length, rotY = 0 }: { pal: Palette; position: Ve
   );
 }
 
-/** Ronald, seated with his back to the camera, typing now and then. */
-function Owner({ pal, shadows, reducedMotion }: { pal: Palette; shadows: boolean; reducedMotion: boolean }) {
-  const armL = useRef<THREE.Group>(null);
-  const armR = useRef<THREE.Group>(null);
-  const head = useRef<THREE.Mesh>(null);
-
-  useGSAP(() => {
-    if (reducedMotion || !armL.current || !armR.current || !head.current) return;
-    const tl = gsap.timeline({ repeat: -1, repeatDelay: 1.6 });
-    for (let i = 0; i < 4; i++) {
-      tl.to(armL.current.rotation, { x: 1.22, duration: 0.12, yoyo: true, repeat: 1, ease: "sine.inOut" })
-        .to(armR.current.rotation, { x: 1.22, duration: 0.12, yoyo: true, repeat: 1, ease: "sine.inOut" }, "<0.12");
-    }
-    gsap.to(head.current.position, { y: 1.43, duration: 0.6, yoyo: true, repeat: -1, repeatDelay: 1.4, ease: "sine.inOut" });
-  }, { dependencies: [reducedMotion], revertOnUpdate: true });
-
-  const shirt = pal.ownerShirt;
-  return (
-    <group position={[MX, 0, CHAIR_Z]}>
-      <mesh position={[0, 0.92, -0.03]} castShadow={shadows}>
-        <capsuleGeometry args={[0.21, 0.3, 6, 16]} />
-        <meshStandardMaterial color={shirt} />
-      </mesh>
-      <mesh ref={head} position={[0, 1.4, -0.05]} castShadow={shadows}>
-        <sphereGeometry args={[0.175, 24, 16]} />
-        <meshStandardMaterial color={pal.hair} />
-      </mesh>
-      {[-1, 1].map((side) => (
-        <mesh key={side} position={[side * 0.175, 1.38, -0.03]}>
-          <sphereGeometry args={[0.04, 12, 8]} />
-          <meshStandardMaterial color={pal.skin} />
-        </mesh>
-      ))}
-      <group ref={armL} position={[-0.23, 1.06, -0.07]} rotation={[1.05, 0, 0.12]}>
-        <mesh position={[0, -0.19, 0]}>
-          <capsuleGeometry args={[0.058, 0.32, 4, 10]} />
-          <meshStandardMaterial color={shirt} />
-        </mesh>
-      </group>
-      <group ref={armR} position={[0.23, 1.06, -0.07]} rotation={[1.05, 0, -0.12]}>
-        <mesh position={[0, -0.19, 0]}>
-          <capsuleGeometry args={[0.058, 0.32, 4, 10]} />
-          <meshStandardMaterial color={shirt} />
-        </mesh>
-      </group>
-    </group>
-  );
-}
-
 /**
  * The owner's glass corner office in the back-right of the room: L-shaped executive desk,
  * a curved ultrawide plus a side monitor, a PC tower with a slow RGB glow, and Ronald at the desk.
  */
 export function OwnerOffice({ pal, shadows, reducedMotion }: { pal: Palette; shadows: boolean; reducedMotion: boolean }) {
   const rgb = useRef<THREE.MeshStandardMaterial>(null);
+  const ceiling = useRef<THREE.PointLight>(null);
 
   // RGB accents cycle slowly; held still for reduced motion.
   useFrame(({ clock }) => {
+    if (ceiling.current) ceiling.current.intensity = 0.8 + light.lamps * 4.5;
     if (!rgb.current || reducedMotion) return;
     const hue = (clock.elapsedTime * 0.06) % 1;
     rgb.current.color.setHSL(hue, 0.9, 0.55);
@@ -143,7 +92,7 @@ export function OwnerOffice({ pal, shadows, reducedMotion }: { pal: Palette; sha
         <meshStandardMaterial color={pal.glassFrame} />
       </mesh>
       {/* glass door, swung open into the office */}
-      <group position={[X0 + DOOR_W, 0, Z1]} rotation={[0, -1.1, 0]}>
+      <group position={[X0 + DOOR_W, 0, Z1]} rotation={[0, -1.5, 0]}>
         <mesh position={[-0.45, GH / 2 - 0.05, 0]}>
           <planeGeometry args={[0.88, GH - 0.12]} />
           <meshStandardMaterial color={pal.glass} transparent opacity={pal.glassOpacity + 0.06} side={THREE.DoubleSide} depthWrite={false} />
@@ -284,25 +233,12 @@ export function OwnerOffice({ pal, shadows, reducedMotion }: { pal: Palette; sha
       </group>
 
       <OfficeChair pal={pal} shadows={shadows} position={[MX, 0, CHAIR_Z]} color={pal.execChair} executive />
-      <Owner pal={pal} shadows={shadows} reducedMotion={reducedMotion} />
 
-      {/* corner floor plant, and a warm ceiling light */}
-      <Plant pal={pal} shadows={shadows} position={[X0 + 0.45, 0, Z1 - 0.5]} scale={0.85} />
-      <pointLight position={[MX, ROOM.H - 0.2, 2.0]} color={pal.officeLight} intensity={1.6} distance={4.5} />
+      {/* corner floor plant (clear of the door path), a warm ceiling light, and the office's split AC */}
+      <TallPlant pal={pal} shadows={shadows} position={[X1 - 0.4, 0, Z1 - 0.45]} scale={0.8} />
+      <pointLight ref={ceiling} position={[MX, ROOM.H - 0.2, 2.0]} color="#ffe2b8" intensity={1.6} distance={6} decay={1.6} />
+      <AirCon pal={pal} shadows={shadows} position={[X1 - 0.75, 2.3, 0.12]} on={officeAcOn} />
 
-      {/* floating name tag: not interactive, Ronald isn't one of the employees */}
-      <Html position={[MX, 2.25, CHAIR_Z - 0.05]} center zIndexRange={[19, 0]} style={{ pointerEvents: "none" }}>
-        <div
-          className="flex items-center gap-2 whitespace-nowrap rounded-full border border-primary bg-primary py-1 pl-1 pr-3 text-sm font-semibold text-primary-foreground shadow-md select-none"
-          style={{ fontFamily: "var(--font-display)" }}
-        >
-          <span className="grid size-6 place-items-center rounded-full bg-primary-foreground/20">
-            <Crown className="size-3.5" aria-hidden />
-          </span>
-          {OWNER_NAME}
-          <span className="rounded-full bg-primary-foreground/20 px-1.5 text-[10px] font-medium uppercase tracking-wider">Main office</span>
-        </div>
-      </Html>
     </group>
   );
 }
