@@ -44,6 +44,14 @@ export const PAL_BLUSH: Palette = {
   lampShade: "#e8b4a0", officeFloor: "#8a5f52", divider: "#d9b7c2", signAccent: "#f0a3c4", selected: "#b0577f",
 };
 
+/** The Mango style's office: a terracotta feature wall, mustard sofa, warm oak and amber lamps (same layout). */
+export const PAL_MANGO: Palette = {
+  ...PAL,
+  accentWall: "#b4603a", slat: "#b98552", slatDark: "#8f6236",
+  sofa: "#d9a441", sofaDark: "#bf8a2e", rugLounge: "#efe0c2", rug: "#a15c2e",
+  lampShade: "#f0b04a", officeFloor: "#7f5433", divider: "#d8bf94", signAccent: "#f0b04a", selected: "#b86a14",
+};
+
 /** Shirt colours, matching --c1..--c8 in globals.css. */
 export const SHIRTS = ["#e0a43a", "#4a8fd8", "#2f9e8f", "#d46a6a", "#8a6fd1", "#5aa34f", "#3f5c7a", "#c46aa6"] as const;
 

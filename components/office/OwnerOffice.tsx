@@ -11,6 +11,7 @@ import { light } from "./Lighting";
 import { useGameScreen } from "./GameScreen";
 import { OWNER_NAME } from "./Staff";
 import { HQ } from "@/hq.config";
+import { mergeParts, type Part } from "./batch";
 import { useOfficeStyle, type OfficeStyle } from "@/lib/settings";
 
 const { x0: X0, x1: X1, z1: Z1 } = OFFICE;
@@ -33,12 +34,14 @@ type Style = Exclude<OfficeStyle, "auto">;
  *   gaming     dark walls, glowing hex acoustic panels, neon light cycling through the colours, a red racing chair
  *   cozy       blush walls with a plaster arch, white oak desk, fairy lights, a rattan pendant, lots of plants
  *   minimal    white oak slats, white desk, grey sofa, one big plant and a line drawing
+ *   studio     a creator's studio: charcoal acoustic foam, a ring light and a camera, a boom mic, a red ON AIR sign
+ *   heritage   Filipino heritage: narra wood, capiz shell window panels, a banig rug, rattan, a salakot on the wall
  */
 type Theme = {
   floor: string; rug: string; desk: string; deskSide: string; chair: string;
   /** Under-desk strip and cove: "rgb" cycles through the colours. */
   strip: string | "rgb"; cove: string | "rgb";
-  wall: "slats" | "panel" | "arch";
+  wall: "slats" | "panel" | "arch" | "foam" | "capiz";
   slat: string; slatAlt: string; wallBase: string;
   signPlate: string; signInk: string; halo: string; haloOpacity: number;
   shelf: string; sofa: string; cushion: string; pillow: string; loungeRug: string;
@@ -71,6 +74,22 @@ function themeOf(style: Style, pal: Palette): Theme {
         signPlate: "#f8fafc", signInk: "#111827", halo: "#ffffff", haloOpacity: 0,
         shelf: "#d9c2a0", sofa: "#9ca3af", cushion: "#b8bdc4", pillow: "#e5e7eb", loungeRug: "#ebe7df",
         credenza: "#d9c2a0", credenzaDoor: "#ccb28c", art: ["#f8f6f1", "#111827", "#9ca3af"], shade: "#f4f1ea",
+      };
+    case "studio":
+      return {
+        floor: "#3a3633", rug: "#24211f", desk: "#2a2725", deskSide: "#1c1a19", chair: "#1f1f22",
+        strip: "#ff8a3d", cove: "#ffb27a", wall: "foam", slat: "#2f2c2b", slatAlt: "#3b3735", wallBase: "#242120",
+        signPlate: "#151313", signInk: "#ffb27a", halo: "#ff8a3d", haloOpacity: 0.35,
+        shelf: "#4a3f37", sofa: "#3f3a37", cushion: "#56504c", pillow: "#ff8a3d", loungeRug: "#4a4440",
+        credenza: "#2f2b29", credenzaDoor: "#24211f", art: ["#151313", "#ff8a3d", "#f5f0e8"], shade: "#2f2c2b",
+      };
+    case "heritage":
+      return {
+        floor: "#6e4429", rug: "#d9b77a", desk: "#7a4a2a", deskSide: "#5b351d", chair: "#c49a5a",
+        strip: "#ffd59a", cove: "#ffd59a", wall: "capiz", slat: "#7a4a2a", slatAlt: "#5b351d", wallBase: "#5b351d",
+        signPlate: "#f6ecd8", signInk: "#5b351d", halo: "#ffe2b0", haloOpacity: 0.3,
+        shelf: "#7a4a2a", sofa: "#c49a5a", cushion: "#f1e3c6", pillow: "#b91c1c", loungeRug: "#e3c58e",
+        credenza: "#7a4a2a", credenzaDoor: "#5b351d", art: ["#f6ecd8", "#1d4ed8", "#b91c1c"], shade: "#f2e6cf",
       };
     default:
       return {
@@ -129,7 +148,8 @@ export function OwnerOffice({ pal, shadows, reducedMotion }: { pal: Palette; sha
     : new THREE.MeshStandardMaterial({ color: th.strip, emissive: th.strip, emissiveIntensity: 1.1, toneMapped: false }), [th.strip, rgb]);
 
   useFrame(({ clock }) => {
-    if (ceiling.current) ceiling.current.intensity = (style === "gaming" ? 0.4 : 0.8) + light.lamps * (style === "gaming" ? 2.5 : 4.5);
+    const dim = style === "gaming" || style === "studio";
+    if (ceiling.current) ceiling.current.intensity = (dim ? 0.45 : 0.8) + light.lamps * (dim ? 2.8 : 4.5);
     if (reducedMotion) return;
     const hue = (clock.elapsedTime * 0.06) % 1;
     rgb.color.setHSL(hue, 0.9, 0.55);
@@ -293,7 +313,7 @@ export function OwnerOffice({ pal, shadows, reducedMotion }: { pal: Palette; sha
 
       <BossDecor pal={pal} shadows={shadows} th={th} style={style} rgb={rgb} reducedMotion={reducedMotion} />
       {/* a warm ceiling light and the office's split AC */}
-      <pointLight ref={ceiling} position={[MX, ROOM.H - 0.2, 2.0]} color={style === "gaming" ? "#c4b5fd" : style === "cozy" ? "#ffd6c2" : "#ffe2b8"} intensity={1.6} distance={6} decay={1.6} />
+      <pointLight ref={ceiling} position={[MX, ROOM.H - 0.2, 2.0]} color={style === "gaming" ? "#c4b5fd" : style === "cozy" ? "#ffd6c2" : style === "studio" ? "#ffc8a0" : "#ffe2b8"} intensity={1.6} distance={6} decay={1.6} />
       <AirCon pal={pal} shadows={shadows} position={[X1 - 0.75, 2.3, 0.12]} on={officeAcOn} />
 
     </group>
@@ -337,6 +357,8 @@ function BossDecor({ pal, shadows, th, style, rgb, reducedMotion }: { pal: Palet
       ))}
       {th.wall === "panel" && <HexPanels x0={slatX0} x1={slatX1} th={th} rgb={rgb} />}
       {th.wall === "arch" && <Arch th={th} />}
+      {th.wall === "foam" && <FoamWall x0={slatX0} x1={slatX1} th={th} />}
+      {th.wall === "capiz" && <CapizWall x0={slatX0} x1={slatX1} th={th} />}
       {coveMat ? (
         <mesh position={[(slatX0 + slatX1) / 2, ROOM.H - 0.06, 0.05]} material={coveMat}>
           <boxGeometry args={[slatX1 - slatX0, 0.025, 0.02]} />
@@ -603,6 +625,8 @@ function BossDecor({ pal, shadows, th, style, rgb, reducedMotion }: { pal: Palet
       {style === "gaming" && <GamingExtras rgb={rgb} />}
       {style === "cozy" && <CozyExtras pal={pal} shadows={shadows} reducedMotion={reducedMotion} />}
       {style === "minimal" && <MinimalExtras pal={pal} shadows={shadows} />}
+      {style === "studio" && <StudioExtras reducedMotion={reducedMotion} />}
+      {style === "heritage" && <HeritageExtras pal={pal} shadows={shadows} />}
     </group>
   );
 }
@@ -730,6 +754,169 @@ function MinimalExtras({ pal, shadows }: { pal: Palette; shadows: boolean }) {
           <meshBasicMaterial color="#111827" />
         </mesh>
       </group>
+    </group>
+  );
+}
+
+/** Studio: a grid of pyramid acoustic foam tiles in two tones. */
+function FoamWall({ x0, x1, th }: { x0: number; x1: number; th: Theme }) {
+  const geo = useMemo(() => {
+    const parts: Part[] = [];
+    const S = 0.3, cols = Math.floor((x1 - x0 - 0.1) / S), rows = 6;
+    const ox = (x0 + x1) / 2 - (cols * S) / 2 + S / 2;
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+      // leave a gap around the sign (it hangs at y ≈ 2, 1.35 m wide with its halo)
+      const cx = ox + c * S, y = 0.75 + r * S;
+      if (Math.abs(cx - MX) < 0.85 && y > 1.55) continue;
+      const color = (r + c) % 2 ? th.slat : th.slatAlt;
+      parts.push({ size: [S - 0.02, S - 0.02, 0.03], pos: [cx, y, 0.03], color });
+      parts.push({ shape: "cyl", size: [S * 0.42, 0.06, 4], pos: [cx, y, 0.075], rot: [Math.PI / 2, Math.PI / 4, 0], color });
+    }
+    return mergeParts(parts);
+  }, [x0, x1, th.slat, th.slatAlt]);
+  return geo ? <mesh geometry={geo}><meshStandardMaterial vertexColors roughness={1} /></mesh> : null;
+}
+
+/** Studio: a ring light and a camera on tripods facing the desk, a boom mic on the desk, and the ON AIR sign. */
+function StudioExtras({ reducedMotion }: { reducedMotion: boolean }) {
+  const onAir = useMemo(() => new THREE.MeshStandardMaterial({ color: "#7f1d1d", emissive: "#ef4444", emissiveIntensity: 1.6, toneMapped: false }), []);
+  const ring = useMemo(() => new THREE.MeshStandardMaterial({ color: "#fff7ed", emissive: "#fff1dc", emissiveIntensity: 1.4, toneMapped: false }), []);
+  useFrame(({ clock }) => {
+    // ON AIR while the boss is at the desk in office hours; a slow breathe on the sign
+    const min = light.min;
+    const live = min >= 540 && min < 1080;
+    onAir.emissiveIntensity = live ? 1.5 + (reducedMotion ? 0 : Math.sin(clock.elapsedTime * 2) * 0.25) : 0.08;
+    ring.emissiveIntensity = live ? 1.4 : 0.1;
+  });
+  const tripod = (x: number, z: number, h: number) => (
+    <group position={[x, 0, z]}>
+      {[0, 2.1, 4.2].map((a) => (
+        <mesh key={a} position={[Math.cos(a) * 0.16, h / 2 - 0.05, Math.sin(a) * 0.16]} rotation={[Math.sin(a) * 0.18, 0, -Math.cos(a) * 0.18]}>
+          <cylinderGeometry args={[0.012, 0.012, h, 5]} />
+          <meshStandardMaterial color="#111" />
+        </mesh>
+      ))}
+    </group>
+  );
+  return (
+    <group>
+      {/* ring light beside the desk, facing the chair */}
+      {tripod(MX - 1.05, CHAIR_Z + 0.75, 1.45)}
+      <group position={[MX - 1.05, 1.62, CHAIR_Z + 0.75]} rotation={[0, -0.55, 0]}>
+        <mesh material={ring}>
+          <torusGeometry args={[0.22, 0.025, 8, 32]} />
+        </mesh>
+        <mesh position={[0, 0, -0.01]}>
+          <boxGeometry args={[0.07, 0.13, 0.01]} />
+          <meshStandardMaterial color="#111827" />
+        </mesh>
+      </group>
+      {/* camera on the other side */}
+      {tripod(MX + 1.05, CHAIR_Z + 0.75, 1.35)}
+      <group position={[MX + 1.05, 1.42, CHAIR_Z + 0.75]} rotation={[0, 0.6, 0]}>
+        <mesh>
+          <boxGeometry args={[0.16, 0.11, 0.1]} />
+          <meshStandardMaterial color="#1f2937" />
+        </mesh>
+        <mesh position={[0, 0, -0.09]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.04, 0.045, 0.09, 14]} />
+          <meshStandardMaterial color="#0b0b0c" />
+        </mesh>
+      </group>
+      {/* boom arm mic clamped to the desk */}
+      <group position={[MX + 0.62, DESK_H, 0.5]}>
+        <mesh position={[0, 0.25, 0]} rotation={[0, 0, 0.25]}>
+          <cylinderGeometry args={[0.01, 0.01, 0.5, 6]} />
+          <meshStandardMaterial color="#111" />
+        </mesh>
+        <mesh position={[-0.16, 0.5, 0.2]} rotation={[0.9, 0, 0.6]}>
+          <cylinderGeometry args={[0.01, 0.01, 0.42, 6]} />
+          <meshStandardMaterial color="#111" />
+        </mesh>
+        <mesh position={[-0.28, 0.45, 0.42]} rotation={[0.4, 0, 0]}>
+          <capsuleGeometry args={[0.03, 0.09, 4, 10]} />
+          <meshStandardMaterial color="#27272a" metalness={0.4} roughness={0.4} />
+        </mesh>
+      </group>
+      {/* ON AIR sign on the left glass, readable from the camera */}
+      <group position={[X0 + 0.04, 2.05, 1.4]} rotation={[0, Math.PI / 2, 0]}>
+        <mesh material={onAir}>
+          <boxGeometry args={[0.62, 0.2, 0.04]} />
+        </mesh>
+        <Suspense fallback={null}>
+          <Text font={SCENE_FONT} position={[0, 0, 0.022]} fontSize={0.1} color="#fff1f2" anchorX="center" anchorY="middle" letterSpacing={0.16}>
+            ON AIR
+          </Text>
+        </Suspense>
+      </group>
+    </group>
+  );
+}
+
+/** Heritage: capiz shell window panels (a lattice of pearly squares in narra frames) across the feature wall. */
+function CapizWall({ x0, x1, th }: { x0: number; x1: number; th: Theme }) {
+  const { frame, shells } = useMemo(() => {
+    const f: Part[] = [], sh: Part[] = [];
+    const panels = 3, pw = (x1 - x0 - 0.2) / panels, top = 2.35, bottom = 0.75, cell = 0.13;
+    for (let p = 0; p < panels; p++) {
+      const px0 = x0 + 0.1 + p * pw, cx = px0 + pw / 2;
+      if (p === 1) continue; // the middle stays clear for the sign
+      f.push({ size: [pw - 0.06, 0.05, 0.04], pos: [cx, top, 0.03], color: th.slatAlt });
+      f.push({ size: [pw - 0.06, 0.05, 0.04], pos: [cx, bottom, 0.03], color: th.slatAlt });
+      for (const sx of [px0 + 0.05, px0 + pw - 0.05]) f.push({ size: [0.05, top - bottom, 0.04], pos: [sx, (top + bottom) / 2, 0.03], color: th.slatAlt });
+      const cols = Math.floor((pw - 0.16) / cell), rows = Math.floor((top - bottom - 0.08) / cell);
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+        sh.push({ size: [cell - 0.016, cell - 0.016, 0.01], pos: [px0 + 0.08 + cell / 2 + c * cell, bottom + 0.06 + cell / 2 + r * cell, 0.025], color: (r * 7 + c * 3) % 5 ? "#f6efe2" : "#efe4cf" });
+      }
+    }
+    return { frame: mergeParts(f), shells: mergeParts(sh) };
+  }, [x0, x1, th.slatAlt]);
+  return (
+    <group>
+      {frame && <mesh geometry={frame}><meshStandardMaterial vertexColors roughness={0.6} /></mesh>}
+      {/* the shells glow a little, like light coming through them */}
+      {shells && <mesh geometry={shells}><meshStandardMaterial vertexColors roughness={0.3} emissive="#fff1d6" emissiveIntensity={0.25} /></mesh>}
+    </group>
+  );
+}
+
+/** Heritage: a banig (woven mat) under the lounge, a salakot on the wall, a capiz lamp and plants. */
+function HeritageExtras({ pal, shadows }: { pal: Palette; shadows: boolean }) {
+  const banig = useMemo(() => {
+    const parts: Part[] = [];
+    const cx = X1 - 1.3, cz = 3.0, w = 1.8, d = 1.3, n = 9;
+    parts.push({ size: [w, 0.006, d], pos: [cx, 0.006, cz], color: "#e3c58e" });
+    const stripes = ["#b91c1c", "#15803d", "#1d4ed8", "#ca8a04"];
+    for (let i = 0; i < n; i++) {
+      const z = cz - d / 2 + 0.1 + (i * (d - 0.2)) / (n - 1);
+      parts.push({ size: [w - 0.1, 0.002, 0.04], pos: [cx, 0.0105, z], color: stripes[i % stripes.length] });
+    }
+    for (let i = 0; i < 6; i++) parts.push({ size: [0.03, 0.002, d - 0.1], pos: [cx - w / 2 + 0.15 + i * 0.3, 0.011, cz], color: "#a16207" });
+    return mergeParts(parts);
+  }, []);
+  return (
+    <group>
+      {banig && <mesh geometry={banig} receiveShadow={shadows}><meshStandardMaterial vertexColors roughness={1} /></mesh>}
+      {/* salakot (woven hat) on the left glass's frame post */}
+      <group position={[X0 + 0.08, 1.9, 2.5]} rotation={[0, 0, -Math.PI / 2]}>
+        <mesh>
+          <coneGeometry args={[0.24, 0.12, 20, 1, true]} />
+          <meshStandardMaterial color="#c49a5a" side={THREE.DoubleSide} roughness={1} />
+        </mesh>
+      </group>
+      {/* capiz pendant over the desk */}
+      <group position={[MX, ROOM.H - 0.6, 0.9]}>
+        <mesh position={[0, 0.28, 0]}>
+          <cylinderGeometry args={[0.005, 0.005, 0.5, 4]} />
+          <meshStandardMaterial color="#5b351d" />
+        </mesh>
+        <mesh>
+          <cylinderGeometry args={[0.16, 0.2, 0.22, 12, 1, true]} />
+          <meshStandardMaterial color="#f6efe2" side={THREE.DoubleSide} emissive="#ffe2b0" emissiveIntensity={0.6} />
+        </mesh>
+      </group>
+      <TallPlant pal={pal} shadows={shadows} position={[X1 - 0.35, 0, Z1 - 0.4]} scale={0.85} />
+      <Plant pal={pal} shadows={shadows} position={[X0 + 1.1, 0, 0.35]} scale={0.7} />
     </group>
   );
 }

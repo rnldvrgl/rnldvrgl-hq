@@ -7,8 +7,8 @@
  */
 
 export type BossLook = "him" | "her";
-export type BossOffice = "auto" | "executive" | "gaming" | "cozy" | "minimal";
-export type StyleName = "slate" | "blush";
+export type BossOffice = "auto" | "executive" | "gaming" | "cozy" | "minimal" | "studio" | "heritage";
+export type StyleName = "slate" | "blush" | "mango";
 
 export const HQ = {
   /** The owner: shown on the office sign, the header and in prompts ("sign as …"). */

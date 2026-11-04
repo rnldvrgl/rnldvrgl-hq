@@ -167,6 +167,60 @@
   --blob-c: rgb(150 90 80 / 0.32);
 }
 
+/*
+ * Mango: warm glass in ripe-mango gold and kapeng barako brown. Light is a sunlit cream (never yellow),
+ * Dark a roasted-coffee brown (never black).
+ */
+[data-style="mango"][data-theme="light"], [data-style="mango"]:not([data-theme="dark"]) {
+  --background: #f1e8d6;
+  --foreground: #2b2318;
+  --card: rgb(255 251 242 / 0.58);
+  --card-foreground: #2b2318;
+  --popover: rgb(253 248 238 / 0.9);
+  --popover-foreground: #2b2318;
+  --primary: #8a4b12;
+  --primary-foreground: #fff8ec;
+  --secondary: rgb(255 255 255 / 0.5);
+  --secondary-foreground: #2b2318;
+  --muted: rgb(255 255 255 / 0.42);
+  --muted-foreground: #74644d;
+  --accent: rgb(232 163 58 / 0.16);
+  --accent-foreground: #94520f;
+  --border: rgb(140 105 55 / 0.22);
+  --input: rgb(140 105 55 / 0.26);
+  --ring: #e8a33a;
+  --glass-shadow: 0 1px 2px rgb(80 50 10 / 0.06), 0 18px 44px -22px rgb(80 50 10 / 0.34);
+  --st-working: #2f7fa8;
+  --logo-a: #e8a33a; --logo-b: #7a3f0e;
+  --blob-a: rgb(246 196 104 / 0.55);
+  --blob-b: rgb(150 205 180 / 0.4);
+  --blob-c: rgb(240 170 130 / 0.45);
+}
+[data-style="mango"][data-theme="dark"] {
+  --background: #2a241c;
+  --foreground: #f5ecdc;
+  --card: rgb(78 64 46 / 0.5);
+  --card-foreground: #f5ecdc;
+  --popover: rgb(58 48 35 / 0.92);
+  --popover-foreground: #f5ecdc;
+  --primary: #f7cf86;
+  --primary-foreground: #3a2a12;
+  --secondary: rgb(255 255 255 / 0.08);
+  --secondary-foreground: #f5ecdc;
+  --muted: rgb(255 255 255 / 0.07);
+  --muted-foreground: #c9b89c;
+  --accent: rgb(240 170 70 / 0.16);
+  --accent-foreground: #f7cf86;
+  --border: rgb(255 255 255 / 0.1);
+  --input: rgb(255 255 255 / 0.14);
+  --ring: #f0b04a;
+  --st-working: #6bb8de;
+  --logo-a: #c9822a; --logo-b: #5a300c;
+  --blob-a: rgb(170 110 40 / 0.42);
+  --blob-b: rgb(70 120 100 / 0.32);
+  --blob-c: rgb(150 80 50 / 0.32);
+}
+
 /* Frosted glass surface: translucent fill, hairline light edge, top shine, soft shadow, backdrop blur. */
 @utility glass {
   background-color: var(--card);
