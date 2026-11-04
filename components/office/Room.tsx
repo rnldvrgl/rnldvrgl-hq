@@ -5,8 +5,13 @@ import * as THREE from "three";
 import { RoundedBox, Text } from "@react-three/drei";
 import { ROOM, OFFICE, FRONT_Z, PAL, SCENE_FONT, type Palette } from "./palette";
 import { Plant, TallPlant } from "./Furniture";
+import { Cozy } from "./Cozy";
+import { teamStreak } from "./Celebration";
 import { useSceneNow } from "./scene-clock-ui";
 import { HQ } from "@/hq.config";
+import { useOffice } from "@/lib/store";
+import { useSpotify } from "@/lib/spotify";
+import { TEAM, type EmployeeStatus } from "@/lib/team";
 
 const TAU = Math.PI * 2;
 const WALL_T = 0.16;
@@ -39,7 +44,7 @@ function usePlankTexture(w: number, d: number): THREE.CanvasTexture {
       while (x < 512) {
         const len = 180 + rnd() * 260;
         const tone = 0.93 + rnd() * 0.12;
-        g.fillStyle = `rgb(${Math.round(217 * tone)}, ${Math.round(194 * tone)}, ${Math.round(160 * tone)})`;
+        g.fillStyle = `rgb(${Math.round(214 * tone)}, ${Math.round(182 * tone)}, ${Math.round(142 * tone)})`;
         g.fillRect(x, r * rowH, len, rowH);
         // grain
         g.strokeStyle = "rgba(120, 84, 48, 0.08)";
@@ -114,6 +119,8 @@ export function Room({ pal, shadows, done, waiting, trashName }: RoomProps) {
       <TallPlant pal={pal} shadows={shadows} position={[0.42, 0, 0.42]} />
       <TallPlant pal={pal} shadows={shadows} position={[0.42, 0, FRONT_Z - 0.3]} scale={0.85} />
       <Plant pal={pal} shadows={shadows} position={[10.4, 0, 0.32]} scale={0.8} />
+
+      <Cozy pal={pal} shadows={shadows} />
     </group>
   );
 }
@@ -294,10 +301,37 @@ function Shelf({ pal, shadows, z, y, plantFirst = false }: { pal: Palette; shado
  */
 const TV = { w: 2.95, h: 1.45, y: 1.55, scale: 1.45 } as const;
 
-/** Wall-mounted screen on the feature wall: today's tally in big numbers, and who's on trash duty. */
+const STATUS_WORD: Record<EmployeeStatus, string> = { idle: "idle", working: "working", needs_you: "needs you", error: "error" };
+const DAY_LETTER = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "narrow" });
+
+/**
+ * Wall-mounted screen on the feature wall:
+ *   left   today's tally in big numbers (reports done, waiting for you)
+ *   right  the last 7 days as a bar chart (real runs; failed runs stacked in red), and who is doing what right now
+ *   bottom who's on trash duty, and what's playing on Spotify
+ * Everything is laid out at the original 2.95 m size and scaled up as one piece.
+ */
 function Dashboard({ pal, done, waiting, trashName }: { pal: Palette; done: number; waiting: number; trashName: string | null }) {
   const x = (FEATURE.x0 + FEATURE.x1) / 2;
   const L = -TV.w / 2 + 0.16; // left text margin
+  const R = 0.08; // right half
+  const week = useOffice((s) => s.data.week);
+  const employees = useOffice((s) => s.data.employees);
+  const track = useSpotify((s) => s.track);
+  const days = week?.length ? week : null;
+  const max = Math.max(1, ...(days ?? []).map((d) => d.done + d.failed));
+  const weekTotal = (days ?? []).reduce((n, d) => n + d.done, 0);
+  const BAR = { x0: R + 0.06, step: 0.17, w: 0.1, y0: 0.13, h: 0.34 };
+  const rows = TEAM.map((m) => {
+    const e = employees.find((v) => v.id === m.id);
+    const st: EmployeeStatus = e?.status ?? "idle";
+    return { name: m.name, st, word: e && !e.enabled ? "off" : STATUS_WORD[st] };
+  });
+  const half = Math.ceil(rows.length / 2);
+  const cols = [rows.slice(0, half), rows.slice(half)];
+  const dot = (st: EmployeeStatus) => st === "working" ? pal.boardAccent : st === "needs_you" ? pal.needsInk : st === "error" ? pal.screenError : "#3c5566";
+  const playing = track ? `NOW PLAYING  ${clip(`${track.title} — ${track.artist}`, 34)}` : null;
+
   return (
     <group position={[x, TV.y, 0.05]} scale={[TV.scale, TV.scale, 1]}>
       <RoundedBox args={[TV.w + 0.08, TV.h + 0.08, 0.06]} radius={0.02} smoothness={2}>
@@ -308,40 +342,90 @@ function Dashboard({ pal, done, waiting, trashName }: { pal: Palette; done: numb
         <meshStandardMaterial color={pal.board} emissive={pal.board} emissiveIntensity={0.6} />
       </mesh>
       <Suspense fallback={null}>
-        <Text font={SCENE_FONT} position={[L, TV.h / 2 - 0.14, 0.035]} fontSize={0.1} color={pal.boardAccent} anchorX="left" anchorY="middle" letterSpacing={0.14}>
+        <Text font={SCENE_FONT} position={[L, TV.h / 2 - 0.13, 0.035]} fontSize={0.085} color={pal.boardAccent} anchorX="left" anchorY="middle" letterSpacing={0.14}>
           TODAY
         </Text>
         {/* two big tiles: reports done, waiting for you */}
-        <Text font={SCENE_FONT} position={[L, 0.08, 0.035]} fontSize={0.46} color={pal.boardInk} anchorX="left" anchorY="middle">
+        <Text font={SCENE_FONT} position={[L, 0.14, 0.035]} fontSize={0.4} color={pal.boardInk} anchorX="left" anchorY="middle">
           {String(done)}
         </Text>
-        <Text font={SCENE_FONT} position={[L, -0.27, 0.035]} fontSize={0.1} color={pal.boardInk} fillOpacity={0.85} anchorX="left" anchorY="middle" letterSpacing={0.04}>
+        <Text font={SCENE_FONT} position={[L, -0.14, 0.035]} fontSize={0.075} color={pal.boardInk} fillOpacity={0.85} anchorX="left" anchorY="middle" letterSpacing={0.04}>
           {done === 1 ? "REPORT DONE" : "REPORTS DONE"}
         </Text>
-        <Text font={SCENE_FONT} position={[0.05, 0.08, 0.035]} fontSize={0.46} color={waiting ? pal.needsInk : pal.boardInk} anchorX="left" anchorY="middle">
+        <Text font={SCENE_FONT} position={[-0.66, 0.14, 0.035]} fontSize={0.4} color={waiting ? pal.needsInk : pal.boardInk} anchorX="left" anchorY="middle">
           {String(waiting)}
         </Text>
-        <Text font={SCENE_FONT} position={[0.05, -0.27, 0.035]} fontSize={0.1} color={waiting ? pal.needsInk : pal.boardInk} fillOpacity={0.85} anchorX="left" anchorY="middle" letterSpacing={0.04}>
+        <Text font={SCENE_FONT} position={[-0.66, -0.14, 0.035]} fontSize={0.075} color={waiting ? pal.needsInk : pal.boardInk} fillOpacity={0.85} anchorX="left" anchorY="middle" letterSpacing={0.04}>
           WAITING FOR YOU
         </Text>
-        <Text font={SCENE_FONT} position={[L, -TV.h / 2 + 0.14, 0.035]} fontSize={0.085} color={pal.boardInk} fillOpacity={0.75} anchorX="left" anchorY="middle" letterSpacing={0.06}>
+
+        {/* the week */}
+        <Text font={SCENE_FONT} position={[R, TV.h / 2 - 0.13, 0.035]} fontSize={0.06} color={pal.boardAccent} anchorX="left" anchorY="middle" letterSpacing={0.12}>
+          {!days ? "LAST 7 DAYS" : teamStreak(days) >= 7 ? `7-DAY STREAK! · ${weekTotal} DONE` : `LAST 7 DAYS · ${weekTotal} DONE`}
+        </Text>
+        {days && (
+          // monospace: each letter's advance is 0.6 em, so letter spacing lines them up under the bars
+          <Text font={SCENE_FONT} position={[BAR.x0 - 0.018, BAR.y0 - 0.06, 0.035]} fontSize={0.055} color={pal.boardInk} fillOpacity={0.6} anchorX="left" anchorY="middle" letterSpacing={BAR.step / 0.055 - 0.6}>
+            {days.map((d) => DAY_LETTER.format(new Date(`${d.date}T12:00:00Z`))).join("")}
+          </Text>
+        )}
+
+        {/* who's doing what, in two columns */}
+        {cols.map((col, c) => (
+          <Text key={c} font={SCENE_FONT} position={[R + 0.06 + c * 0.66, -0.12, 0.035]} fontSize={0.056} lineHeight={1.75} color={pal.boardInk} fillOpacity={0.9} anchorX="left" anchorY="top">
+            {col.map((r) => `${clip(r.name, 8).padEnd(9)}${r.word}`).join("\n")}
+          </Text>
+        ))}
+
+        <Text font={SCENE_FONT} position={[L, -TV.h / 2 + 0.11, 0.035]} fontSize={0.06} color={pal.boardInk} fillOpacity={0.75} anchorX="left" anchorY="middle" letterSpacing={0.05}>
           {trashName ? `TRASH DUTY  ${trashName.toUpperCase()} · 5:40 PM` : "TRASH DUTY  —"}
         </Text>
+        {playing && (
+          <Text font={SCENE_FONT} position={[R, -TV.h / 2 + 0.11, 0.035]} fontSize={0.055} color="#1ed760" anchorX="left" anchorY="middle" letterSpacing={0.03}>
+            {playing}
+          </Text>
+        )}
       </Suspense>
-      {/* divider between the tiles, and a bar chart in the top-right corner (clear of the labels) */}
-      <mesh position={[-0.05, -0.05, 0.034]}>
-        <planeGeometry args={[0.008, 0.75]} />
+      {/* dividers: between the tiles, and between the tiles and the right half */}
+      <mesh position={[-0.71, 0.02, 0.034]}>
+        <planeGeometry args={[0.006, 0.6]} />
         <meshBasicMaterial color="#3c5566" toneMapped={false} />
       </mesh>
-      {[0.22, 0.4, 0.3, 0.52, 0.36].map((h, i) => (
-        <mesh key={i} position={[TV.w / 2 - 0.66 + i * 0.11, 0.22 + (h * 0.8) / 2, 0.034]} scale={[1, 0.8, 1]}>
-          <planeGeometry args={[0.07, h]} />
-          <meshBasicMaterial color={i === 3 ? pal.boardAccent : "#3c5566"} toneMapped={false} />
+      <mesh position={[R - 0.06, 0, 0.034]}>
+        <planeGeometry args={[0.006, TV.h - 0.3]} />
+        <meshBasicMaterial color="#3c5566" toneMapped={false} />
+      </mesh>
+      {/* the bars: done in grey (today in the accent colour), failed stacked on top in red */}
+      {(days ?? []).map((d, i) => {
+        const hd = (d.done / max) * BAR.h, hf = (d.failed / max) * BAR.h;
+        const bx = BAR.x0 + i * BAR.step + BAR.w / 2;
+        return (
+          <group key={d.date}>
+            <mesh position={[bx, BAR.y0 + Math.max(hd, 0.008) / 2, 0.034]}>
+              <planeGeometry args={[BAR.w, Math.max(hd, 0.008)]} />
+              <meshBasicMaterial color={i === days!.length - 1 ? pal.boardAccent : "#4a6a7e"} toneMapped={false} />
+            </mesh>
+            {hf > 0 && (
+              <mesh position={[bx, BAR.y0 + hd + hf / 2, 0.034]}>
+                <planeGeometry args={[BAR.w, hf]} />
+                <meshBasicMaterial color={pal.screenError} toneMapped={false} />
+              </mesh>
+            )}
+          </group>
+        );
+      })}
+      {/* status dots beside the names */}
+      {cols.flatMap((col, c) => col.map((r, j) => (
+        <mesh key={`${c}${j}`} position={[R + 0.03 + c * 0.66, -0.12 - 0.056 * 1.75 * (j + 0.5), 0.034]}>
+          <circleGeometry args={[0.014, 10]} />
+          <meshBasicMaterial color={dot(r.st)} toneMapped={false} />
         </mesh>
-      ))}
+      )))}
     </group>
   );
 }
+
+const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 const DIGITAL = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit", hour12: true });
 const MANILA_OFFSET_MS = 8 * 3600_000;

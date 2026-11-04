@@ -88,4 +88,8 @@ export type OfficeState = {
   jobs: JobView[];
   reminders: ReminderView[];
   inbox: InboxView[];
+  /** Finished runs per Manila day for the last 7 days, oldest first (today last), for the TV's chart. */
+  week?: DayTally[];
 };
+
+export type DayTally = { date: string; done: number; failed: number };

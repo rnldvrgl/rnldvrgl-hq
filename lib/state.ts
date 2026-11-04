@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "@/lib/supabase/admin";
-import { TEAM, type OfficeState, type RunView } from "@/lib/team";
+import { TEAM, type DayTally, type OfficeState, type RunView } from "@/lib/team";
 import { activeProvider, backupAllowsPrivate } from "@/lib/ai";
 import { STALE_MS } from "@/lib/employees";
 
@@ -23,19 +23,21 @@ async function releaseStuckDesks(): Promise<void> {
 
 export async function loadOfficeState(): Promise<OfficeState> {
   await releaseStuckDesks().catch((e: unknown) => console.warn("[state] couldn't release stuck desks:", e instanceof Error ? e.message : e));
-  const [employees, runs, jobs, reminders, inbox] = await Promise.all([
+  const weekFrom = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const [employees, runs, jobs, reminders, inbox, recent] = await Promise.all([
     db().from("employees").select("id, enabled, status, summary, last_run_at"),
-    db().from("runs").select("id, employee_id, status, output, error, started_at, finished_at, trigger").order("started_at", { ascending: false }).limit(80),
+    db().from("runs").select("id, employee_id, status, output, error, started_at, finished_at, trigger").order("started_at", { ascending: false }).limit(160),
     db().from("jobs").select("id, role, company, link, salary_text, fit_score, fit_reason, status, date_found").order("date_found", { ascending: false }).order("fit_score", { ascending: false }).limit(100),
     db().from("reminders").select("id, title, due_at, repeat, source").is("sent_at", null).order("due_at").limit(30),
     db().from("inbox_items").select("message_id, sender, subject, category, summary, draft_id").eq("handled", false).order("created_at", { ascending: false }).limit(30),
+    db().from("runs").select("status, started_at").gte("started_at", weekFrom).limit(3000),
   ]);
 
   const rowById = new Map((employees.data ?? []).map((e) => [e.id, e]));
   const runsByEmployee = new Map<string, RunView[]>();
   for (const { employee_id, ...run } of runs.data ?? []) {
     const list = runsByEmployee.get(employee_id) ?? [];
-    if (list.length < 5) list.push(run);
+    if (list.length < 8) list.push(run);
     runsByEmployee.set(employee_id, list);
   }
   return {
@@ -54,5 +56,22 @@ export async function loadOfficeState(): Promise<OfficeState> {
     jobs: jobs.data ?? [],
     reminders: reminders.data ?? [],
     inbox: inbox.data ?? [],
+    week: tallyWeek(recent.data ?? []),
   };
+}
+
+const MANILA_MS = 8 * 3600_000;
+const manilaDay = (ms: number) => new Date(ms + MANILA_MS).toISOString().slice(0, 10);
+
+/** Done (incl. "needs you") and failed runs for each of the last 7 Manila days, oldest first. */
+function tallyWeek(rows: { status: string; started_at: string }[]): DayTally[] {
+  const days: DayTally[] = Array.from({ length: 7 }, (_, i) => ({ date: manilaDay(Date.now() - (6 - i) * 86_400_000), done: 0, failed: 0 }));
+  const byDate = new Map(days.map((d) => [d.date, d]));
+  for (const r of rows) {
+    const d = byDate.get(manilaDay(new Date(r.started_at).getTime()));
+    if (!d) continue;
+    if (r.status === "error") d.failed++;
+    else if (r.status !== "running") d.done++;
+  }
+  return days;
 }
