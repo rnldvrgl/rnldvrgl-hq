@@ -1,192 +1,358 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
-import { RoundedBox } from "@react-three/drei";
 import { useOffice } from "@/lib/store";
-import { OUTSIDE, ROOM, SCENE, type Palette } from "./palette";
-import { StreetLamp } from "./StreetLamp";
+import { useShow } from "@/lib/settings";
+import { OUTSIDE, ROOM, type Palette } from "./palette";
+import { getGlowTexture } from "./Lighting";
+import { streetLightLevel } from "./StreetLamp";
+import { mergeParts, mergePlaced, placed, type Part } from "./batch";
+import { BACK_STREETS, BACK_X, FAR_WALK, GROUND, ROAD, ROAD_X, SIDE_STREETS, SIDEWALK, YARD_X1 } from "./world";
+
+export { GROUND, SIDEWALK, ROAD, ROAD_X } from "./world";
 
 /**
- * Everything around the building, so the diorama sits in a neighbourhood instead of a void:
- * a lawn that fades softly at its edges, a street along the front (sidewalk, curb, lane markings),
- * trees and hedges, street lamps that come on at night, and a jeepney driving past now and then.
+ * The ground the town stands on: one big lawn (big enough that you never see its edge), the main street
+ * with sidewalks on both sides, two side streets leading to the residential streets behind the office,
+ * concrete power poles with their wires along those streets, the office lot's curb, trees and hedges, and
+ * street lamps. Everything static is batched: all streets are 1 draw call, the lamps 4, the trees 3.
  */
 
-const CX = (SCENE.x0 + SCENE.x1) / 2, CZ = ROOM.D / 2;
-export const GROUND = { w: 64, d: 56 } as const;
-export const SIDEWALK = { z0: ROOM.D + 0.05, z1: ROOM.D + 1.4 } as const;
-export const ROAD = { z0: SIDEWALK.z1, z1: SIDEWALK.z1 + 6.2 } as const;
-export const ROAD_X = { x0: -10, x1: OUTSIDE.x1 + 12 } as const;
+const roadW = ROAD_X.x1 - ROAD_X.x0, roadCx = (ROAD_X.x0 + ROAD_X.x1) / 2;
+const roadCz = (ROAD.z0 + ROAD.z1) / 2;
 
-/** Radial alpha (opaque centre → clear edge), for the island edge. */
-function useEdgeFade(): THREE.CanvasTexture {
-  return useMemo(() => {
-    const c = document.createElement("canvas");
-    c.width = c.height = 256;
-    const g = c.getContext("2d");
-    if (g) {
-      const r = g.createRadialGradient(128, 128, 60, 128, 128, 128);
-      r.addColorStop(0, "#ffffff");
-      r.addColorStop(0.75, "#ffffff");
-      r.addColorStop(1, "#000000");
-      g.fillStyle = r;
-      g.fillRect(0, 0, 256, 256);
-    }
-    return new THREE.CanvasTexture(c);
-  }, []);
+/* ------------------------------------------------------------------ trees (instanced) */
+
+/** Deterministic 0–1 (so every device grows the same forest). */
+function rng(seed: number): () => number {
+  let s = seed;
+  return () => ((s = (s * 16807) % 2147483647) / 2147483647);
 }
 
-/** Horizontal alpha (clear ends → opaque middle), so the road fades out instead of stopping. */
-function useEndFade(): THREE.CanvasTexture {
-  return useMemo(() => {
-    const c = document.createElement("canvas");
-    c.width = 256; c.height = 4;
-    const g = c.getContext("2d");
-    if (g) {
-      const l = g.createLinearGradient(0, 0, 256, 0);
-      l.addColorStop(0, "#000000");
-      l.addColorStop(0.18, "#ffffff");
-      l.addColorStop(0.82, "#ffffff");
-      l.addColorStop(1, "#000000");
-      g.fillStyle = l;
-      g.fillRect(0, 0, 256, 4);
-    }
-    return new THREE.CanvasTexture(c);
-  }, []);
-}
-
-const TREES: readonly (readonly [number, number, number])[] = [
-  // along the front sidewalk
+type TreeSpot = readonly [number, number, number];
+const NEAR_TREES: readonly TreeSpot[] = [
+  // along the front sidewalk, between the lamps
   [1.5, SIDEWALK.z0 + 0.7, 1], [6.5, SIDEWALK.z0 + 0.7, 0.9], [11.5, SIDEWALK.z0 + 0.7, 1.05],
-  // the lawn to the right of the patio
-  [OUTSIDE.x1 + 1.6, 2.2, 1.2], [OUTSIDE.x1 + 3.2, 5.6, 0.95], [OUTSIDE.x1 + 1.8, 9.2, 1.1], [OUTSIDE.x1 + 4.6, 1.0, 0.8],
+  // the office yard to the right of the patio
+  [OUTSIDE.x1 + 1.6, 2.2, 1.2], [OUTSIDE.x1 + 3.2, 5.6, 0.95], [OUTSIDE.x1 + 1.8, 9.2, 1.1], [OUTSIDE.x1 + 4.6, 1.0, 0.8], [OUTSIDE.x1 + 6.4, 3.4, 1.05],
   // behind and left of the building
-  [-2.2, 1.5, 1.15], [-2.6, 6.5, 1], [3.0, -2.4, 1.1], [9.5, -2.6, 0.95], [15.5, -2.2, 1.2], [-2.4, 10.5, 0.85],
+  [-2.2, 1.5, 1.15], [-2.4, 6.5, 1], [3.0, -2.4, 1.1], [9.5, -2.6, 0.95], [15.5, -2.2, 1.2], [-2.3, 10.2, 0.85], [21.5, -2.4, 1],
+  // a strip of trees between the office lot and the houses behind it
+  [0.5, -3.7, 1.05], [6.2, -3.9, 1.2], [12.6, -3.6, 1], [18.6, -4.0, 1.15], [25.2, -3.6, 1], [-10, -3.8, 1.1], [-17, -3.6, 0.95], [-24, -3.9, 1.1],
+  [33, -3.8, 1.05], [40, -3.6, 1], [46.5, -3.9, 1.15],
+  // backyards between the two residential streets
+  [-30, -16.2, 1], [-12, -16.0, 1.1], [7, -16.3, 0.95], [22, -16.1, 1.1], [41, -16.2, 1], [60, -16.0, 1.05],
+  // the far sidewalk
+  [-19, FAR_WALK.z0 + 0.7, 1], [-1.5, FAR_WALK.z0 + 0.7, 0.95], [14.5, FAR_WALK.z0 + 0.7, 1.05], [29, FAR_WALK.z0 + 0.7, 0.9], [44, FAR_WALK.z0 + 0.7, 1],
+  // the park across the street
+  [30.5, 24.5, 1.25], [34.5, 23.2, 1.1], [38.5, 25.6, 1.3], [32.5, 28.3, 1], [37, 29.2, 1.15], [41, 23.6, 0.95],
 ];
 
-function Tree({ position, scale, shadows }: { position: [number, number, number]; scale: number; shadows: boolean }) {
-  return (
-    <group position={position} scale={scale}>
-      <mesh position={[0, 0.7, 0]} castShadow={shadows}>
-        <cylinderGeometry args={[0.08, 0.12, 1.4, 7]} />
-        <meshStandardMaterial color="#6b4a33" />
-      </mesh>
-      <mesh position={[0, 1.75, 0]} castShadow={shadows}>
-        <icosahedronGeometry args={[0.75, 0]} />
-        <meshStandardMaterial color="#4f8a55" flatShading />
-      </mesh>
-      <mesh position={[0.3, 2.25, 0.1]} castShadow={shadows}>
-        <icosahedronGeometry args={[0.5, 0]} />
-        <meshStandardMaterial color="#5f9c62" flatShading />
-      </mesh>
-    </group>
-  );
+/** Open fields around the town: a loose ring of trees out to where the camera can't reach. */
+function fieldTrees(): TreeSpot[] {
+  const r = rng(91);
+  const out: TreeSpot[] = [];
+  const builtUp = (x: number, z: number) => x > -50 && x < 70 && z > -36 && z < 36;
+  const onRoad = (x: number, z: number) => (z > SIDEWALK.z0 - 1 && z < FAR_WALK.z1 + 1)
+    || SIDE_STREETS.some((st) => x > st.x0 - 1 && x < st.x1 + 1 && z < SIDEWALK.z0)
+    || BACK_STREETS.some((b) => z > b.z0 - 1 && z < b.z1 + 1);
+  while (out.length < 150) {
+    const x = -95 + r() * 205, z = -60 + r() * 130;
+    if (builtUp(x, z) || onRoad(x, z)) continue;
+    out.push([x, z, 0.8 + r() * 0.7]);
+  }
+  return out;
 }
 
-/** A passenger jeepney: chrome hood, long colourful body, roof rack. Drives along the street every so often. */
-function Jeepney({ shadows }: { shadows: boolean }) {
-  const ref = useRef<THREE.Group>(null);
+function Trees({ shadows }: { shadows: boolean }) {
   const lowPower = useOffice((s) => s.lowPower);
-  const lane = ROAD.z0 + 4.3; // the far lane, driving toward -x
-  const span = ROAD_X.x1 - ROAD_X.x0 + 8;
-  useFrame(({ clock }) => {
-    const g = ref.current;
-    if (!g) return;
-    const cycle = 46; // seconds between passes
-    const t = (clock.elapsedTime % cycle) / 11; // ~11 s to cross
-    g.visible = t < 1;
-    g.position.set(ROAD_X.x1 + 4 - t * span, lowPower ? 0 : Math.abs(Math.sin(clock.elapsedTime * 9)) * 0.015, lane);
-  });
-  const stripes = ["#e11d48", "#f59e0b", "#2563eb"];
-  return (
-    <group ref={ref} visible={false} rotation={[0, Math.PI / 2, 0]}>
-      {/* body along local z (front = -z), turned to drive along -x */}
-      <RoundedBox args={[1.7, 1.25, 4.6]} radius={0.08} smoothness={2} position={[0, 1.05, 0.4]} castShadow={shadows}>
-        <meshStandardMaterial color="#f3f0e6" />
-      </RoundedBox>
-      {stripes.map((c, i) => (
-        <mesh key={c} position={[0, 0.62 + i * 0.09, 0.4]}>
-          <boxGeometry args={[1.72, 0.05, 4.62]} />
-          <meshStandardMaterial color={c} />
-        </mesh>
-      ))}
-      <mesh position={[0, 1.25, 0.4]}>
-        <boxGeometry args={[1.72, 0.38, 4.3]} />
-        <meshStandardMaterial color="#1f2937" transparent opacity={0.85} />
-      </mesh>
-      <mesh position={[0, 1.72, 0.4]}>
-        <boxGeometry args={[1.8, 0.06, 4.7]} />
-        <meshStandardMaterial color="#9ca3af" metalness={0.7} roughness={0.3} />
-      </mesh>
-      <RoundedBox args={[1.5, 0.6, 1.0]} radius={0.08} smoothness={2} position={[0, 0.7, -2.3]} castShadow={shadows}>
-        <meshStandardMaterial color="#cbd5e1" metalness={0.85} roughness={0.2} />
-      </RoundedBox>
-      {[[-0.62, -2.0], [0.62, -2.0], [-0.62, 1.9], [0.62, 1.9]].map(([x, z]) => (
-        <mesh key={`${x}${z}`} position={[x * 1.25, 0.32, z]} rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[0.32, 0.32, 0.22, 16]} />
-          <meshStandardMaterial color="#111417" />
-        </mesh>
-      ))}
-    </group>
-  );
-}
+  const spots = useMemo(() => {
+    const all = [...NEAR_TREES, ...fieldTrees()];
+    return lowPower ? all.filter((_, i) => i < NEAR_TREES.length || i % 3 === 0) : all;
+  }, [lowPower]);
+  const trunk = useRef<THREE.InstancedMesh>(null);
+  const crownA = useRef<THREE.InstancedMesh>(null);
+  const crownB = useRef<THREE.InstancedMesh>(null);
 
-export function Grounds({ pal, shadows }: { pal: Palette; shadows: boolean }) {
-  const edge = useEdgeFade();
-  const ends = useEndFade();
-  const lampXs = [-6, 0, 8, 16, OUTSIDE.x1 + 3, OUTSIDE.x1 + 10];
-  const roadW = ROAD_X.x1 - ROAD_X.x0, roadCx = (ROAD_X.x0 + ROAD_X.x1) / 2;
+  useLayoutEffect(() => {
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), s = new THREE.Vector3();
+    spots.forEach(([x, z, k], i) => {
+      const spin = q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), (x * 7.13 + z * 3.7) % (Math.PI * 2));
+      s.setScalar(k);
+      trunk.current?.setMatrixAt(i, m.compose(v.set(x, -0.12 + 0.7 * k, z), spin, s));
+      crownA.current?.setMatrixAt(i, m.compose(v.set(x, -0.12 + 1.75 * k, z), spin, s));
+      crownB.current?.setMatrixAt(i, m.compose(v.set(x + 0.3 * k, -0.12 + 2.25 * k, z + 0.1 * k), spin, s));
+    });
+    for (const r of [trunk, crownA, crownB]) if (r.current) { r.current.instanceMatrix.needsUpdate = true; r.current.computeBoundingSphere(); }
+  }, [spots]);
 
   return (
     <group>
-      {/* lawn under everything, fading at the edges */}
-      <mesh position={[CX, -0.13, CZ + 3]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow={shadows}>
-        <planeGeometry args={[GROUND.w, GROUND.d]} />
-        <meshStandardMaterial color="#9bb48a" roughness={1} transparent alphaMap={edge} depthWrite={false} />
-      </mesh>
+      <instancedMesh key={`t${spots.length}`} ref={trunk} args={[undefined, undefined, spots.length]} castShadow={shadows}>
+        <cylinderGeometry args={[0.08, 0.12, 1.4, 7]} />
+        <meshStandardMaterial color="#6b4a33" />
+      </instancedMesh>
+      <instancedMesh key={`a${spots.length}`} ref={crownA} args={[undefined, undefined, spots.length]} castShadow={shadows}>
+        <icosahedronGeometry args={[0.75, 0]} />
+        <meshStandardMaterial color="#4f8a55" flatShading />
+      </instancedMesh>
+      <instancedMesh key={`b${spots.length}`} ref={crownB} args={[undefined, undefined, spots.length]} castShadow={shadows}>
+        <icosahedronGeometry args={[0.5, 0]} />
+        <meshStandardMaterial color="#5f9c62" flatShading />
+      </instancedMesh>
+    </group>
+  );
+}
 
-      {/* sidewalk and curb along the front */}
-      <mesh position={[roadCx, -0.05, (SIDEWALK.z0 + SIDEWALK.z1) / 2]} receiveShadow={shadows}>
-        <boxGeometry args={[roadW, 0.1, SIDEWALK.z1 - SIDEWALK.z0]} />
-        <meshStandardMaterial color={pal.concrete} roughness={0.95} />
-      </mesh>
-      {Array.from({ length: Math.floor(roadW / 1.5) }, (_, i) => (
-        <mesh key={i} position={[ROAD_X.x0 + 0.75 + i * 1.5, 0.002, (SIDEWALK.z0 + SIDEWALK.z1) / 2]}>
-          <boxGeometry args={[0.02, 0.002, SIDEWALK.z1 - SIDEWALK.z0]} />
-          <meshBasicMaterial color={pal.concreteSeam} />
+/* ------------------------------------------------------------------ street lamps (batched) */
+
+const POLE_H = 2.8, ARM = 0.55;
+/** [x, z, arm direction]: +1 reaches toward +z (front sidewalk, over the road), -1 toward -z (far sidewalk). */
+const LAMPS: readonly (readonly [number, number, 1 | -1])[] = [
+  ...[-29, -20.5, -11.5, -1.2, 8, 16, OUTSIDE.x1 + 3, 31, 39.5, 48].map((x) => [x, SIDEWALK.z1 - 0.25, 1] as const),
+  ...[-25, -13, 1, 12, 24, 36, 47].map((x) => [x, FAR_WALK.z0 + 0.25, -1] as const),
+  // the residential streets: lamps on their +z side, reaching over the street
+  ...[-34, -18, -1.5, 14, 30, 46, 62].map((x) => [x, BACK_STREETS[0].z1 + 0.25, -1] as const),
+  ...[-26, -9, 8, 25, 42, 59].map((x) => [x, BACK_STREETS[1].z1 + 0.25, -1] as const),
+];
+
+/**
+ * All the street lamps as four meshes: poles and arms (one vertex-coloured mesh), the LED heads (one emissive
+ * mesh), and additive glow (halos, light cones and the pools on the ground). They come on at dusk.
+ */
+function StreetLights() {
+  const head = useRef<THREE.MeshStandardMaterial>(null);
+  const halo = useRef<THREE.MeshBasicMaterial>(null);
+  const cone = useRef<THREE.MeshBasicMaterial>(null);
+  const pool = useRef<THREE.MeshBasicMaterial>(null);
+  const glow = useMemo(() => getGlowTexture(), []);
+  const geo = useMemo(() => {
+    const poles: Part[] = [], heads: Part[] = [];
+    const halos: { geometry: THREE.BufferGeometry; matrix: THREE.Matrix4 }[] = [];
+    const cones: typeof halos = [], pools: typeof halos = [];
+    const haloG = new THREE.PlaneGeometry(0.9, 0.9);
+    const coneG = new THREE.ConeGeometry(1.2, POLE_H - 0.1 + 0.1, 20, 1, true);
+    const poolG = new THREE.PlaneGeometry(3.4, 3.4);
+    for (const [x, z, dir] of LAMPS) {
+      const hz = z + dir * ARM;
+      poles.push({ shape: "cyl", size: [0.05, POLE_H, 8], pos: [x, POLE_H / 2 - 0.1, z], color: "#2b3238" });
+      poles.push({ size: [0.06, 0.05, ARM], pos: [x, POLE_H - 0.12, z + (dir * ARM) / 2], color: "#2b3238" });
+      poles.push({ size: [0.18, 0.05, 0.3], pos: [x, POLE_H - 0.15, hz], color: "#2b3238" });
+      heads.push({ size: [0.14, 0.015, 0.24], pos: [x, POLE_H - 0.18, hz], color: "#fff6e0" });
+      // halo faces the camera's usual direction (front-right, from above)
+      halos.push({ geometry: haloG, matrix: placed([x, POLE_H - 0.22, hz], [-0.62, Math.PI / 4, 0], [1, 1, 1]) });
+      cones.push({ geometry: coneG, matrix: placed([x, (POLE_H - 0.2 - 0.1) / 2, hz]) });
+      pools.push({ geometry: poolG, matrix: placed([x, -0.088, hz], [-Math.PI / 2, 0, 0]) });
+    }
+    const out = { poles: mergeParts(poles), heads: mergeParts(heads), halos: mergePlaced(halos), cones: mergePlaced(cones), pools: mergePlaced(pools) };
+    haloG.dispose(); coneG.dispose(); poolG.dispose();
+    return out;
+  }, []);
+
+  useFrame(() => {
+    const k = streetLightLevel();
+    if (head.current) head.current.emissiveIntensity = 0.1 + k * 3.2;
+    if (halo.current) halo.current.opacity = k * 0.75;
+    if (cone.current) cone.current.opacity = k * 0.09;
+    if (pool.current) pool.current.opacity = k * 0.7;
+  });
+
+  return (
+    <group>
+      {geo.poles && <mesh geometry={geo.poles}><meshStandardMaterial vertexColors /></mesh>}
+      {geo.heads && (
+        <mesh geometry={geo.heads}>
+          <meshStandardMaterial ref={head} vertexColors emissive="#ffd9a0" emissiveIntensity={0.1} toneMapped={false} />
         </mesh>
-      ))}
-      <mesh position={[roadCx, -0.03, SIDEWALK.z1]}>
-        <boxGeometry args={[roadW, 0.08, 0.12]} />
-        <meshStandardMaterial color="#d6d3cc" />
+      )}
+      {geo.halos && (
+        <mesh geometry={geo.halos} renderOrder={3}>
+          <meshBasicMaterial ref={halo} map={glow} color="#ffd9a0" transparent opacity={0} depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} side={THREE.DoubleSide} />
+        </mesh>
+      )}
+      {geo.cones && (
+        <mesh geometry={geo.cones}>
+          <meshBasicMaterial ref={cone} color="#ffe2b0" transparent opacity={0} depthWrite={false} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} toneMapped={false} />
+        </mesh>
+      )}
+      {geo.pools && (
+        <mesh geometry={geo.pools}>
+          <meshBasicMaterial ref={pool} map={glow} color="#ffcf8a" transparent opacity={0} depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} />
+        </mesh>
+      )}
+    </group>
+  );
+}
+
+/* ------------------------------------------------------------------ streets */
+
+/** Lane dashes, sidewalk joints and the crossing stripes, as one instanced mesh of thin boxes. */
+function Markings({ pal }: { pal: Palette }) {
+  const dashes = useRef<THREE.InstancedMesh>(null);
+  const joints = useRef<THREE.InstancedMesh>(null);
+  const items = useMemo(() => {
+    const d: [number, number, number, number, number?][] = []; // x, z, length (x), width (z), y (road level by default)
+    const atSide = (x: number, pad: number) => SIDE_STREETS.some((st) => x > st.x0 - pad && x < st.x1 + pad);
+    const atBack = (z: number, pad: number) => BACK_STREETS.some((b) => z > b.z0 - pad && z < b.z1 + pad);
+    for (let x = ROAD_X.x0 + 3; x < ROAD_X.x1 - 3; x += 2.4) {
+      // the centre line breaks at each junction, where cars turn in and out of the side street
+      if (atSide(x, 0.6)) continue;
+      d.push([x, roadCz, 1.1, 0.12]);
+    }
+    for (const st of SIDE_STREETS) {
+      const cx = (st.x0 + st.x1) / 2;
+      // the zebra crossing is where people actually walk: along the sidewalk, across the mouth of the side
+      // street (stripes run along the side street, stepped across it), not out in the middle of the main road
+      const n = 5, gap = (st.x1 - st.x0 - 0.3) / n;
+      for (let i = 0; i < n; i++) d.push([st.x0 + 0.15 + gap * (i + 0.5), (SIDEWALK.z0 + SIDEWALK.z1) / 2, gap * 0.55, SIDEWALK.z1 - SIDEWALK.z0 - 0.2, 0.007]);
+      // a stop line before the crossing, and the centre line, broken at the crossroads with the residential streets
+      d.push([(st.x0 + cx) / 2, SIDEWALK.z0 - 0.35, (st.x1 - st.x0) / 2 - 0.15, 0.16]);
+      for (let z = st.z0 + 2; z < SIDEWALK.z0 - 1.6; z += 2.4) if (!atBack(z, 0.8)) d.push([cx, z, 0.12, 1.1]);
+    }
+    // residential streets: a centre line, broken at the side streets
+    for (const b of BACK_STREETS) {
+      for (let x = BACK_X.x0 + 2; x < BACK_X.x1 - 2; x += 2.4) if (!atSide(x, 0.8)) d.push([x, (b.z0 + b.z1) / 2, 1.1, 0.1]);
+    }
+    const j: [number, number][] = [];
+    for (let x = -60; x < 80; x += 1.5) {
+      if (!atSide(x, 0)) j.push([x, (SIDEWALK.z0 + SIDEWALK.z1) / 2]);
+      j.push([x, (FAR_WALK.z0 + FAR_WALK.z1) / 2]);
+    }
+    return { d, j };
+  }, []);
+
+  useLayoutEffect(() => {
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), s = new THREE.Vector3();
+    items.d.forEach(([x, z, l, w, y = -0.104], i) => dashes.current?.setMatrixAt(i, m.compose(v.set(x, y, z), q, s.set(l, 1, w))));
+    items.j.forEach(([x, z], i) => joints.current?.setMatrixAt(i, m.compose(v.set(x, 0.002, z), q, s.set(1, 1, 1))));
+    for (const r of [dashes, joints]) if (r.current) { r.current.instanceMatrix.needsUpdate = true; r.current.computeBoundingSphere(); }
+  }, [items]);
+
+  return (
+    <group>
+      <instancedMesh ref={dashes} args={[undefined, undefined, items.d.length]}>
+        <boxGeometry args={[1, 0.004, 1]} />
+        <meshBasicMaterial color="#f1ecd8" />
+      </instancedMesh>
+      <instancedMesh ref={joints} args={[undefined, undefined, items.j.length]}>
+        <boxGeometry args={[0.02, 0.002, SIDEWALK.z1 - SIDEWALK.z0]} />
+        <meshBasicMaterial color={pal.concreteSeam} />
+      </instancedMesh>
+    </group>
+  );
+}
+
+/* ------------------------------------------------------------------ power lines (batched) */
+
+const POST_H = 6.2;
+
+/**
+ * Concrete power poles with a crossarm, a transformer here and there, and the sagging bundle of wires
+ * strung along the residential and side streets (so they never cross in front of the office).
+ * One vertex-coloured mesh.
+ */
+function powerLineParts(): Part[] {
+  const parts: Part[] = [];
+  const wire = "#1b1f24";
+  const pole = (x: number, z: number, along: "x" | "z", transformer: boolean) => {
+    parts.push({ shape: "cyl", size: [0.11, POST_H, 7], pos: [x, POST_H / 2 - 0.12, z], color: "#a8a49b" });
+    parts.push({ size: along === "x" ? [0.1, 0.1, 1.3] : [1.3, 0.1, 0.1], pos: [x, POST_H - 0.45, z], color: "#6b6f74" });
+    if (transformer) parts.push({ shape: "cyl", size: [0.22, 0.6, 8], pos: along === "x" ? [x, POST_H - 1.3, z + 0.3] : [x + 0.3, POST_H - 1.3, z], color: "#7b8189" });
+  };
+  // the wires: three on the crossarm and one lower (telephone / cable), drawn as straight thin boxes per span
+  const span = (ax: number, az: number, bx: number, bz: number, along: "x" | "z") => {
+    const len = Math.hypot(bx - ax, bz - az), mx = (ax + bx) / 2, mz = (az + bz) / 2;
+    for (const [o, y] of [[-0.5, POST_H - 0.42], [0, POST_H - 0.42], [0.5, POST_H - 0.42], [0.15, POST_H - 1.7]] as const) {
+      parts.push({
+        size: along === "x" ? [len, 0.025, 0.025] : [0.025, 0.025, len],
+        pos: along === "x" ? [mx, y - 0.12, mz + o] : [mx + o, y - 0.12, mz],
+        color: wire,
+      });
+    }
+  };
+  for (const b of BACK_STREETS) {
+    const z = b.z0 - 0.3; // on the houses' side, by their gates
+    let prev: number | null = null, i = 0;
+    for (let x = BACK_X.x0 + 4; x <= BACK_X.x1 - 4; x += 16) {
+      if (SIDE_STREETS.some((st) => x > st.x0 - 0.6 && x < st.x1 + 0.6)) continue;
+      pole(x, z, "x", i % 3 === 1);
+      if (prev !== null) span(prev, z, x, z, "x");
+      prev = x; i++;
+    }
+  }
+  for (const st of SIDE_STREETS) {
+    const x = st.x1 + 0.3;
+    let prev: number | null = null;
+    for (let z = SIDEWALK.z0 - 1.2; z > st.z0 + 4; z -= 14) {
+      if (BACK_STREETS.some((b) => z > b.z0 - 0.6 && z < b.z1 + 0.6)) continue;
+      pole(x, z, "z", false);
+      if (prev !== null) span(x, prev, x, z, "z");
+      prev = z;
+    }
+  }
+  return parts;
+}
+
+export function Grounds({ pal, shadows }: { pal: Palette; shadows: boolean }) {
+  const showTrees = useShow("trees");
+  const showLamps = useShow("streetLights");
+  /** Every street surface in one mesh: main road, side streets (and their dropped curbs), residential streets. */
+  const asphalt = useMemo(() => {
+    const plane = new THREE.PlaneGeometry(1, 1);
+    const flat = (x: number, y: number, z: number, w: number, d: number) => ({ geometry: plane, matrix: placed([x, y, z], [-Math.PI / 2, 0, 0], [w, d, 1]) });
+    const items = [flat(roadCx, -0.11, roadCz, roadW, ROAD.z1 - ROAD.z0)];
+    for (const st of SIDE_STREETS) {
+      const w = st.x1 - st.x0, cx = (st.x0 + st.x1) / 2, d = SIDEWALK.z1 - st.z0;
+      items.push(flat(cx, -0.108, st.z0 + d / 2, w, d));
+      // where it crosses the sidewalk: a dropped curb, asphalt on top
+      items.push(flat(cx, 0.004, (SIDEWALK.z0 + SIDEWALK.z1) / 2, w, SIDEWALK.z1 - SIDEWALK.z0 + 0.02));
+    }
+    for (const b of BACK_STREETS) items.push(flat((BACK_X.x0 + BACK_X.x1) / 2, -0.106, (b.z0 + b.z1) / 2, BACK_X.x1 - BACK_X.x0, b.z1 - b.z0));
+    const g = mergePlaced(items);
+    plane.dispose();
+    return g;
+  }, []);
+  const power = useMemo(() => mergeParts(powerLineParts()), []);
+  const static_ = useMemo(() => mergeParts([
+    // sidewalks and curbs on both sides of the street
+    { size: [roadW, 0.1, SIDEWALK.z1 - SIDEWALK.z0], pos: [roadCx, -0.05, (SIDEWALK.z0 + SIDEWALK.z1) / 2], color: pal.concrete },
+    { size: [roadW, 0.08, 0.12], pos: [roadCx, -0.03, SIDEWALK.z1], color: "#d6d3cc" },
+    { size: [roadW, 0.1, FAR_WALK.z1 - FAR_WALK.z0], pos: [roadCx, -0.05, (FAR_WALK.z0 + FAR_WALK.z1) / 2], color: pal.concrete },
+    { size: [roadW, 0.08, 0.12], pos: [roadCx, -0.03, FAR_WALK.z0], color: "#d6d3cc" },
+    // the office lot: a low concrete curb around building + patio, so the property reads as one clean rectangle
+    { size: [OUTSIDE.x1 + 0.5, 0.07, 0.18], pos: [(OUTSIDE.x1 - 0.5) / 2, -0.06, -0.34], color: "#c9c6bf" },
+    { size: [0.18, 0.07, ROOM.D + 0.43], pos: [-0.34, -0.06, (ROOM.D - 0.43) / 2], color: "#c9c6bf" },
+    { size: [0.18, 0.07, ROOM.D + 0.43], pos: [OUTSIDE.x1 + 0.09, -0.06, (ROOM.D - 0.43) / 2], color: "#c9c6bf" },
+    // hedge line along the left of the building
+    ...Array.from({ length: 9 }, (_, i): Part => ({ shape: "cyl", size: [0.36, 0.34, 7], pos: [-0.9, 0.08, 0.6 + i * 1.2], color: "#4a7f50" })),
+    // the yard's low fence between the office and the next shop
+    ...Array.from({ length: 12 }, (_, i): Part => ({ size: [0.06, 0.6, 0.06], pos: [YARD_X1, 0.18, 0.4 + i * 0.95], color: "#8a6a4a" })),
+    { size: [0.04, 0.06, ROOM.D - 0.4], pos: [YARD_X1, 0.38, ROOM.D / 2 + 0.1], color: "#8a6a4a" },
+    { size: [0.04, 0.06, ROOM.D - 0.4], pos: [YARD_X1, 0.18, ROOM.D / 2 + 0.1], color: "#8a6a4a" },
+  ]), [pal]);
+
+  return (
+    <group>
+      {/* the lawn: one huge plane */}
+      <mesh position={[GROUND.cx, -0.13, GROUND.cz]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow={shadows}>
+        <planeGeometry args={[GROUND.size, GROUND.size]} />
+        <meshStandardMaterial color="#9bb48a" roughness={1} />
       </mesh>
 
-      {/* the street: asphalt with a dashed centre line, fading out at both ends */}
-      <mesh position={[roadCx, -0.11, (ROAD.z0 + ROAD.z1) / 2]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow={shadows}>
-        <planeGeometry args={[roadW, ROAD.z1 - ROAD.z0]} />
-        <meshStandardMaterial color="#4b5057" roughness={0.9} transparent alphaMap={ends} depthWrite={false} />
-      </mesh>
-      {Array.from({ length: Math.floor(roadW / 2.4) }, (_, i) => (
-        <mesh key={i} position={[ROAD_X.x0 + 3 + i * 2.4, -0.105, (ROAD.z0 + ROAD.z1) / 2]} rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[1.1, 0.12]} />
-          <meshBasicMaterial color="#f5f0dc" transparent opacity={i < 2 || i > Math.floor(roadW / 2.4) - 3 ? 0.25 : 0.85} />
+      {/* every street */}
+      {asphalt && (
+        <mesh geometry={asphalt} receiveShadow={shadows}>
+          <meshStandardMaterial color="#4b5057" roughness={0.9} />
         </mesh>
-      ))}
-      <Jeepney shadows={shadows} />
+      )}
+      <Markings pal={pal} />
+      {power && <mesh geometry={power}><meshStandardMaterial vertexColors roughness={0.85} /></mesh>}
 
-      {/* street lamps along the sidewalk, arms reaching over the street */}
-      {lampXs.map((x) => <StreetLamp key={x} position={[x, 0, SIDEWALK.z1 - 0.25]} ground={-0.1} />)}
-
-      {/* trees and a low hedge line along the back */}
-      {TREES.map(([x, z, s]) => <Tree key={`${x}${z}`} position={[x, -0.12, z]} scale={s} shadows={shadows} />)}
-      {Array.from({ length: 9 }, (_, i) => (
-        <mesh key={i} position={[-0.9, 0.12, 0.6 + i * 1.2]} castShadow={shadows}>
-          <icosahedronGeometry args={[0.38, 0]} />
-          <meshStandardMaterial color="#4a7f50" flatShading />
-        </mesh>
-      ))}
+      {static_ && <mesh geometry={static_} receiveShadow={shadows}><meshStandardMaterial vertexColors roughness={0.95} /></mesh>}
+      {showLamps && <StreetLights />}
+      {showTrees && <Trees shadows={shadows} />}
     </group>
   );
 }
