@@ -3,6 +3,7 @@
 import { sceneNow, sceneWeather } from "@/lib/store";
 import { manilaMinutes } from "@/lib/office-clock";
 import { useSettings } from "@/lib/settings";
+import { spotifyBeat, useSpotify } from "@/lib/spotify";
 
 /**
  * The office's background sound, generated live with Web Audio (no audio files):
@@ -72,6 +73,7 @@ export class Ambience {
   private nextBird = 0;
   private nextCar = 0;
   private nextThunder = 0;
+  private nextCall = 0;
   private music: GainNode;
   private musicLp: BiquadFilterNode;
   private nextStep = 0;
@@ -228,6 +230,52 @@ export class Ambience {
     src.stop(t + opts.dur + 0.05);
   }
 
+  /** "Pot-pot!" on the rubber bulb horn, then "Pandesal! Mainit pa!" (the browser's voice, in Filipino if it has one). */
+  private vendorCall() {
+    const ctx = this.ctx, t0 = ctx.currentTime + 0.02;
+    for (const at of [0, 0.22]) {
+      const o = ctx.createOscillator(), g = ctx.createGain(), f = ctx.createBiquadFilter();
+      o.type = "square";
+      o.frequency.setValueAtTime(520, t0 + at);
+      o.frequency.exponentialRampToValueAtTime(430, t0 + at + 0.14);
+      f.type = "lowpass"; f.frequency.value = 1400;
+      g.gain.setValueAtTime(0.0001, t0 + at);
+      g.gain.exponentialRampToValueAtTime(0.035, t0 + at + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + 0.16);
+      const p = ctx.createStereoPanner();
+      p.pan.value = 0.5;
+      o.connect(f).connect(g).connect(p).connect(this.master);
+      o.start(t0 + at); o.stop(t0 + at + 0.2);
+    }
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    try {
+      const u = new SpeechSynthesisUtterance("Pandesal! Mainit pa!");
+      const voice = window.speechSynthesis.getVoices().find((v) => v.lang.startsWith("fil") || v.lang.startsWith("tl"));
+      if (voice) u.voice = voice;
+      u.lang = voice?.lang ?? "fil-PH";
+      u.rate = 0.95; u.pitch = 1.15; u.volume = 0.35;
+      setTimeout(() => window.speechSynthesis.speak(u), 700);
+    } catch { /* no voice: the horn is enough */ }
+  }
+
+  /** A soft bell motif (semitones above A4, one note every 0.16 s), straight to the master so music settings don't mute it. */
+  chime(notes: readonly number[]) {
+    const ctx = this.ctx, t0 = ctx.currentTime + 0.02;
+    notes.forEach((n, i) => {
+      const t = t0 + i * 0.16, f = 440 * 2 ** (n / 12);
+      for (const [mul, gain] of [[1, 0.07], [2, 0.02], [3.01, 0.008]] as const) {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = "sine";
+        o.frequency.setValueAtTime(f * mul, t);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(gain, t + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9 / mul);
+        o.connect(g).connect(this.master);
+        o.start(t); o.stop(t + 1);
+      }
+    });
+  }
+
   private chirp(base: number, gain: number) {
     const ctx = this.ctx, t = ctx.currentTime;
     for (let i = 0; i < 3; i++) {
@@ -259,7 +307,8 @@ export class Ambience {
     this.set(this.room, night ? 0.03 : 0.05);
 
     // the sound system plays during office hours
-    const musicOn = useSettings.getState().music && min >= 480 && min < 1140;
+    // (off while Spotify is playing: the boss's own music wins)
+    const musicOn = useSettings.getState().music && min >= 480 && min < 1140 && !useSpotify.getState().track?.playing;
     this.set(this.music, musicOn ? 0.55 : 0);
     if (musicOn) this.playMusic();
     else this.kicks.length = 0;
@@ -283,6 +332,11 @@ export class Ambience {
       if (this.nextCar) this.burst({ dur: 3.2, gain: 0.05, type: "lowpass", freq: 380, attack: 1.4, pan: Math.random() < 0.5 ? -0.7 : 0.7, buf: this.brown });
       this.nextCar = now + 14 + Math.random() * 26;
     }
+    // the pandesal vendor going by in the early morning: two honks of the bicycle horn, and the call
+    if (min >= 300 && min < 540 && useSettings.getState().show.vendors && now >= this.nextCall) {
+      if (this.nextCall) this.vendorCall();
+      this.nextCall = now + 150 + Math.random() * 120;
+    }
     // thunder in storms
     if (weather === "storm" && now >= this.nextThunder) {
       if (this.nextThunder) this.burst({ dur: 3.5, gain: 0.35, type: "lowpass", freq: 140, attack: 0.08, buf: this.brown });
@@ -299,14 +353,27 @@ let queue: Promise<void> = Promise.resolve();
 
 /** 0–1: how far the subwoofer's cone is pushed out right now (a quick decay after each kick). 0 when silent. */
 export function wooferLevel(): number {
-  if (!engine || !playing) return 0;
+  // Spotify plays through its own player, not this engine, so its beat counts even when the ambience is muted
+  const beat = spotifyBeat();
+  if (!engine || !playing) return beat;
   const now = engine.now;
   let v = 0;
   for (const t of engine.kicks) {
     const dt = now - t;
     if (dt >= 0 && dt < 0.5) v = Math.max(v, Math.exp(-dt * 11));
   }
-  return v;
+  return Math.max(v, beat);
+}
+
+/** Each desk's own three-note tune (major pentatonic), so you can tell by ear who needs you. Index = desk order. */
+const CHIMES: readonly (readonly number[])[] = [
+  [0, 4, 7], [7, 4, 0], [2, 7, 9], [9, 7, 2], [4, 9, 12], [12, 9, 4], [0, 7, 12], [12, 4, 7],
+];
+
+/** Play desk `index`'s chime, if the office sound is on. */
+export function playChime(index: number): void {
+  if (!engine || !playing) return;
+  engine.chime(CHIMES[index % CHIMES.length]);
 }
 
 /**

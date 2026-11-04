@@ -9,6 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useOffice, WEATHER_KINDS, type BossErrandKind, type WeatherKind } from "@/lib/store";
 import { SoundToggle } from "@/components/SoundToggle";
 import { SettingsPanel } from "./SettingsPanel";
+import { MusicPanel } from "./MusicPanel";
 import { PREVIEWS, hm, phaseAt } from "@/lib/office-clock";
 import { cn } from "@/lib/utils";
 import { PHASE_ICON, PHASE_LABEL, phaseOf, useSceneNow } from "./scene-clock-ui";
@@ -37,6 +38,8 @@ export function SceneControls({ onReset, onZoom }: { onReset: () => void; onZoom
       </div>
       <div className={cn("absolute top-3 right-3 z-30 flex flex-col overflow-hidden rounded-full", pill)} role="group" aria-label="Office">
         <SoundToggle bare className={iconButton} />
+        <span className="mx-2 h-px bg-border" aria-hidden />
+        <MusicPanel className={iconButton} />
         <span className="mx-2 h-px bg-border" aria-hidden />
         <BossMenu />
         <span className="mx-2 h-px bg-border" aria-hidden />
