@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState, type ReactNode, type SubmitEvent } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowRight, Eye, EyeOff, KeyRound, Lock, Mail, MailCheck } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, Fingerprint, KeyRound, Lock, Mail, MailCheck } from "lucide-react";
 import { browserClient } from "@/lib/supabase/browser";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -83,6 +83,21 @@ function LoginForm() {
     window.location.assign("/"); // full reload so the server sees the new session cookie
   }
 
+  // Face ID / Touch ID / Windows Hello / a security key, once a passkey was added in Settings → Account
+  const [canPasskey, setCanPasskey] = useState(false);
+  useEffect(() => { setCanPasskey(typeof window !== "undefined" && "PublicKeyCredential" in window); }, []);
+  async function signInWithPasskey() {
+    setErr(""); setBusy(true);
+    const { error } = await browserClient().auth.signInWithPasskey();
+    setBusy(false);
+    if (error) {
+      // the person closed the prompt: not an error worth showing
+      if (/abort|cancel|not allowed|NotAllowedError/i.test(error.message)) return;
+      return setErr(/passkey|webauthn|credential/i.test(error.message) ? `${friendly(error.message)} Add a passkey in Settings → Account first.` : friendly(error.message));
+    }
+    window.location.assign("/");
+  }
+
   const mode = step === "code" ? "email" : step;
   const switchTo = (next: "password" | "email") => { setStep(next); setErr(""); setCode(""); };
 
@@ -101,6 +116,17 @@ function LoginForm() {
               {step === "code" ? <>We sent a code to <span className="font-medium text-foreground">{email}</span>.</> : "Sign in to open the office."}
             </p>
           </header>
+
+          {canPasskey && step !== "code" && (
+            <div className="grid gap-3">
+              <Button type="button" size="lg" variant="outline" className="h-11 rounded-xl" disabled={busy} onClick={signInWithPasskey}>
+                <Fingerprint className="size-4" aria-hidden /> Sign in with a passkey
+              </Button>
+              <div className="flex items-center gap-3 text-xs text-muted-foreground" aria-hidden>
+                <span className="h-px flex-1 bg-border" /> or <span className="h-px flex-1 bg-border" />
+              </div>
+            </div>
+          )}
 
           <div role="tablist" aria-label="How to sign in" className="grid grid-cols-2 gap-1 rounded-xl border border-border bg-muted/50 p-1">
             {([["password", "Password", KeyRound], ["email", "Email code", Mail]] as const).map(([id, label, Icon]) => (
