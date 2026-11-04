@@ -160,8 +160,15 @@ function Huddle({ pal, shadows }: Common) {
     <group>
       <mesh position={[HUDDLE.x, 0.007, HUDDLE.z]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow={shadows}>
         <circleGeometry args={[HUDDLE.r + 0.25, 48]} />
-        <meshStandardMaterial color="#d6e4e0" roughness={1} />
+        <meshStandardMaterial color="#d8c39c" roughness={1} />
       </mesh>
+      {/* a woven jute rug: braided rings */}
+      {[0.35, 0.6, 0.85].map((r) => (
+        <mesh key={r} position={[HUDDLE.x, 0.0085, HUDDLE.z]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[r, r + 0.03, 48]} />
+          <meshBasicMaterial color="#bfa57c" />
+        </mesh>
+      ))}
       <mesh position={[HUDDLE.x, 0.009, HUDDLE.z]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[HUDDLE.r + 0.15, HUDDLE.r + 0.21, 48]} />
         <meshBasicMaterial color={pal.selected} />
@@ -252,6 +259,16 @@ function Lounge({ pal, shadows }: Common) {
         ))}
         <RoundedBox args={[0.34, 0.3, 0.12]} radius={0.05} smoothness={2} position={[-0.75, 0.62, 0.14]} rotation={[0.2, 0, 0.1]}>
           <meshStandardMaterial color="#e0a43a" />
+        </RoundedBox>
+        <RoundedBox args={[0.32, 0.28, 0.12]} radius={0.05} smoothness={2} position={[0.8, 0.61, 0.14]} rotation={[0.2, 0, -0.12]}>
+          <meshStandardMaterial color="#f1e7d6" />
+        </RoundedBox>
+        {/* a knitted throw over the right arm and seat */}
+        <RoundedBox args={[0.5, 0.05, 0.66]} radius={0.02} smoothness={2} position={[0.82, 0.53, -0.06]} rotation={[0, 0.08, 0]}>
+          <meshStandardMaterial color="#c2410c" roughness={1} />
+        </RoundedBox>
+        <RoundedBox args={[0.5, 0.3, 0.04]} radius={0.02} smoothness={2} position={[0.84, 0.38, -0.4]} rotation={[0, 0.08, 0]}>
+          <meshStandardMaterial color="#c2410c" roughness={1} />
         </RoundedBox>
       </group>
       <group position={[lx, 0, lz - 0.25]}>

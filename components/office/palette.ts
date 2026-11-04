@@ -5,8 +5,8 @@
 export const PAL = {
   // shell
   floor: "#d9c2a0", floorSeam: "#c2a77f", tile: "#e7e4de", tileSeam: "#cfcac1",
-  wall: "#eceeec", wallSide: "#e3e6e4", accentWall: "#2f5249", slat: "#a8784f", slatDark: "#7d5838",
-  trim: "#3a4650", baseboard: "#cfd3d1", windowFrame: "#2b3640", sill: "#f6f6f4",
+  wall: "#f1ebe2", wallSide: "#e8e0d4", accentWall: "#2f5249", slat: "#a8784f", slatDark: "#7d5838",
+  trim: "#3a4650", baseboard: "#d8cfc2", windowFrame: "#2b3640", sill: "#f6f6f4",
   // furniture
   deskTop: "#f3f1ec", deskEdge: "#c9a77c", deskLeg: "#2b3640", divider: "#9fb7ad", drawer: "#e7e3dc", handle: "#3a4650",
   bezel: "#1d252c", keycap: "#e8ecef", mousepad: "#2e3a45", metal: "#9aa5ae",
