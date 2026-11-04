@@ -5,17 +5,13 @@ import * as THREE from "three";
 import { RoundedBox, Text } from "@react-three/drei";
 import { ROOM, OFFICE, FRONT_Z, PAL, SCENE_FONT, type Palette } from "./palette";
 import { Plant, TallPlant } from "./Furniture";
-import { useSkyMaterial } from "./Lighting";
 import { useSceneNow } from "./scene-clock-ui";
+import { HQ } from "@/hq.config";
 
 const TAU = Math.PI * 2;
 const WALL_T = 0.16;
-/** Window band on the walls: sill and head height. */
-const SILL = 0.75, HEAD = 2.3;
-/** Back-wall windows as [x from, x to]. */
-const BACK_WINDOWS: readonly (readonly [number, number])[] = [[0.45, 3.85], [7.45, 10.45]];
-/** The wood-slat feature wall with the TV, between the windows. */
-const FEATURE = { x0: 4.05, x1: 7.25 } as const;
+/** The wood-slat feature wall with the TV, in the middle of the (solid) back wall. */
+const FEATURE = { x0: 2.95, x1: 8.35 } as const;
 
 /* ------------------------------------------------------------------ procedural textures */
 
@@ -76,15 +72,14 @@ function useTileTexture(w: number, d: number): THREE.CanvasTexture {
 type RoomProps = { pal: Palette; shadows: boolean; done: number; waiting: number; trashName: string | null };
 
 /**
- * The building shell: oak floor, tiled pantry, two walls with tall windows onto the city
- * (the sky changes with the time of day), a slatted feature wall with the team dashboard, shelves and the clock.
+ * The building shell: oak floor, tiled pantry, a solid back wall with framed prints either side of the
+ * slatted feature wall and its team dashboard, shelves and the clock.
  */
 export function Room({ pal, shadows, done, waiting, trashName }: RoomProps) {
   const { W, D, H } = ROOM;
   const planks = usePlankTexture(W, D);
   const tileW = W - OFFICE.x0, tileD = FRONT_Z - OFFICE.z1;
   const tiles = useTileTexture(tileW, tileD);
-  const sky = useSkyMaterial();
 
   return (
     <group>
@@ -103,9 +98,10 @@ export function Room({ pal, shadows, done, waiting, trashName }: RoomProps) {
         <meshStandardMaterial map={tiles} roughness={0.45} />
       </mesh>
 
-      <BackWall pal={pal} shadows={shadows} sky={sky} />
+      <BackWall pal={pal} shadows={shadows} />
       <FrontWall pal={pal} />
       <LeftWall pal={pal} shadows={shadows} />
+      <Corners pal={pal} shadows={shadows} />
 
       <Dashboard pal={pal} done={done} waiting={waiting} trashName={trashName} />
       <Clock pal={pal} />
@@ -122,37 +118,21 @@ export function Room({ pal, shadows, done, waiting, trashName }: RoomProps) {
   );
 }
 
-/** The back wall (z = 0), built around two window openings. */
-function BackWall({ pal, shadows, sky }: { pal: Palette; shadows: boolean; sky: THREE.Material }) {
+/**
+ * The back wall (z = 0): solid, with a framed print either side of the TV wall (there used to be windows
+ * here, but the town behind is houses now, not open sky, so a window would show the wrong view).
+ */
+function BackWall({ pal, shadows }: { pal: Palette; shadows: boolean }) {
   const { W, H } = ROOM;
   const z = -WALL_T / 2;
-  // solid stretches between and beside the windows
-  const solids: [number, number][] = [];
-  let from = -WALL_T;
-  for (const [a, b] of BACK_WINDOWS) { solids.push([from, a]); from = b; }
-  solids.push([from, W + WALL_T]);
-
   return (
     <group>
-      {solids.map(([a, b]) => (
-        <mesh key={a} position={[(a + b) / 2, H / 2, z]} receiveShadow={shadows}>
-          <boxGeometry args={[b - a, H, WALL_T]} />
-          <meshStandardMaterial color={pal.wall} />
-        </mesh>
-      ))}
-      {BACK_WINDOWS.map(([a, b]) => (
-        <group key={a}>
-          <mesh position={[(a + b) / 2, SILL / 2, z]} receiveShadow={shadows}>
-            <boxGeometry args={[b - a, SILL, WALL_T]} />
-            <meshStandardMaterial color={pal.wall} />
-          </mesh>
-          <mesh position={[(a + b) / 2, (HEAD + H) / 2, z]}>
-            <boxGeometry args={[b - a, H - HEAD, WALL_T]} />
-            <meshStandardMaterial color={pal.wall} />
-          </mesh>
-          <Window pal={pal} sky={sky} length={b - a} position={[(a + b) / 2, 0, 0]} />
-        </group>
-      ))}
+      <mesh position={[W / 2, H / 2, z]} receiveShadow={shadows}>
+        <boxGeometry args={[W + WALL_T * 2, H, WALL_T]} />
+        <meshStandardMaterial color={pal.wall} />
+      </mesh>
+      <Print pal={pal} x={1.75} w={1.5} h={1.05} art={["#e11d48", "#f59e0b", "#2563eb"]} />
+      <Print pal={pal} x={9.5} w={1.3} h={0.95} art={["#0f766e", "#facc15", "#f97316"]} />
       {/* top cap: the cut line of the diorama */}
       <mesh position={[W / 2, H + 0.025, z]}>
         <boxGeometry args={[W + WALL_T * 2, 0.05, WALL_T + 0.02]} />
@@ -176,38 +156,29 @@ function BackWall({ pal, shadows, sky }: { pal: Palette; shadows: boolean; sky: 
   );
 }
 
-/** A window opening along local x, sky inside, black aluminium frame with mullions and a white sill. */
-function Window({ pal, sky, length, position, rotY = 0 }: {
-  pal: Palette; sky: THREE.Material; length: number; position: [number, number, number]; rotY?: number;
-}) {
-  const h = HEAD - SILL;
-  const panes = Math.max(2, Math.round(length / 1.1));
+/**
+ * A framed print on the back wall: a thin black frame, a white mat and three bands of colour (a jeepney
+ * stripe, a sunset, the mountains), at eye level.
+ */
+function Print({ pal, x, w, h, art }: { pal: Palette; x: number; w: number; h: number; art: readonly [string, string, string] }) {
+  const y = 1.6;
+  const iw = w - 0.24, ih = h - 0.24;
   return (
-    <group position={position} rotation={[0, rotY, 0]}>
-      <mesh position={[0, SILL + h / 2, -WALL_T + 0.02]} material={sky}>
-        <planeGeometry args={[length, h]} />
-      </mesh>
-      {/* frame */}
-      {[SILL + 0.02, HEAD - 0.02].map((y) => (
-        <mesh key={y} position={[0, y, -0.03]}>
-          <boxGeometry args={[length, 0.04, 0.05]} />
-          <meshStandardMaterial color={pal.windowFrame} />
-        </mesh>
-      ))}
-      {Array.from({ length: panes + 1 }, (_, i) => (
-        <mesh key={i} position={[-length / 2 + (i * length) / panes, SILL + h / 2, -0.03]}>
-          <boxGeometry args={[0.04, h, 0.05]} />
-          <meshStandardMaterial color={pal.windowFrame} />
-        </mesh>
-      ))}
-      <mesh position={[0, SILL + 0.62, -0.03]}>
-        <boxGeometry args={[length, 0.025, 0.04]} />
+    <group position={[x, y, 0.02]}>
+      <mesh>
+        <boxGeometry args={[w, h, 0.035]} />
         <meshStandardMaterial color={pal.windowFrame} />
       </mesh>
-      <mesh position={[0, SILL - 0.01, 0.04]}>
-        <boxGeometry args={[length + 0.08, 0.03, 0.12]} />
-        <meshStandardMaterial color={pal.sill} />
+      <mesh position={[0, 0, 0.019]}>
+        <planeGeometry args={[w - 0.06, h - 0.06]} />
+        <meshStandardMaterial color="#f8f6f1" />
       </mesh>
+      {art.map((c, i) => (
+        <mesh key={c} position={[0, -ih / 2 + ih / 6 + (i * ih) / 3, 0.021]}>
+          <planeGeometry args={[iw, ih / 3]} />
+          <meshStandardMaterial color={c} roughness={0.8} />
+        </mesh>
+      ))}
     </group>
   );
 }
@@ -244,6 +215,26 @@ function FrontWall({ pal }: { pal: Palette }) {
         <boxGeometry args={[W, 0.03, 0.07]} />
         <meshStandardMaterial color={pal.windowFrame} />
       </mesh>
+    </group>
+  );
+}
+
+/**
+ * Square corner columns at all four corners, full height, so the building's outline reads as one clean
+ * rectangle from every angle (the glass front and side walls otherwise make the corners disappear).
+ */
+function Corners({ pal, shadows }: { pal: Palette; shadows: boolean }) {
+  const { W, D, H } = ROOM;
+  const C = 0.2;
+  const at: [number, number][] = [[-WALL_T / 2, -WALL_T / 2], [W + WALL_T / 2 - 0.04, -WALL_T / 2], [-WALL_T / 2, D + 0.04], [W + 0.02, D + 0.04]];
+  return (
+    <group>
+      {at.map(([x, z]) => (
+        <mesh key={`${x}${z}`} position={[x, H / 2 + 0.01, z]} castShadow={shadows}>
+          <boxGeometry args={[C, H + 0.06, C]} />
+          <meshStandardMaterial color={pal.trim} />
+        </mesh>
+      ))}
     </group>
   );
 }
@@ -297,15 +288,18 @@ function Shelf({ pal, shadows, z, y, plantFirst = false }: { pal: Palette; shado
   );
 }
 
-/** The main TV: nearly the full width of the slat wall, so the numbers read from across the room. */
-const TV = { w: 2.95, h: 1.45, y: 1.45 } as const;
+/**
+ * The main TV: a big 100-inch-class screen across the slat wall, so the numbers read from anywhere in the room.
+ * Its contents are laid out at the original 2.95 m size and scaled up as one piece.
+ */
+const TV = { w: 2.95, h: 1.45, y: 1.55, scale: 1.45 } as const;
 
 /** Wall-mounted screen on the feature wall: today's tally in big numbers, and who's on trash duty. */
 function Dashboard({ pal, done, waiting, trashName }: { pal: Palette; done: number; waiting: number; trashName: string | null }) {
   const x = (FEATURE.x0 + FEATURE.x1) / 2;
   const L = -TV.w / 2 + 0.16; // left text margin
   return (
-    <group position={[x, TV.y, 0.05]}>
+    <group position={[x, TV.y, 0.05]} scale={[TV.scale, TV.scale, 1]}>
       <RoundedBox args={[TV.w + 0.08, TV.h + 0.08, 0.06]} radius={0.02} smoothness={2}>
         <meshStandardMaterial color={pal.bezel} />
       </RoundedBox>
@@ -428,7 +422,7 @@ function Clock({ pal }: { pal: Palette }) {
             {DIGITAL.format(now)}
           </Text>
           <Text font={SCENE_FONT} position={[0, -0.08, 0.042]} fontSize={0.035} color={pal.ledDim} anchorX="center" anchorY="middle" letterSpacing={0.2}>
-            MABALACAT
+            {HQ.city.clockLabel}
           </Text>
         </Suspense>
       </group>

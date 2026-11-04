@@ -1,15 +1,17 @@
 "use client";
 
-import { Suspense, useRef } from "react";
+import { Suspense, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { RoundedBox, Text } from "@react-three/drei";
 import { OFFICE, ROOM, type Palette, SCENE_FONT } from "./palette";
-import { OfficeChair, Plant, type Vec3 } from "./Furniture";
+import { OfficeChair, Plant, TallPlant, type Vec3 } from "./Furniture";
 import { AirCon, officeAcOn } from "./Amenities";
 import { light } from "./Lighting";
 import { useGameScreen } from "./GameScreen";
 import { OWNER_NAME } from "./Staff";
+import { HQ } from "@/hq.config";
+import { useOfficeStyle, type OfficeStyle } from "@/lib/settings";
 
 const { x0: X0, x1: X1, z1: Z1 } = OFFICE;
 /** Middle of the office along x: the executive desk, monitors and chair line up on it. */
@@ -19,6 +21,67 @@ const GH = 2.35;
 const DOOR_W = 1.0;
 const DESK_H = 0.76;
 const CHAIR_Z = 1.62;
+
+/* ------------------------------------------------------------------ styles */
+
+type Style = Exclude<OfficeStyle, "auto">;
+
+/**
+ * Everything that changes between the office styles (Settings → Boss → Office style). Shapes stay the same;
+ * colours, the feature wall and a few extras change:
+ *   executive  walnut slats, leather, a warm cove light (the original office)
+ *   gaming     dark walls, glowing hex acoustic panels, neon light cycling through the colours, a red racing chair
+ *   cozy       blush walls with a plaster arch, white oak desk, fairy lights, a rattan pendant, lots of plants
+ *   minimal    white oak slats, white desk, grey sofa, one big plant and a line drawing
+ */
+type Theme = {
+  floor: string; rug: string; desk: string; deskSide: string; chair: string;
+  /** Under-desk strip and cove: "rgb" cycles through the colours. */
+  strip: string | "rgb"; cove: string | "rgb";
+  wall: "slats" | "panel" | "arch";
+  slat: string; slatAlt: string; wallBase: string;
+  signPlate: string; signInk: string; halo: string; haloOpacity: number;
+  shelf: string; sofa: string; cushion: string; pillow: string; loungeRug: string;
+  credenza: string; credenzaDoor: string; art: readonly [string, string, string];
+  shade: string;
+};
+
+function themeOf(style: Style, pal: Palette): Theme {
+  switch (style) {
+    case "gaming":
+      return {
+        floor: "#2a2833", rug: "#1b1a22", desk: "#17171c", deskSide: "#0f0f13", chair: "#b91c1c",
+        strip: "rgb", cove: "rgb", wall: "panel", slat: "#232131", slatAlt: "#2c2940", wallBase: "#16141f",
+        signPlate: "#0b0b10", signInk: "#22d3ee", halo: "#d946ef", haloOpacity: 0.45,
+        shelf: "#1f1d29", sofa: "#1f1d29", cushion: "#312e45", pillow: "#22d3ee", loungeRug: "#2a2638",
+        credenza: "#1f1d29", credenzaDoor: "#151320", art: ["#0b0b10", "#d946ef", "#22d3ee"], shade: "#1f1d29",
+      };
+    case "cozy":
+      return {
+        floor: "#c9a98b", rug: "#f1e4dc", desk: "#f3efe9", deskSide: "#e2d8cc", chair: "#e9cdd2",
+        strip: "#ffc9d6", cove: "#ffd9c2", wall: "arch", slat: "#efd3d6", slatAlt: "#e8c2c7", wallBase: "#f2dadc",
+        signPlate: "#fff7f5", signInk: "#b0577f", halo: "#ffd1dc", haloOpacity: 0.4,
+        shelf: "#d8b98f", sofa: "#e7c2c6", cushion: "#f6e3e5", pillow: "#c97b8f", loungeRug: "#f7efe9",
+        credenza: "#d8b98f", credenzaDoor: "#c9a77a", art: ["#fbe8e6", "#e8a0a8", "#9cae8f"], shade: "#f6e7d8",
+      };
+    case "minimal":
+      return {
+        floor: "#cbb593", rug: "#e7e2d8", desk: "#eeebe5", deskSide: "#d9d3c8", chair: "#2b2d31",
+        strip: "#f8fafc", cove: "#fff4e0", wall: "slats", slat: "#d9c2a0", slatAlt: "#ccb28c", wallBase: "#c3a882",
+        signPlate: "#f8fafc", signInk: "#111827", halo: "#ffffff", haloOpacity: 0,
+        shelf: "#d9c2a0", sofa: "#9ca3af", cushion: "#b8bdc4", pillow: "#e5e7eb", loungeRug: "#ebe7df",
+        credenza: "#d9c2a0", credenzaDoor: "#ccb28c", art: ["#f8f6f1", "#111827", "#9ca3af"], shade: "#f4f1ea",
+      };
+    default:
+      return {
+        floor: pal.officeFloor, rug: "#3a3d42", desk: pal.execDesk, deskSide: pal.execDeskSide, chair: pal.execChair,
+        strip: "rgb", cove: "#ffd9a8", wall: "slats", slat: WALNUT, slatAlt: WALNUT_DARK, wallBase: WALNUT_DARK,
+        signPlate: "#111315", signInk: "#f5f5f0", halo: "#ffcf8a", haloOpacity: 0.35,
+        shelf: WALNUT, sofa: "#2f3338", cushion: "#4a4f57", pillow: "#c2410c", loungeRug: "#cfccc4",
+        credenza: WALNUT, credenzaDoor: WALNUT_DARK, art: ["#f3f0e8", "#d97757", "#1f2937"], shade: "#f4f1ea",
+      };
+  }
+}
 
 /** One straight glass partition, centred on `position`, running along local x, turned by `rotY`. */
 function Glass({ pal, position, length, rotY = 0 }: { pal: Palette; position: Vec3; length: number; rotY?: number }) {
@@ -52,20 +115,25 @@ function Glass({ pal, position, length, rotY = 0 }: { pal: Palette; position: Ve
 
 /**
  * The owner's glass corner office in the back-right of the room: L-shaped executive desk,
- * a curved ultrawide plus a side monitor, a PC tower with a slow RGB glow, and Ronald at the desk.
+ * a curved ultrawide plus a side monitor, a PC tower with a slow RGB glow, and the boss at the desk.
+ * Its interior follows the office style chosen in Settings → Boss (see themeOf).
  */
 export function OwnerOffice({ pal, shadows, reducedMotion }: { pal: Palette; shadows: boolean; reducedMotion: boolean }) {
-  const rgb = useRef<THREE.MeshStandardMaterial>(null);
+  const style = useOfficeStyle();
+  const th = useMemo(() => themeOf(style, pal), [style, pal]);
   const ceiling = useRef<THREE.PointLight>(null);
   const game = useGameScreen();
+  /** One material for every RGB strip in the office, cycling slowly (held still for reduced motion). */
+  const rgb = useMemo(() => new THREE.MeshStandardMaterial({ color: "#5fd0d8", emissive: "#5fd0d8", emissiveIntensity: 1.3, toneMapped: false }), []);
+  const strip = useMemo(() => th.strip === "rgb" ? rgb
+    : new THREE.MeshStandardMaterial({ color: th.strip, emissive: th.strip, emissiveIntensity: 1.1, toneMapped: false }), [th.strip, rgb]);
 
-  // RGB accents cycle slowly; held still for reduced motion.
   useFrame(({ clock }) => {
-    if (ceiling.current) ceiling.current.intensity = 0.8 + light.lamps * 4.5;
-    if (!rgb.current || reducedMotion) return;
+    if (ceiling.current) ceiling.current.intensity = (style === "gaming" ? 0.4 : 0.8) + light.lamps * (style === "gaming" ? 2.5 : 4.5);
+    if (reducedMotion) return;
     const hue = (clock.elapsedTime * 0.06) % 1;
-    rgb.current.color.setHSL(hue, 0.9, 0.55);
-    rgb.current.emissive.setHSL(hue, 0.9, 0.55);
+    rgb.color.setHSL(hue, 0.9, 0.55);
+    rgb.emissive.setHSL(hue, 0.9, 0.55);
   });
 
   // Curved ultrawide: an open cylinder slice whose axis sits in front of the screen, toward the chair.
@@ -78,11 +146,11 @@ export function OwnerOffice({ pal, shadows, reducedMotion }: { pal: Palette; sha
       {/* wooden floor and a round rug */}
       <mesh position={[X0 + ow / 2, 0.004, Z1 / 2]} receiveShadow={shadows}>
         <boxGeometry args={[ow, 0.004, Z1]} />
-        <meshStandardMaterial color={pal.officeFloor} />
+        <meshStandardMaterial color={th.floor} />
       </mesh>
       <mesh position={[MX + 0.05, 0.008, 1.55]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow={shadows}>
         <planeGeometry args={[2.8, 1.9]} />
-        <meshStandardMaterial color="#3a3d42" roughness={1} />
+        <meshStandardMaterial color={th.rug} roughness={1} />
       </mesh>
 
       {/* glass: left side, front (door gap at its left end), right side */}
@@ -122,27 +190,26 @@ export function OwnerOffice({ pal, shadows, reducedMotion }: { pal: Palette; sha
       </group>
       {/* L-shaped executive desk: main top along the back wall, return wing on the right */}
       <RoundedBox args={[2.4, 0.06, 0.9]} radius={0.025} smoothness={2} position={[MX, DESK_H, 0.75]} castShadow={shadows} receiveShadow={shadows}>
-        <meshStandardMaterial color={pal.execDesk} />
+        <meshStandardMaterial color={th.desk} />
       </RoundedBox>
       <RoundedBox args={[0.56, 0.06, 1.0]} radius={0.025} smoothness={2} position={[MX + 0.92, DESK_H, 1.7]} castShadow={shadows} receiveShadow={shadows}>
-        <meshStandardMaterial color={pal.execDesk} />
+        <meshStandardMaterial color={th.desk} />
       </RoundedBox>
       <mesh position={[MX - 1.17, (DESK_H - 0.03) / 2, 0.75]} castShadow={shadows}>
         <boxGeometry args={[0.05, DESK_H - 0.03, 0.84]} />
-        <meshStandardMaterial color={pal.execDeskSide} />
+        <meshStandardMaterial color={th.deskSide} />
       </mesh>
       <mesh position={[MX, DESK_H - 0.26, 0.34]}>
         <boxGeometry args={[2.3, 0.44, 0.03]} />
-        <meshStandardMaterial color={pal.execDeskSide} />
+        <meshStandardMaterial color={th.deskSide} />
       </mesh>
       <mesh position={[MX + 0.92, 0.32, 1.65]} castShadow={shadows}>
         <boxGeometry args={[0.5, 0.64, 0.86]} />
-        <meshStandardMaterial color={pal.execDeskSide} />
+        <meshStandardMaterial color={th.deskSide} />
       </mesh>
       {/* RGB strip under the front edge */}
-      <mesh position={[MX - 0.25, DESK_H - 0.04, 1.205]}>
+      <mesh position={[MX - 0.25, DESK_H - 0.04, 1.205]} material={strip}>
         <boxGeometry args={[1.85, 0.012, 0.012]} />
-        <meshStandardMaterial ref={rgb} color="#5fd0d8" emissive="#5fd0d8" emissiveIntensity={1.2} toneMapped={false} />
       </mesh>
 
       {/* curved ultrawide on a stand */}
@@ -222,11 +289,11 @@ export function OwnerOffice({ pal, shadows, reducedMotion }: { pal: Palette; sha
         </mesh>
       </group>
 
-      <OfficeChair pal={pal} shadows={shadows} position={[MX, 0, CHAIR_Z]} color={pal.execChair} executive />
+      <OfficeChair pal={pal} shadows={shadows} position={[MX, 0, CHAIR_Z]} color={th.chair} executive />
 
-      <BossDecor pal={pal} shadows={shadows} />
+      <BossDecor pal={pal} shadows={shadows} th={th} style={style} rgb={rgb} reducedMotion={reducedMotion} />
       {/* a warm ceiling light and the office's split AC */}
-      <pointLight ref={ceiling} position={[MX, ROOM.H - 0.2, 2.0]} color="#ffe2b8" intensity={1.6} distance={6} decay={1.6} />
+      <pointLight ref={ceiling} position={[MX, ROOM.H - 0.2, 2.0]} color={style === "gaming" ? "#c4b5fd" : style === "cozy" ? "#ffd6c2" : "#ffe2b8"} intensity={1.6} distance={6} decay={1.6} />
       <AirCon pal={pal} shadows={shadows} position={[X1 - 0.75, 2.3, 0.12]} on={officeAcOn} />
 
     </group>
@@ -241,7 +308,7 @@ const WALNUT = "#4a3324", WALNUT_DARK = "#2e1f16", LEATHER = "#6b3f2a", CHROME =
  * The corner office's furnishing: a walnut slat feature wall behind the desk with a backlit "rnldvrgl" sign
  * and a warm cove light, a tall bookcase, a lounge corner (sofa, stone table, floor lamp), creator gear on the desk, a low credenza along the front glass, framed art, and a few things on the desk.
  */
-function BossDecor({ pal, shadows }: { pal: Palette; shadows: boolean }) {
+function BossDecor({ pal, shadows, th, style, rgb, reducedMotion }: { pal: Palette; shadows: boolean; th: Theme; style: Style; rgb: THREE.Material; reducedMotion: boolean }) {
   const cove = useRef<THREE.MeshStandardMaterial>(null);
   const lamp = useRef<THREE.MeshStandardMaterial>(null);
   const bar = useRef<THREE.MeshStandardMaterial>(null);
@@ -250,39 +317,48 @@ function BossDecor({ pal, shadows }: { pal: Palette; shadows: boolean }) {
     if (cove.current) cove.current.emissiveIntensity = 0.6 + light.lamps * 1.4;
     if (lamp.current) lamp.current.emissiveIntensity = 0.3 + light.lamps * 1.5;
   });
+  const coveMat = useMemo(() => (th.cove === "rgb" ? rgb : null), [th.cove, rgb]);
   const slatX0 = X0 + 1.05, slatX1 = X1 - 1.3;
   const slats = Math.floor((slatX1 - slatX0) / 0.08);
   const BOOKS = ["#1f2937", "#9ca3af", "#b45309", "#e5e7eb", "#374151", "#7c2d12", "#d1d5db"];
 
   return (
     <group>
-      {/* walnut slat wall and cove light */}
+      {/* the feature wall behind the desk (slats, a dark panel wall or a painted arch) and its cove light */}
       <mesh position={[(slatX0 + slatX1) / 2, ROOM.H / 2, 0.006]}>
         <planeGeometry args={[slatX1 - slatX0, ROOM.H]} />
-        <meshStandardMaterial color={WALNUT_DARK} />
+        <meshStandardMaterial color={th.wallBase} />
       </mesh>
-      {Array.from({ length: slats }, (_, i) => (
+      {th.wall === "slats" && Array.from({ length: slats }, (_, i) => (
         <mesh key={i} position={[slatX0 + 0.04 + i * 0.08, ROOM.H / 2, 0.02]}>
           <boxGeometry args={[0.045, ROOM.H - 0.04, 0.025]} />
-          <meshStandardMaterial color={i % 3 === 0 ? WALNUT_DARK : WALNUT} />
+          <meshStandardMaterial color={i % 3 === 0 ? th.slatAlt : th.slat} />
         </mesh>
       ))}
-      <mesh position={[(slatX0 + slatX1) / 2, ROOM.H - 0.06, 0.05]}>
-        <boxGeometry args={[slatX1 - slatX0, 0.025, 0.02]} />
-        <meshStandardMaterial ref={cove} color="#ffd9a8" emissive="#ffcf8a" emissiveIntensity={1} toneMapped={false} />
-      </mesh>
-      {/* backlit sign: dark plate with a warm halo behind it */}
+      {th.wall === "panel" && <HexPanels x0={slatX0} x1={slatX1} th={th} rgb={rgb} />}
+      {th.wall === "arch" && <Arch th={th} />}
+      {coveMat ? (
+        <mesh position={[(slatX0 + slatX1) / 2, ROOM.H - 0.06, 0.05]} material={coveMat}>
+          <boxGeometry args={[slatX1 - slatX0, 0.025, 0.02]} />
+        </mesh>
+      ) : (
+        <mesh position={[(slatX0 + slatX1) / 2, ROOM.H - 0.06, 0.05]}>
+          <boxGeometry args={[slatX1 - slatX0, 0.025, 0.02]} />
+          <meshStandardMaterial ref={cove} color={th.cove} emissive={th.cove} emissiveIntensity={1} toneMapped={false} />
+        </mesh>
+      )}
+      {/* backlit sign: a plate with a soft halo behind it */}
       <group position={[MX, 1.98, 0.06]}>
-        <mesh position={[0, 0, -0.01]}>
+        <mesh position={[0, 0, -0.01]} visible={th.haloOpacity > 0}>
           <planeGeometry args={[1.35, 0.48]} />
-          <meshBasicMaterial color="#ffcf8a" transparent opacity={0.35} toneMapped={false} />
+          <meshBasicMaterial color={th.halo} transparent opacity={th.haloOpacity} toneMapped={false} />
         </mesh>
         <RoundedBox args={[1.2, 0.34, 0.03]} radius={0.01} smoothness={2}>
-          <meshStandardMaterial color="#111315" />
+          <meshStandardMaterial color={th.signPlate} />
         </RoundedBox>
         <Suspense fallback={null}>
-          <Text font={SCENE_FONT} position={[0, 0, 0.02]} fontSize={0.16} color="#f5f5f0" anchorX="center" anchorY="middle" letterSpacing={0.14}>
-            rnldvrgl
+          <Text font={SCENE_FONT} position={[0, 0, 0.02]} fontSize={0.16} color={th.signInk} anchorX="center" anchorY="middle" letterSpacing={0.14}>
+            {HQ.owner.handle}
           </Text>
         </Suspense>
       </group>
@@ -292,13 +368,13 @@ function BossDecor({ pal, shadows }: { pal: Palette; shadows: boolean }) {
         {[0, 1].map((s) => (
           <mesh key={s} position={[s ? 0.36 : -0.36, 0.95, 0]} castShadow={shadows}>
             <boxGeometry args={[0.04, 1.9, 0.36]} />
-            <meshStandardMaterial color={WALNUT} />
+            <meshStandardMaterial color={th.shelf} />
           </mesh>
         ))}
         {[0.04, 0.5, 0.95, 1.4, 1.88].map((y) => (
           <mesh key={y} position={[0, y, 0]}>
             <boxGeometry args={[0.76, 0.035, 0.36]} />
-            <meshStandardMaterial color={WALNUT} />
+            <meshStandardMaterial color={th.shelf} />
           </mesh>
         ))}
         {[0.5, 0.95, 1.4].flatMap((y, row) => BOOKS.slice(row, row + 5).map((c, i) => (
@@ -319,27 +395,27 @@ function BossDecor({ pal, shadows }: { pal: Palette; shadows: boolean }) {
       <group position={[X1 - 0.95, 0, 3.2]}>
         <mesh position={[-0.1, 0.006, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[1.7, 1.6]} />
-          <meshStandardMaterial color="#cfccc4" roughness={1} />
+          <meshStandardMaterial color={th.loungeRug} roughness={1} />
         </mesh>
         <group position={[0.55, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
           <RoundedBox args={[1.45, 0.28, 0.78]} radius={0.06} smoothness={2} position={[0, 0.22, 0]} castShadow={shadows}>
-            <meshStandardMaterial color="#2f3338" roughness={0.8} />
+            <meshStandardMaterial color={th.sofa} roughness={0.8} />
           </RoundedBox>
           {[-0.34, 0.34].map((x) => (
             <RoundedBox key={x} args={[0.66, 0.14, 0.62]} radius={0.05} smoothness={2} position={[x, 0.42, -0.04]} castShadow={shadows}>
-              <meshStandardMaterial color="#4a4f57" roughness={0.9} />
+              <meshStandardMaterial color={th.cushion} roughness={0.9} />
             </RoundedBox>
           ))}
           <RoundedBox args={[1.45, 0.42, 0.18]} radius={0.06} smoothness={2} position={[0, 0.55, 0.3]} castShadow={shadows}>
-            <meshStandardMaterial color="#2f3338" roughness={0.8} />
+            <meshStandardMaterial color={th.sofa} roughness={0.8} />
           </RoundedBox>
           {[-0.68, 0.68].map((x) => (
             <RoundedBox key={x} args={[0.12, 0.42, 0.78]} radius={0.05} smoothness={2} position={[x, 0.38, 0]} castShadow={shadows}>
-              <meshStandardMaterial color="#2f3338" roughness={0.8} />
+              <meshStandardMaterial color={th.sofa} roughness={0.8} />
             </RoundedBox>
           ))}
           <RoundedBox args={[0.34, 0.3, 0.1]} radius={0.04} smoothness={2} position={[-0.42, 0.6, 0.18]} rotation={[0.2, 0, 0.1]}>
-            <meshStandardMaterial color="#c2410c" />
+            <meshStandardMaterial color={th.pillow} />
           </RoundedBox>
         </group>
         {/* stone coffee table on a solid plinth */}
@@ -371,7 +447,7 @@ function BossDecor({ pal, shadows }: { pal: Palette; shadows: boolean }) {
           </mesh>
           <mesh position={[0, 1.5, 0]}>
             <cylinderGeometry args={[0.17, 0.2, 0.26, 20, 1, true]} />
-            <meshStandardMaterial ref={lamp} color="#f4f1ea" emissive="#ffd59a" emissiveIntensity={0.4} side={THREE.DoubleSide} toneMapped={false} />
+            <meshStandardMaterial ref={lamp} color={th.shade} emissive="#ffd59a" emissiveIntensity={0.4} side={THREE.DoubleSide} toneMapped={false} />
           </mesh>
         </group>
       </group>
@@ -379,12 +455,12 @@ function BossDecor({ pal, shadows }: { pal: Palette; shadows: boolean }) {
       {/* low credenza along the front glass, with a vase and books */}
       <group position={[X0 + 2.15, 0, Z1 - 0.28]}>
         <RoundedBox args={[1.4, 0.5, 0.4]} radius={0.02} smoothness={2} position={[0, 0.27, 0]} castShadow={shadows}>
-          <meshStandardMaterial color={WALNUT} />
+          <meshStandardMaterial color={th.credenza} />
         </RoundedBox>
         {[-0.35, 0.35].map((x) => (
           <mesh key={x} position={[x, 0.27, 0.201]}>
             <planeGeometry args={[0.66, 0.42]} />
-            <meshStandardMaterial color={WALNUT_DARK} />
+            <meshStandardMaterial color={th.credenzaDoor} />
           </mesh>
         ))}
         <mesh position={[-0.4, 0.66, 0]}>
@@ -406,15 +482,15 @@ function BossDecor({ pal, shadows }: { pal: Palette; shadows: boolean }) {
         </mesh>
         <mesh position={[0, 0, 0.017]}>
           <planeGeometry args={[0.68, 0.46]} />
-          <meshStandardMaterial color="#f3f0e8" />
+          <meshStandardMaterial color={th.art[0]} />
         </mesh>
         <mesh position={[-0.1, 0.03, 0.019]}>
           <circleGeometry args={[0.13, 24]} />
-          <meshStandardMaterial color="#d97757" />
+          <meshStandardMaterial color={th.art[1]} emissive={style === "gaming" ? th.art[1] : "#000000"} emissiveIntensity={0.6} toneMapped={style !== "gaming"} />
         </mesh>
         <mesh position={[0.12, -0.08, 0.02]}>
           <planeGeometry args={[0.3, 0.12]} />
-          <meshStandardMaterial color="#1f2937" />
+          <meshStandardMaterial color={th.art[2]} emissive={style === "gaming" ? th.art[2] : "#000000"} emissiveIntensity={0.6} toneMapped={style !== "gaming"} />
         </mesh>
       </group>
 
@@ -521,6 +597,137 @@ function BossDecor({ pal, shadows }: { pal: Palette; shadows: boolean }) {
         <mesh position={[0, 0.4, -0.22]} rotation={[0.9, 0, 0]}>
           <coneGeometry args={[0.07, 0.12, 14, 1, true]} />
           <meshStandardMaterial color="#1f2328" side={THREE.DoubleSide} />
+        </mesh>
+      </group>
+
+      {style === "gaming" && <GamingExtras rgb={rgb} />}
+      {style === "cozy" && <CozyExtras pal={pal} shadows={shadows} reducedMotion={reducedMotion} />}
+      {style === "minimal" && <MinimalExtras pal={pal} shadows={shadows} />}
+    </group>
+  );
+}
+
+/* ------------------------------------------------------------------ style extras */
+
+/** Gaming: hexagon acoustic panels on the feature wall, a few lit with the RGB colour. */
+function HexPanels({ x0, x1, th, rgb }: { x0: number; x1: number; th: Theme; rgb: THREE.Material }) {
+  const R = 0.2, cx = (x0 + x1) / 2;
+  // a honeycomb cluster either side of the sign
+  const cells: [number, number][] = [];
+  for (const side of [-1, 1]) {
+    const bx = cx + side * 0.95;
+    for (const [dx, dy] of [[0, 0], [0.36, 0.21], [0, 0.42], [-0.36, 0.21], [0.36, -0.21], [0, -0.42], [-0.36, -0.21]] as const) cells.push([bx + dx * side, 1.3 + dy]);
+  }
+  return (
+    <group>
+      {cells.map(([x, y], i) => (
+        <group key={i} position={[x, y, 0.03]}>
+          <mesh rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[R, R, 0.04, 6]} />
+            <meshStandardMaterial color={i % 3 ? th.slat : th.slatAlt} roughness={0.95} />
+          </mesh>
+          {i % 4 === 1 && (
+            <mesh position={[0, 0, 0.022]} material={rgb}>
+              <circleGeometry args={[R * 0.82, 6]} />
+            </mesh>
+          )}
+        </group>
+      ))}
+    </group>
+  );
+}
+
+/** Gaming: neon tubes along the top of the glass, and a glowing "GG" over the lounge. */
+function GamingExtras({ rgb }: { rgb: THREE.Material }) {
+  return (
+    <group>
+      <mesh position={[MX, GH - 0.04, Z1 - 0.04]} material={rgb}>
+        <boxGeometry args={[X1 - X0 - 0.1, 0.02, 0.02]} />
+      </mesh>
+      <mesh position={[X1 - 0.04, GH - 0.04, Z1 / 2]} material={rgb}>
+        <boxGeometry args={[0.02, 0.02, Z1 - 0.1]} />
+      </mesh>
+      <mesh position={[X0 + 0.04, GH - 0.04, Z1 / 2]} material={rgb}>
+        <boxGeometry args={[0.02, 0.02, Z1 - 0.1]} />
+      </mesh>
+      <Suspense fallback={null}>
+        <Text font={SCENE_FONT} position={[X1 - 0.08, 1.75, 3.2]} rotation={[0, Math.PI / 2, 0]} fontSize={0.34} color="#f0abfc" anchorX="center" anchorY="middle" letterSpacing={0.1}>
+          GG
+        </Text>
+      </Suspense>
+    </group>
+  );
+}
+
+/** Cozy: a plaster arch behind the sign. */
+function Arch({ th }: { th: Theme }) {
+  const w = 1.7, h = 1.5, y0 = 0.6;
+  return (
+    <group position={[MX, 0, 0.012]}>
+      <mesh position={[0, y0 + h / 2, 0]}>
+        <planeGeometry args={[w, h]} />
+        <meshStandardMaterial color={th.slatAlt} />
+      </mesh>
+      <mesh position={[0, y0 + h, 0]}>
+        <circleGeometry args={[w / 2, 32, 0, Math.PI]} />
+        <meshStandardMaterial color={th.slatAlt} />
+      </mesh>
+    </group>
+  );
+}
+
+/** Cozy: fairy lights draped across the back wall, a rattan pendant over the lounge, plants everywhere. */
+function CozyExtras({ pal, shadows, reducedMotion }: { pal: Palette; shadows: boolean; reducedMotion: boolean }) {
+  const bulbs = useMemo(() => new THREE.MeshStandardMaterial({ color: "#fff3d6", emissive: "#ffd48a", emissiveIntensity: 1, toneMapped: false }), []);
+  useFrame(({ clock }) => {
+    const twinkle = reducedMotion ? 0 : Math.sin(clock.elapsedTime * 2.2) * 0.25;
+    bulbs.emissiveIntensity = 0.9 + light.lamps * 1.6 + twinkle;
+  });
+  const x0 = X0 + 1.1, x1 = X1 - 1.35, n = 16;
+  const pts = Array.from({ length: n }, (_, i) => {
+    const t = i / (n - 1);
+    // two sagging swags
+    const sag = Math.sin(((t * 2) % 1) * Math.PI) * 0.16;
+    return [x0 + t * (x1 - x0), ROOM.H - 0.2 - sag] as const;
+  });
+  return (
+    <group>
+      {pts.map(([x, y], i) => (
+        <mesh key={i} position={[x, y, 0.06]} material={bulbs}>
+          <sphereGeometry args={[0.022, 8, 6]} />
+        </mesh>
+      ))}
+      {/* rattan pendant over the lounge */}
+      <group position={[X1 - 1.3, ROOM.H - 0.55, 3.2]}>
+        <mesh position={[0, 0.3, 0]}>
+          <cylinderGeometry args={[0.006, 0.006, 0.55, 4]} />
+          <meshStandardMaterial color="#6b4a33" />
+        </mesh>
+        <mesh>
+          <sphereGeometry args={[0.2, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.62]} />
+          <meshStandardMaterial color="#c8a26b" side={THREE.DoubleSide} roughness={1} emissive="#ffcf9a" emissiveIntensity={0.25} />
+        </mesh>
+      </group>
+      <TallPlant pal={pal} shadows={shadows} position={[X0 + 1.1, 0, 0.35]} scale={0.75} />
+      <TallPlant pal={pal} shadows={shadows} position={[X1 - 0.35, 0, Z1 - 0.35]} scale={0.7} />
+      <Plant pal={pal} shadows={shadows} position={[MX - 0.95, DESK_H + 0.03, 0.55]} scale={0.32} />
+    </group>
+  );
+}
+
+/** Minimal: one big plant in the corner and a single-line drawing over the credenza. */
+function MinimalExtras({ pal, shadows }: { pal: Palette; shadows: boolean }) {
+  return (
+    <group>
+      <TallPlant pal={pal} shadows={shadows} position={[X1 - 0.35, 0, Z1 - 0.4]} scale={0.95} />
+      <group position={[X0 + 0.03, 1.5, 2.6]} rotation={[0, Math.PI / 2, 0]}>
+        <mesh>
+          <planeGeometry args={[0.7, 0.9]} />
+          <meshStandardMaterial color="#f8f6f1" />
+        </mesh>
+        <mesh position={[0, 0.05, 0.003]}>
+          <torusGeometry args={[0.16, 0.006, 4, 40, Math.PI * 1.6]} />
+          <meshBasicMaterial color="#111827" />
         </mesh>
       </group>
     </group>

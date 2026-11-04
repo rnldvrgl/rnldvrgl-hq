@@ -11,11 +11,11 @@ import { isEmployeeId, teamById, type AiProvider, type OfficeState } from "@/lib
 import { useIsDesktop } from "@/hooks/use-media";
 import { cn } from "@/lib/utils";
 import { ThemePicker } from "@/components/ThemePicker";
-import { SoundToggle } from "@/components/SoundToggle";
 import { OfficeScene } from "./OfficeScene";
 import { DeskPanel, Reminders } from "./DeskPanel";
 import { PHASE_ICON, PHASE_LABEL, phaseOf, useSceneNow } from "./scene-clock-ui";
 import { Roster } from "./Roster";
+import { HQ } from "@/hq.config";
 
 gsap.registerPlugin(useGSAP);
 
@@ -125,12 +125,12 @@ function ClockBadge({ short = false, className }: { short?: boolean; className?:
   const phase = phaseOf(now);
   const Icon = PHASE_ICON[phase];
   return (
-    <span className={cn(PILL, className)} title={`${PHASE_LABEL[phase]} in Mabalacat City, Pampanga`}>
+    <span className={cn(PILL, className)} title={`${PHASE_LABEL[phase]} in ${HQ.city.full}`}>
       <IconChip icon={Icon} tone="primary" />
       <span className="flex items-baseline gap-1.5">
         {!short && <span className="text-muted-foreground">{WEEKDAY.format(now)}</span>}
         <span className="font-mono text-[13px] font-semibold tabular-nums">{TIME_ONLY.format(now)}</span>
-        {!short && <span className="hidden text-muted-foreground xl:inline">Mabalacat</span>}
+        {!short && <span className="hidden text-muted-foreground xl:inline">{HQ.city.name}</span>}
       </span>
     </span>
   );
@@ -188,7 +188,7 @@ function Brand({ compact = false }: { compact?: boolean }) {
     <div data-head className="flex shrink-0 items-center gap-2.5">
       <Logo className={compact ? "size-9" : "size-10"} />
       <div className="grid leading-none">
-        <span className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground">rnldvrgl</span>
+        <span className="max-w-[7.5rem] truncate font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground">{HQ.owner.handle}</span>
         <h1 className={cn("mt-1 font-bold tracking-tight", compact ? "text-lg" : "text-xl")}>
           HQ<span className="text-ring">.</span>
         </h1>
@@ -273,7 +273,6 @@ function DesktopOffice() {
           <Metrics working={working} waiting={waiting} reminders={reminders} />
           <ClockBadge />
           <AiBadge provider={provider} />
-          <SoundToggle />
           <ThemePicker />
         </div>
       </header>
@@ -342,14 +341,14 @@ function PhoneOffice() {
   return (
     <div className="flex h-dvh flex-col overflow-hidden">
       <header className="shrink-0 px-3 pb-2 pt-[max(10px,env(safe-area-inset-top,0px))]">
-        <div className={cn("flex h-14 items-center justify-between gap-2 rounded-2xl pl-2 pr-1.5", GLASS)}>
+        <div className={cn("flex h-14 min-w-0 items-center justify-between gap-2 overflow-hidden rounded-2xl pl-2 pr-1.5", GLASS)}>
           <Brand compact />
-          <div className="flex min-w-0 items-center gap-1.5">
+          <div className="flex min-w-0 shrink items-center justify-end gap-1.5">
             <Metrics working={working} waiting={waiting} compact />
-            <ClockBadge short className="max-[389px]:hidden" />
+            {/* the scene's own time pill shows the clock on phones; the badge only fits wider screens */}
+            <ClockBadge short className="max-[519px]:hidden" />
             <AiBadge provider={provider} compact className="hidden sm:inline-flex" />
-            <SoundToggle compact />
-            <ThemePicker compact />
+            <ThemePicker compact className="max-[359px]:hidden" />
           </div>
         </div>
       </header>

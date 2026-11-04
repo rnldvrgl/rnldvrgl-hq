@@ -132,13 +132,13 @@ const DOG_ROUTE = compile([
   { x: DOGHOUSE.x - 0.7, z: DOGHOUSE.z },
 ] satisfies Waypoint[], 1.1);
 
-function Dog() {
+function Dog({ frozen }: { frozen: boolean }) {
   const group = useRef<THREE.Group>(null);
   const rig = useRef<Rig>({ legs: [], tail: null, head: null, body: null });
   useFrame(({ clock }) => {
     const g = group.current;
     if (!g) return;
-    const t = clock.elapsedTime;
+    const t = frozen ? 7 : clock.elapsedTime; // minimal motion: napping by the doghouse
     const s = sample(DOG_ROUTE, t % DOG_ROUTE.duration);
     g.position.set(s.x, 0, s.z);
     g.rotation.y = s.heading;
@@ -194,13 +194,13 @@ const CAT_ROUTE = compile([
   { x: 2.6, z: WALK_Z },
 ] satisfies Waypoint[], 0.45);
 
-function Cat() {
+function Cat({ frozen }: { frozen: boolean }) {
   const group = useRef<THREE.Group>(null);
   const rig = useRef<Rig>({ legs: [], tail: null, head: null, body: null });
   useFrame(({ clock }) => {
     const g = group.current;
     if (!g) return;
-    const t = clock.elapsedTime + 11;
+    const t = frozen ? 9 : clock.elapsedTime + 11;
     const s = sample(CAT_ROUTE, t % CAT_ROUTE.duration);
     g.position.set(s.x, 0, s.z);
     g.rotation.y = s.heading;
@@ -218,12 +218,12 @@ function Cat() {
   );
 }
 
-export function Pets() {
+export function Pets({ frozen = false }: { frozen?: boolean }) {
   return (
     <group>
       <Doghouse />
-      <Dog />
-      <Cat />
+      <Dog frozen={frozen} />
+      <Cat frozen={frozen} />
     </group>
   );
 }

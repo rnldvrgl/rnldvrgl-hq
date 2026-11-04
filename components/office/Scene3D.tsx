@@ -23,7 +23,15 @@ import { LabelLayer, LabelProjector } from "./Labels";
 import { typingSources } from "@/lib/ambience";
 import { chairOf, OWNER_CHAIR } from "./routes";
 import { SceneControls } from "./SceneControls";
-import { PAL, DESK, ROOM, SCENE, OFFICE } from "./palette";
+import { PAL, PAL_BLUSH, DESK, ROOM, SCENE, OFFICE } from "./palette";
+import { Neighbourhood } from "./Neighbourhood";
+import { Traffic } from "./Traffic";
+import { Vendors } from "./Vendors";
+import { SoundSystem } from "./SoundSystem";
+import { TOWN } from "./world";
+import { useSettings } from "@/lib/settings";
+import { useStyleChoice } from "@/components/ThemePicker";
+import { HQ } from "@/hq.config";
 
 const { ACTION } = CameraControlsImpl;
 const DEG = Math.PI / 180;
@@ -33,7 +41,8 @@ const DEFAULT_AZIMUTH = 45 * DEG;
 /** Portrait phones look down the length of the room instead, so it fills the tall screen. */
 const PORTRAIT_AZIMUTH = 72 * DEG;
 const DEFAULT_POLAR = Math.acos(1 / Math.sqrt(3)); // ≈ 54.7°
-const DISTANCE = 34;
+/** Far enough back that, zoomed all the way out at the flattest angle, the ground nearest the camera isn't clipped. */
+const DISTANCE = 120;
 
 /** How far the view may turn: always from the open front-right, so the two back walls never block the room. */
 const AZIMUTH_RANGE = [12 * DEG, 78 * DEG] as const;
@@ -45,8 +54,8 @@ const WHOLE: Box = { x0: SCENE.x0, x1: SCENE.x1, z0: SCENE.z0, z1: SCENE.z1 };
 /** Portrait screens start on the team's floor (they can pan to the rest). */
 const TEAM_FLOOR: Box = { x0: 0, x1: OFFICE.x0 + 0.4, z0: 0, z1: ROOM.D };
 
-/** The camera target can't leave the diorama. */
-const BOUNDS = new THREE.Box3(new THREE.Vector3(WHOLE.x0, 0, WHOLE.z0), new THREE.Vector3(WHOLE.x1, ROOM.H, WHOLE.z1));
+/** The camera target stays within the town (the ground and streets reach far past it, so no edge ever shows). */
+const BOUNDS = new THREE.Box3(new THREE.Vector3(TOWN.x0, 0, TOWN.z0), new THREE.Vector3(TOWN.x1, ROOM.H, TOWN.z1));
 
 const centerOf = (b: Box) => ({ x: (b.x0 + b.x1) / 2, y: ROOM.H / 2, z: (b.z0 + b.z1) / 2 });
 
@@ -111,12 +120,13 @@ function CameraRig({ reducedMotion, handle }: { reducedMotion: boolean; handle: 
   useEffect(() => {
     const c = controls.current;
     if (!c) return;
-    c.minZoom = wholeZoom * 0.8;
+    // zoom out far enough to see the neighbourhood, never so far that the ground's edge could show
+    c.minZoom = Math.max(wholeZoom * 0.45, Math.max(size.width, size.height) / 150);
     c.maxZoom = Math.max(frameZoom, wholeZoom) * 5;
     c.setBoundary(BOUNDS);
     if (!moved.current && !useOffice.getState().selected) frameView(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wholeZoom, frameZoom, azimuth]);
+  }, [wholeZoom, frameZoom, azimuth, size.width, size.height]);
 
   // Glide to the selected desk, or back to the default framing.
   useEffect(() => {
@@ -171,14 +181,15 @@ function CameraRig({ reducedMotion, handle }: { reducedMotion: boolean; handle: 
 }
 
 /**
- * Low-power mode renders on demand: this asks for a frame 30 times a second instead of every display refresh.
+ * Low-power and minimal-motion modes render on demand: this asks for `fps` frames a second instead of
+ * every display refresh (30 for low power, 12 for minimal motion, where little moves anyway).
  */
-function ThirtyFps() {
+function FrameCap({ fps }: { fps: number }) {
   const invalidate = useThree((s) => s.invalidate);
   useEffect(() => {
-    const t = setInterval(() => invalidate(), 1000 / 30);
+    const t = setInterval(() => invalidate(), 1000 / fps);
     return () => clearInterval(t);
-  }, [invalidate]);
+  }, [invalidate, fps]);
   useFrame(() => undefined);
   return null;
 }
@@ -219,7 +230,12 @@ const manilaDate = (ms: number): string => new Date(ms + MANILA_OFFSET_MS).toISO
 
 export default function Scene3D() {
   const isDesktop = useIsDesktop();
-  const reducedMotion = usePrefersReducedMotion();
+  const prefersReduced = usePrefersReducedMotion();
+  const minimal = useSettings((s) => s.motion === "minimal");
+  const show = useSettings((s) => s.show);
+  const [style] = useStyleChoice();
+  /** Reduced motion (OS setting) or minimal motion (Settings): no idle animation, no camera glides. */
+  const reducedMotion = prefersReduced || minimal;
   const select = useOffice((s) => s.select);
   const employees = useOffice((s) => s.data.employees);
   const duty = useTrashDuty();
@@ -227,14 +243,17 @@ export default function Scene3D() {
   const pressAt = useRef<{ x: number; y: number } | null>(null);
   const lowPower = useOffice((s) => s.lowPower);
   const loadWeather = useOffice((s) => s.loadWeather);
-  const pal = PAL;
+  const pal = style === "blush" ? PAL_BLUSH : PAL;
+  const capped = lowPower || minimal;
   const shadows = isDesktop && !lowPower;
 
-  // Live Manila weather for the windows, refreshed every 15 minutes.
+  // Live weather at the office, refreshed every 10 minutes (and when you come back to the tab).
   useEffect(() => {
     void loadWeather();
-    const t = setInterval(() => void loadWeather(), 15 * 60_000);
-    return () => clearInterval(t);
+    const t = setInterval(() => void loadWeather(), 10 * 60_000);
+    const onVisible = () => { if (document.visibilityState === "visible") void loadWeather(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", onVisible); };
   }, [loadWeather]);
 
   const todayKey = manilaDate(Date.now());
@@ -251,8 +270,8 @@ export default function Scene3D() {
         orthographic
         shadows={shadows}
         dpr={lowPower ? 1 : isDesktop ? [1, 2] : [1, 1.75]}
-        frameloop={lowPower ? "demand" : "always"}
-        camera={{ position: defaultEye(centerOf(WHOLE).x, ROOM.H / 2, centerOf(WHOLE).z), zoom: 30, near: 0.1, far: 200 }}
+        frameloop={capped ? "demand" : "always"}
+        camera={{ position: defaultEye(centerOf(WHOLE).x, ROOM.H / 2, centerOf(WHOLE).z), zoom: 30, near: 0.1, far: 700 }}
         gl={{ antialias: true, alpha: true }}
         onPointerMissed={(e) => {
           // A drag that pans the camera also ends in a "click" on empty floor; only a real click deselects.
@@ -260,19 +279,23 @@ export default function Scene3D() {
           if (from && Math.hypot(e.clientX - from.x, e.clientY - from.y) > DRAG_PX) return;
           select(null);
         }}
-        aria-label="rnldvrgl HQ in 3D. Drag to move around, pinch or scroll to zoom. Select a person or desk to open it."
+        aria-label={`${HQ.appName} in 3D. Drag to move around, pinch or scroll to zoom. Select a person or desk to open it.`}
         role="img"
       >
         <AdaptiveDpr pixelated={false} />
-        {lowPower && <ThirtyFps />}
+        {capped && <FrameCap fps={minimal ? 12 : 30} />}
         <Lighting shadows={shadows} />
         <BubbleZoomWatcher />
         <LabelProjector />
         <SoundListener />
         <Room pal={pal} shadows={shadows} done={done} waiting={waiting} trashName={duty ? teamById[duty].name : null} />
+        <SoundSystem pal={pal} shadows={shadows} reducedMotion={reducedMotion} x0={3.2} x1={8.1} />
         <OwnerOffice pal={pal} shadows={shadows} reducedMotion={reducedMotion} />
         <Grounds pal={pal} shadows={shadows} />
-        <Pets />
+        {show.neighbourhood && <Neighbourhood />}
+        {show.traffic && !minimal && <Traffic />}
+        {show.vendors && <Vendors shadows={shadows} frozen={minimal} />}
+        {show.pets && <Pets frozen={minimal} />}
         <Amenities pal={pal} shadows={shadows} assignee={duty} />
         {TEAM.map((meta, i) => (
           <Desk3D key={meta.id} meta={meta} index={i} pal={pal} shadows={shadows} reducedMotion={reducedMotion} />

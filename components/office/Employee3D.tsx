@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, type Ref } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { BellRing, House, Pause, Trash2, TriangleAlert, LogIn, LogOut, UtensilsCrossed, Users, Wind, Presentation } from "lucide-react";
@@ -18,6 +18,8 @@ import {
 } from "./routes";
 import { launchDelivery } from "./Deliveries";
 import { useSceneNow } from "./scene-clock-ui";
+import { OWNER, OWNERS } from "@/hq.config";
+import { useSettings } from "@/lib/settings";
 
 const HAIR: readonly HairStyle[] = ["bun", "short", "short", "long", "neat", "long", "short", "bun"];
 const PANTS = ["#2f3a4a", "#3b3f46", "#4b5563", "#1f2937"] as const;
@@ -38,33 +40,48 @@ type Activity =
  */
 function activityOf(min: number, weekday: boolean, meta: EmployeeMeta, index: number, status: EmployeeStatus, enabled: boolean, duty: EmployeeId | null): Activity {
   if (!enabled) return { kind: "away", why: "paused" };
+  const on = useSettings.getState().routine;
   const route = (purpose: Purpose, r: Route, t: number): Activity => ({ kind: "route", route: r, t, reverse: false, purpose });
-  if (duty === meta.id) {
+  if (duty === meta.id && on.trashRun) {
     const t = trashRunT(min, meta.id);
     if (t !== null) return route("collect", trashRoute(meta.id), t);
   }
-  const drop = dropRunT(min, meta.id);
+  const drop = on.trashDrop ? dropRunT(min, meta.id) : null;
   if (drop !== null) return route("drop", dropRoute(meta.id), drop);
   if (status === "idle") {
-    if (weekday) {
+    if (weekday && on.standup) {
       const t = standupRunT(min, meta.id);
       if (t !== null) return route("standup", standupRoute(meta.id), t);
     }
-    if (weekday) {
+    if (weekday && on.meeting) {
       const t = meetingRunT(min, meta.id);
       if (t !== null) return route("meeting", meetingRoute(meta.id), t);
     }
-    const lunch = lunchRunT(min, meta.id);
+    const lunch = on.lunch ? lunchRunT(min, meta.id) : null;
     if (lunch !== null) return route("lunch", lunchRoute(meta.id), lunch);
-    const c = commuteAt(min, meta, index);
+    const c = on.commute ? commuteAt(min, meta, index) : null;
     if (c) return { kind: "route", route: c.route, t: c.t, reverse: c.reverse, purpose: c.reverse ? "arriving" : "leaving" };
     if (isAfterHours(min)) return { kind: "away", why: "home" };
   }
   return { kind: "seat" };
 }
 
+/** The vape cloud: puffs animated by vapePose. */
+export function VaporPuffs({ ref }: { ref: Ref<THREE.Group> }) {
+  return (
+    <group ref={ref} visible={false}>
+      {[0, 1, 2, 3, 4, 5, 6, 7].map((j) => (
+        <mesh key={j}>
+          <icosahedronGeometry args={[1, 1]} />
+          <meshStandardMaterial color="#ffffff" emissive="#eef2f6" emissiveIntensity={0.6} transparent opacity={0.6} depthWrite={false} roughness={1} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
 /** Vaping: a 7-second cycle (draw, exhale a cloud, chat), plus the cloud itself. */
-function vapePose(p: Pose, vapor: THREE.Group | null, reducedMotion: boolean): void {
+export function vapePose(p: Pose, vapor: THREE.Group | null, reducedMotion: boolean): void {
   const k = (p.time % 7) / 7;
   p.mug = k < 0.2 ? 1 : 0;
   p.nod = k > 0.6 && k < 0.8 ? 1 : 0;
@@ -86,7 +103,12 @@ function vapePose(p: Pose, vapor: THREE.Group | null, reducedMotion: boolean): v
 }
 
 /** Where someone's status puts them between scheduled events. */
-const wantPlace = (status: EmployeeStatus): Place => (status === "idle" ? "vape" : status === "error" ? "boss" : "desk");
+function wantPlace(status: EmployeeStatus): Place {
+  const on = useSettings.getState().routine;
+  if (status === "idle" && on.idleBreaks) return "vape";
+  if (status === "error" && on.errorHelp) return "boss";
+  return "desk";
+}
 
 type PlaceState = { init: boolean; at: Place; slot: number; to: Place; toSlot: number; route: Route | null; start: number };
 
@@ -111,6 +133,7 @@ export function Employee3D({ meta, index, pal, shadows, reducedMotion, duty }: P
   const select = useOffice((s) => s.select);
   const selected = useOffice((s) => s.selected === meta.id);
   const enabled = emp?.enabled ?? true;
+  useSettings((s) => s.routine); // re-render the bubble when the daily routine changes
   const status: EmployeeStatus = emp?.status ?? "idle";
   const shirt = SHIRTS[meta.color - 1];
 
@@ -197,7 +220,7 @@ export function Employee3D({ meta, index, pal, shadows, reducedMotion, duty }: P
         g.position.set(spot.x, 0, spot.z);
         g.rotation.y = spot.face ?? 0;
         if (spot.seated) p.sit = 1;
-        if (ps.at === "vape") vapePose(p, vapor.current, reducedMotion);
+        if (ps.at === "vape") vapePose(p, vapor.current, reducedMotion || !useSettings.getState().show.smoke);
         else p.nod = Math.sin(p.time * 0.35) > 0.9 ? 1 : 0; // waiting for Ronald, the odd glance up
       }
     } else {
@@ -218,7 +241,7 @@ export function Employee3D({ meta, index, pal, shadows, reducedMotion, duty }: P
         p.mug = Math.max(0, Math.sin(p.time * 0.9)) > 0.75 ? 1 : 0;
         p.nod = Math.sin(p.time * 0.3) > 0.6 ? 1 : 0;
       }
-      if (s.act === "vape") vapePose(p, vapor.current, reducedMotion);
+      if (s.act === "vape") vapePose(p, vapor.current, reducedMotion || !useSettings.getState().show.smoke);
       if (s.act === "meet") {
         p.sit = 1;
         // taking notes, nodding along, the odd word
@@ -276,7 +299,7 @@ export function Employee3D({ meta, index, pal, shadows, reducedMotion, duty }: P
     detail = clip(emp?.summary) ?? "Tap to review";
   } else if (status === "error") {
     tone = "error"; label = "Error"; Icon = TriangleAlert; chip = undefined;
-    detail = place.current.route ? "Going to Ronald for help" : place.current.at === "boss" ? "Waiting in Ronald's office" : "Tap to see what happened";
+    detail = place.current.route ? `Going to ${OWNER} for help` : place.current.at === "boss" ? `Waiting in ${OWNERS} office` : "Tap to see what happened";
   } else {
     const next = nextSlot(meta.schedule, now);
     const nextText = meta.schedule.kind === "always" ? "Checks every 5 minutes" : next ? `Next ${formatManilaSoon(next, now)}` : meta.title;
@@ -312,14 +335,7 @@ export function Employee3D({ meta, index, pal, shadows, reducedMotion, duty }: P
           }
         />
       </group>
-      <group ref={vapor} visible={false}>
-        {[0, 1, 2, 3, 4, 5, 6, 7].map((j) => (
-          <mesh key={j}>
-            <icosahedronGeometry args={[1, 1]} />
-            <meshStandardMaterial color="#ffffff" emissive="#eef2f6" emissiveIntensity={0.6} transparent opacity={0.6} depthWrite={false} roughness={1} />
-          </mesh>
-        ))}
-      </group>
+      <VaporPuffs ref={vapor} />
       <Bubble
         id={meta.id}
         position={[0, seated || activity.kind === "away" ? 1.95 : 2.3, 0]}

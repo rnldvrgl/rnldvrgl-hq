@@ -2,6 +2,7 @@
 
 import { sceneNow, sceneWeather } from "@/lib/store";
 import { manilaMinutes } from "@/lib/office-clock";
+import { useSettings } from "@/lib/settings";
 
 /**
  * The office's background sound, generated live with Web Audio (no audio files):
@@ -9,7 +10,24 @@ import { manilaMinutes } from "@/lib/office-clock";
  *   (positional: loud when you're zoomed in on that desk, quiet or silent when it's far off or out of view),
  *   birds by day, crickets at night, traffic passing now and then, rain when it rains and thunder in storms.
  *   It reads the scene clock and weather, so previews sound right too.
+ *
+ * Plus the office sound system (Settings → Sound → Office music): a soft lo-fi loop with a warm sub-bass
+ * kick through the woofer, played during office hours (8 AM – 7 PM). The 3D subwoofer's cone pumps on each
+ * kick (wooferLevel below).
  */
+
+/** Lo-fi loop: 78 BPM, sixteenth-note steps, a four-chord progression (Am7, Fmaj7, Cmaj7, G6), one bar each. */
+const BPM = 78;
+const STEP = 60 / BPM / 4;
+const CHORDS: readonly (readonly number[])[] = [
+  [57, 60, 64, 67], // A C E G
+  [53, 57, 60, 64], // F A C E
+  [48, 52, 55, 59], // C E G B
+  [55, 59, 62, 64], // G B D E
+];
+const ROOTS = [33, 29, 36, 31];
+const KICKS = new Set([0, 7, 10]);
+const midiHz = (n: number) => 440 * 2 ** ((n - 69) / 12);
 
 /**
  * Typing sources, written by the 3D scene (see SoundListener in Scene3D): per desk, how loud it should be
@@ -54,6 +72,12 @@ export class Ambience {
   private nextBird = 0;
   private nextCar = 0;
   private nextThunder = 0;
+  private music: GainNode;
+  private musicLp: BiquadFilterNode;
+  private nextStep = 0;
+  private step = 0;
+  /** Audio-clock times of the recent kicks, for the woofer animation. */
+  kicks: number[] = [];
 
   constructor() {
     this.ctx = new AudioContext();
@@ -107,6 +131,61 @@ export class Ambience {
     lfo.connect(lfoGain).connect(pulse.gain);
     tone.connect(pulse).connect(this.crickets).connect(this.master);
     tone.start(); lfo.start();
+
+    // the sound system: everything musical goes through a warm low-pass (the lo-fi "dusty" top end)
+    this.music = ctx.createGain();
+    this.music.gain.value = 0;
+    this.musicLp = ctx.createBiquadFilter();
+    this.musicLp.type = "lowpass"; this.musicLp.frequency.value = 2200; this.musicLp.Q.value = 0.5;
+    this.musicLp.connect(this.music).connect(this.master);
+  }
+
+  get now(): number { return this.ctx.currentTime; }
+
+  /** Schedule the next ~0.4 s of the loop (called every 120 ms; audio-clock timing, so it never drifts). */
+  private playMusic() {
+    const ctx = this.ctx;
+    if (this.nextStep < ctx.currentTime) this.nextStep = ctx.currentTime + 0.05;
+    while (this.nextStep < ctx.currentTime + 0.4) {
+      const t = this.nextStep, s = this.step % 16, bar = Math.floor(this.step / 16) % CHORDS.length;
+      // swing: every other sixteenth a little late
+      const at = t + (s % 2 ? STEP * 0.12 : 0);
+      if (KICKS.has(s)) this.kick(at);
+      if (s === 4 || s === 12) this.burst({ dur: 0.16, gain: 0.05, type: "bandpass", freq: 1600, q: 0.8, out: this.musicLp, at });
+      if (s % 2 === 0) this.burst({ dur: 0.04, gain: s % 4 === 2 ? 0.018 : 0.01, type: "highpass", freq: 7000, out: this.musicLp, at });
+      if (s === 0 || s === 10) this.tone(midiHz(ROOTS[bar]), at, STEP * 5, 0.14, "sine");
+      if (s === 0) for (const n of CHORDS[bar]) this.tone(midiHz(n), at, STEP * 15, 0.022, "triangle");
+      if (s === 6 && bar % 2 === 1) this.tone(midiHz(CHORDS[bar][3] + 12), at, STEP * 3, 0.018, "sine");
+      this.nextStep += STEP;
+      this.step++;
+    }
+  }
+
+  /** A soft kick: a sine dropping from 110 Hz to 42 Hz. */
+  private kick(t: number) {
+    const ctx = this.ctx;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.setValueAtTime(110, t);
+    o.frequency.exponentialRampToValueAtTime(42, t + 0.14);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.32, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.42);
+    o.connect(g).connect(this.musicLp);
+    o.start(t); o.stop(t + 0.45);
+    this.kicks.push(t);
+    if (this.kicks.length > 6) this.kicks.shift();
+  }
+
+  private tone(freq: number, t: number, dur: number, gain: number, type: OscillatorType) {
+    const ctx = this.ctx;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain, t + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(this.musicLp);
+    o.start(t); o.stop(t + dur + 0.05);
   }
 
   async start(): Promise<void> {
@@ -131,8 +210,8 @@ export class Ambience {
   }
 
   /** A short filtered noise burst: a key press, a raindrop on glass, a car passing… */
-  private burst(opts: { dur: number; gain: number; type: BiquadFilterType; freq: number; q?: number; attack?: number; pan?: number; buf?: AudioBuffer }) {
-    const ctx = this.ctx, t = ctx.currentTime;
+  private burst(opts: { dur: number; gain: number; type: BiquadFilterType; freq: number; q?: number; attack?: number; pan?: number; buf?: AudioBuffer; out?: AudioNode; at?: number }) {
+    const ctx = this.ctx, t = opts.at ?? ctx.currentTime;
     const src = ctx.createBufferSource();
     src.buffer = opts.buf ?? this.white;
     const f = ctx.createBiquadFilter();
@@ -144,7 +223,7 @@ export class Ambience {
     g.gain.exponentialRampToValueAtTime(0.0001, t + opts.dur);
     const p = ctx.createStereoPanner();
     p.pan.value = opts.pan ?? 0;
-    src.connect(f).connect(g).connect(p).connect(this.master);
+    src.connect(f).connect(g).connect(p).connect(opts.out ?? this.master);
     src.start(t, Math.random());
     src.stop(t + opts.dur + 0.05);
   }
@@ -179,6 +258,12 @@ export class Ambience {
     this.set(this.crickets, night && !raining ? 0.0045 : 0);
     this.set(this.room, night ? 0.03 : 0.05);
 
+    // the sound system plays during office hours
+    const musicOn = useSettings.getState().music && min >= 480 && min < 1140;
+    this.set(this.music, musicOn ? 0.55 : 0);
+    if (musicOn) this.playMusic();
+    else this.kicks.length = 0;
+
     // keyboards: each audible desk types in its own bursts, at its own loudness and stereo position
     for (const [id, src] of typingSources) {
       if (src.gain < 0.03) continue;
@@ -209,7 +294,20 @@ export class Ambience {
 /* ------------------------------------------------------------------ one engine, switched in order */
 
 let engine: Ambience | null = null;
+let playing = false;
 let queue: Promise<void> = Promise.resolve();
+
+/** 0–1: how far the subwoofer's cone is pushed out right now (a quick decay after each kick). 0 when silent. */
+export function wooferLevel(): number {
+  if (!engine || !playing) return 0;
+  const now = engine.now;
+  let v = 0;
+  for (const t of engine.kicks) {
+    const dt = now - t;
+    if (dt >= 0 && dt < 0.5) v = Math.max(v, Math.exp(-dt * 11));
+  }
+  return v;
+}
 
 /**
  * Turn the ambience on or off. There's only ever one engine, and requests run one after another,
@@ -221,6 +319,7 @@ export function setSound(on: boolean): Promise<void> {
       if (!on) return;
       engine = new Ambience();
     }
+    playing = on;
     if (on) await engine.start();
     else await engine.stop();
   }).catch((e: unknown) => { console.warn("sound:", e instanceof Error ? e.message : e); });

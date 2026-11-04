@@ -7,7 +7,7 @@ import { TEAM, type EmployeeId, type EmployeeMeta } from "@/lib/team";
 import {
   hm, JANITOR_ROUNDS, TRASH_AT, TRASH_DROP_AT, HOME_FROM, BACK_AT, LUNCH_FROM, LUNCH_TO, STANDUP_FROM, STANDUP_TO, VAPE_FROM, VAPE_TO, MEETING_FROM, MEETING_TO,
 } from "@/lib/office-clock";
-import { DESK, DINING, DUMPSTER, ENTRANCE, HUDDLE, LANES, MAIN_BIN, MEETING, OFFICE, ROOM, VAPE } from "./palette";
+import { DESK, DINING, DUMPSTER, ENTRANCE, HUDDLE, LANES, MAIN_BIN, MEETING, OFFICE, OUTSIDE, ROOM, VAPE } from "./palette";
 
 export type Pt = { readonly x: number; readonly z: number };
 export type Act = "rise" | "sit" | "pickup" | "drop" | "toss" | "inspect" | "coffee" | "look" | "eat" | "listen" | "lead" | "vape" | "meet";
@@ -608,5 +608,55 @@ export function placeRoute(id: EmployeeId, from: Place, to: Place, fromSlot: num
   }
   const route = compile(pts, WALK);
   placeRoutes.set(key, route);
+  return route;
+}
+
+/* ------------------------------------------------------------------ the boss's errands (sent from the Boss menu) */
+
+export type BossErrand = "vape" | "walk" | "snack" | "coffee" | "rounds";
+
+/** The boss's spot at the patio table, clear of the team's places around it. */
+const BOSS_VAPE_SPOT: Waypoint = { x: VAPE.x + 0.95, z: VAPE.z - 0.95, face: headingOf(-0.95, 0.95) };
+/** Walking line along the front sidewalk, clear of the trees and lamp posts. */
+const WALK_Z = ROOM.D + 0.35;
+const OUT_SPEED = 1.0;
+
+/** From the boss's chair out through the main entrance onto the pavement. */
+function bossOut(): Waypoint[] {
+  return [{ ...OWNER_CHAIR, wait: 1.1, act: "rise", face: FACE_BACK }, OWNER_STAND, OFFICE_DOOR_IN, OFFICE_DOOR_OUT,
+    ...toEntrance(OFFICE_DOOR_OUT), DOOR, DOOR_OUT];
+}
+/** Back the same way and into the chair. */
+function bossIn(): Waypoint[] {
+  const back = [...bossOut()].reverse().slice(0, -1) as Waypoint[];
+  return [...back.map((p) => ({ x: p.x, z: p.z })), { ...OWNER_CHAIR, wait: 1.1, act: "sit", face: FACE_BACK }];
+}
+
+const errandRoutes = new Map<string, Route>();
+/** The route for one errand. `seed` varies the office rounds. */
+export function bossErrandRoute(kind: BossErrand, seed = 0): Route {
+  const key = kind === "rounds" ? `rounds:${seed}` : kind;
+  const hit = errandRoutes.get(key);
+  if (hit) return hit;
+  let route: Route;
+  if (kind === "rounds") route = buildTour(seed, false);
+  else if (kind === "coffee") {
+    route = compile([
+      { ...OWNER_CHAIR, wait: 1.1, act: "rise", face: FACE_BACK }, OWNER_STAND, OFFICE_DOOR_IN, OFFICE_DOOR_OUT,
+      PANTRY_L, P(COFFEE_SPOT.x, LANES.pantry), { ...COFFEE_SPOT, wait: 9, act: "coffee", face: FACE_BACK }, P(COFFEE_SPOT.x, LANES.pantry), PANTRY_L,
+      OFFICE_DOOR_OUT, OFFICE_DOOR_IN, OWNER_STAND, { ...OWNER_CHAIR, wait: 1.1, act: "sit", face: FACE_BACK },
+    ], OWNER_SPEED);
+  } else if (kind === "vape") {
+    const patio = [P(DOOR_OUT.x + 0.35, OUTSIDE_LANE_Z), P(VAPE.x - VAPE.r - 0.45, OUTSIDE_LANE_Z)];
+    route = compile([...bossOut(), ...patio, { ...BOSS_VAPE_SPOT, wait: 80, act: "vape" }, ...[...patio].reverse(), ...bossIn()], OWNER_SPEED);
+  } else {
+    // a walk down the street (or to the sari-sari store on the left for a snack) and back
+    const street = [STREET, P(STREET.x, WALK_Z)];
+    const stops: Waypoint[] = kind === "snack"
+      ? [{ x: -9.1, z: WALK_Z, wait: 12, act: "inspect", face: FACE_BACK }] // the sari-sari counter (across the side street, on the zebra)
+      : [{ x: 4.5, z: WALK_Z, wait: 9, act: "look", face: FACE_FRONT }, P(9.5, WALK_Z), { x: OUTSIDE.x1 + 3.2, z: WALK_Z, wait: 8, act: "look", face: FACE_FRONT }];
+    route = compile([...bossOut(), ...street, ...stops, P(STREET.x, WALK_Z), ...[...street].reverse(), ...bossIn()], OUT_SPEED);
+  }
+  errandRoutes.set(key, route);
   return route;
 }

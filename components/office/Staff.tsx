@@ -3,18 +3,21 @@
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
-import { Coffee, Crown, Footprints, Megaphone, Sparkles } from "lucide-react";
-import { sceneNow } from "@/lib/store";
+import { Coffee, Crown, Footprints, Megaphone, ShoppingBag, Sparkles, Wind, type LucideIcon } from "lucide-react";
+import { sceneNow, useOffice, type BossErrandKind, type BossErrandState } from "@/lib/store";
+import { useSettings } from "@/lib/settings";
 import { isWeekday, manilaDay, manilaMinutes } from "@/lib/office-clock";
 import { TEAM } from "@/lib/team";
-import { DESK, PAL, type Palette } from "./palette";
+import { DESK, PAL, ROOM, type Palette } from "./palette";
 import { Person, applyPose, REST, type Look, type Pose, type PersonRig } from "./Person";
 import { Bubble } from "./Bubble";
-import { OWNER_CHAIR, WET_SIGN, janitorAt, ownerStandupAt, ownerTourAt, sample, type Route } from "./routes";
+import { OWNER_CHAIR, WET_SIGN, bossErrandRoute, janitorAt, ownerStandupAt, ownerTourAt, sample, type Route } from "./routes";
+import { VaporPuffs, vapePose } from "./Employee3D";
 import { useSceneNow } from "./scene-clock-ui";
+import { HQ, type BossLook } from "@/hq.config";
 
 const STRIDE = 4.8;
-export const OWNER_NAME = "Ronald";
+export const OWNER_NAME = HQ.owner.name;
 
 /** Who Ronald is standing behind, if he's at someone's desk. */
 function nearestEmployee(x: number, z: number): string | null {
@@ -26,30 +29,54 @@ function nearestEmployee(x: number, z: number): string | null {
   return best;
 }
 
-/** Where Ronald is: leading the stand-up, on a walk, or (null) at his desk. */
-function ownerOuting(now: Date): { route: Route; t: number; coffee: boolean; standup: boolean } | null {
+type Outing = { route: Route; t: number; coffee: boolean; standup: boolean; errand: BossErrandKind | null };
+
+/** A finished errand stays "finished" (back at the desk) until the next one is sent. */
+function errandAt(e: BossErrandState | null): Outing | null {
+  if (!e) return null;
+  const route = bossErrandRoute(e.kind, e.seed);
+  const t = (Date.now() - e.since) / 1000;
+  return t <= route.duration ? { route, t, coffee: e.kind === "coffee", standup: false, errand: e.kind } : null;
+}
+
+/** Where the boss is: on an errand you sent them on, leading the stand-up, on a walk, or (null) at the desk. */
+function ownerOuting(now: Date): Outing | null {
+  const errand = errandAt(useOffice.getState().bossErrand);
+  if (errand) return errand;
+  const { routine, boss } = useSettings.getState();
   const min = manilaMinutes(now);
-  const lead = ownerStandupAt(isWeekday(now), min);
-  if (lead) return { ...lead, coffee: false, standup: true };
-  const tour = ownerTourAt(manilaDay(now), min);
-  return tour ? { ...tour, standup: false } : null;
+  const lead = routine.standup ? ownerStandupAt(isWeekday(now), min) : null;
+  if (lead) return { ...lead, coffee: false, standup: true, errand: null };
+  const tour = boss.wanders ? ownerTourAt(manilaDay(now), min) : null;
+  return tour ? { ...tour, standup: false, errand: null } : null;
+}
+
+/** The boss's two looks (Settings → Boss, default in hq.config.ts). */
+export function bossLook(look: BossLook): Look {
+  return look === "her"
+    // soft-girl street style: oatmeal cropped cardigan over a cream top, a pleated midi skirt, white sneakers; long wavy hair
+    ? { shirt: "#e9d5c6", pants: "#2f2a32", skin: PAL.skin[3], hair: "#2a1a16", hairStyle: "wavy", shoes: "#f4f4f1", outfit: "skirt", accent: "#f9a8d4", skirt: "#b98aa0" }
+    // Japanese street style: oversized charcoal hoodie, beige wide cargo pants, chunky white sneakers; Korean medium cut
+    : { shirt: "#2b2e34", pants: "#bba98b", skin: PAL.skin[0], hair: "#1c1714", hairStyle: "korean", shoes: "#f4f4f1", outfit: "street", accent: "#f97316" };
 }
 
 /**
- * Ronald: at his desk in the corner office, typing in bursts. Now and then he gets up and walks
- * the floor like a boss — hands clasped behind his back, stopping behind people to look at their
- * screens with an approving nod — sometimes via the pantry for a coffee.
+ * The boss: at the desk in the corner office, typing in bursts. Now and then gets up and walks the floor
+ * (hands clasped behind the back, stopping behind people to look at their screens with an approving nod),
+ * sometimes via the pantry for a coffee. The Boss menu sends them on errands: a vape break on the patio,
+ * a walk down the street, a snack run to the sari-sari store, a coffee, a round of the office.
  */
-export function Owner({ pal, shadows, reducedMotion }: { pal: Palette; shadows: boolean; reducedMotion: boolean }) {
+export function Owner({ shadows, reducedMotion }: { pal: Palette; shadows: boolean; reducedMotion: boolean }) {
   const group = useRef<THREE.Group>(null);
   const rig = useRef<PersonRig | null>(null);
   const mug = useRef<THREE.Group>(null);
+  const vapor = useRef<THREE.Group>(null);
   const pose = useRef<Pose>({ ...REST });
-  const look: Look = useMemo(() => ({
-    // Japanese street style: oversized charcoal hoodie, beige wide cargo pants, chunky white sneakers; Korean medium cut
-    shirt: "#2b2e34", pants: "#bba98b", skin: PAL.skin[0], hair: "#1c1714", hairStyle: "korean", shoes: "#f4f4f1",
-    outfit: "street", accent: "#f97316",
-  }), [pal]);
+  const lookKind = useSettings((s) => s.boss.look);
+  const look = useMemo(() => bossLook(lookKind), [lookKind]);
+  // re-render the bubble when an errand starts or a setting changes
+  useOffice((s) => s.bossErrand);
+  useSettings((s) => s.boss.wanders);
 
   useFrame(({ clock }) => {
     const g = group.current, r = rig.current;
@@ -60,6 +87,7 @@ export function Owner({ pal, shadows, reducedMotion }: { pal: Palette; shadows: 
     Object.assign(p, REST);
     p.time = reducedMotion ? 0 : clock.elapsedTime;
     let holdingMug = false;
+    if (vapor.current) vapor.current.visible = false;
 
     if (!tour) {
       g.position.set(OWNER_CHAIR.x, 0, OWNER_CHAIR.z);
@@ -75,15 +103,18 @@ export function Owner({ pal, shadows, reducedMotion }: { pal: Palette; shadows: 
       p.stride = reducedMotion ? 0 : s.dist * STRIDE * 0.9;
       if (s.act === "rise") p.sit = 1 - s.actT;
       if (s.act === "sit") p.sit = s.actT;
-      // after the coffee machine he carries his mug back
-      const coffeeEnd = tour.route.entries.find((e) => e.kind === "wait" && e.act === "coffee")?.t1;
-      holdingMug = tour.coffee && coffeeEnd !== undefined && tour.t >= coffeeEnd - 1.5 && s.act !== "sit";
+      // after the coffee machine (or the sari-sari store) the boss carries it back
+      const pickAct = tour.errand === "snack" ? "inspect" : "coffee";
+      const pickEnd = tour.route.entries.find((e) => e.kind === "wait" && e.act === pickAct)?.t1;
+      holdingMug = (tour.coffee || tour.errand === "snack") && pickEnd !== undefined && tour.t >= pickEnd - 1.5 && s.act !== "sit";
       if (holdingMug) p.mug = 1;
-      else if (s.act !== "rise" && s.act !== "sit" && s.act !== "coffee") p.armsBehind = 1;
+      else if (s.act !== "rise" && s.act !== "sit" && s.act !== "coffee" && s.act !== "vape") p.armsBehind = 1;
       if (s.act === "coffee") p.bend = Math.sin(s.actT * Math.PI) * 0.3;
       if (s.act === "inspect") p.nod = s.actT > 0.3 && s.actT < 0.8 ? 1 : 0;
+      if (s.act === "look") p.nod = Math.sin(p.time * 0.5) > 0.9 ? 1 : 0;
+      if (s.act === "vape") vapePose(p, vapor.current, reducedMotion || !useSettings.getState().show.smoke);
       if (s.act === "lead") {
-        // talking the team through the day: hands out of his back, gesturing now and then
+        // talking the team through the day: hands out of the back, gesturing now and then
         p.armsBehind = Math.sin(p.time * 0.5) > 0.2 ? 1 : 0;
         p.typing = p.armsBehind ? 0 : 0.6;
         p.nod = Math.sin(p.time * 1.3) > 0.5 ? 1 : 0;
@@ -96,10 +127,14 @@ export function Owner({ pal, shadows, reducedMotion }: { pal: Palette; shadows: 
   // Bubble: once a second.
   const now = useSceneNow(1000);
   const tour = ownerOuting(now);
-  let status = "Boss", detail = "Main office", Icon = Crown;
+  let status = "Boss", detail = "Main office", Icon: LucideIcon = Crown;
   if (tour) {
     const s = sample(tour.route, tour.t);
+    const inside = s.x < ROOM.W && s.z < ROOM.D;
     if (tour.standup) { status = "Stand-up"; detail = s.act === "lead" ? "Leading the 9 AM stand-up" : "Heading to stand-up"; Icon = Megaphone; }
+    else if (tour.errand === "vape") { status = "Vape break"; detail = s.act === "vape" ? "On the patio" : inside ? "Heading out" : "Patio"; Icon = Wind; }
+    else if (tour.errand === "walk") { status = "Out for a walk"; detail = s.act === "look" ? "Watching the street" : "Getting some air"; Icon = Footprints; }
+    else if (tour.errand === "snack") { status = "Snack run"; detail = s.act === "inspect" ? "Buying at the sari-sari store" : "To the sari-sari store"; Icon = ShoppingBag; }
     else if (s.act === "coffee") { status = "Coffee"; detail = "Making a cup"; Icon = Coffee; }
     else if (s.act === "inspect") { status = "Checking in"; detail = `Looking over ${nearestEmployee(s.x, s.z) ?? "the team"}'s work`; Icon = Footprints; }
     else { status = "Walking around"; detail = tour.coffee ? "Coffee run" : "Making the rounds"; Icon = Footprints; }
@@ -124,6 +159,7 @@ export function Owner({ pal, shadows, reducedMotion }: { pal: Palette; shadows: 
           </group>
         }
       />
+      <VaporPuffs ref={vapor} />
       <Bubble
         id="owner"
         position={[0, tour ? 2.3 : 1.95, 0]}
@@ -155,7 +191,8 @@ export function Janitor({ pal, shadows, reducedMotion }: { pal: Palette; shadows
   const trail = useRef<(THREE.Mesh | null)[]>([]);
   const pose = useRef<Pose>({ ...REST });
   const now = useSceneNow(1000);
-  const onShift = janitorAt(manilaMinutes(now)) !== null;
+  const janitorOn = useSettings((st) => st.routine.janitor);
+  const onShift = janitorOn && janitorAt(manilaMinutes(now)) !== null;
   const look: Look = useMemo(() => ({
     shirt: pal.janitor, pants: "#1f3a52", skin: PAL.skin[2], hair: pal.hair, hairStyle: "cap", cap: pal.janitorCap, shoes: "#1c2228",
   }), [pal]);
@@ -164,7 +201,7 @@ export function Janitor({ pal, shadows, reducedMotion }: { pal: Palette; shadows
     const rt = root.current, g = group.current, r = rig.current;
     if (!rt || !g || !r) return;
     const min = manilaMinutes(sceneNow());
-    const round = janitorAt(min);
+    const round = useSettings.getState().routine.janitor ? janitorAt(min) : null;
     rt.visible = round !== null;
     if (sign.current) sign.current.visible = round !== null;
     if (!round) return;
@@ -221,7 +258,7 @@ export function Janitor({ pal, shadows, reducedMotion }: { pal: Palette; shadows
               </group>
             }
           />
-          {onShift && <Bubble id="janitor" position={[0, 2.3, 0]} icon={Sparkles} tone="staff" name="Ben" status="Janitor" detail="Mopping the floor" zIndex={18} />}
+          {onShift && <Bubble id="janitor" position={[0, 2.3, 0]} icon={Sparkles} tone="staff" name={HQ.janitorName} status="Janitor" detail="Mopping the floor" zIndex={18} />}
         </group>
         {/* mop bucket on wheels */}
         <group ref={cart}>

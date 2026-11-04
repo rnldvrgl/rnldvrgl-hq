@@ -11,7 +11,7 @@ import { SEAT_Y } from "./palette";
  * Nothing re-renders while they move; the parent's useFrame writes straight into the rig.
  */
 
-export type HairStyle = "short" | "bun" | "long" | "cap" | "neat" | "korean";
+export type HairStyle = "short" | "bun" | "long" | "cap" | "neat" | "korean" | "wavy";
 
 export type Look = {
   shirt: string;
@@ -24,9 +24,14 @@ export type Look = {
    * "street": Japanese street style. An oversized hoodie (hood, kangaroo pocket, drawstrings, long sleeves),
    * wide-leg pants and chunky sneakers with a thick sole.
    */
-  outfit?: "street";
-  /** Drawstrings / small details on the street outfit. */
+  outfit?: "street" | "skirt";
+  /** Drawstrings / small details on the street outfit; the hair clip on the skirt outfit. */
   accent?: string;
+  /**
+   * "skirt": a cropped cardigan (shirt colour) over a cream top, a pleated midi skirt in this colour,
+   * tights (pants colour) and sneakers. The skirt drapes over the knees when seated.
+   */
+  skirt?: string;
   /** Cap colour, for hairStyle "cap". */
   cap?: string;
 };
@@ -40,6 +45,8 @@ export type PersonRig = {
   legR: THREE.Group; kneeR: THREE.Group;
   armL: THREE.Group; elbowL: THREE.Group;
   armR: THREE.Group; elbowR: THREE.Group;
+  /** The skirt (skirt outfit only), pivoting at the waist. */
+  skirt?: THREE.Group | null;
 };
 
 export type Pose = {
@@ -98,6 +105,11 @@ export function applyPose(rig: PersonRig, p: Pose): void {
   rig.legR.rotation.x = mix(-swing * 0.55, Math.PI / 2, s);
   rig.kneeL.rotation.x = mix(-Math.max(0, -Math.sin(p.stride)) * 0.75 * w, -Math.PI / 2, s);
   rig.kneeR.rotation.x = mix(-Math.max(0, Math.sin(p.stride)) * 0.75 * w, -Math.PI / 2, s);
+  // a skirt follows the thighs forward when seated, and sways a little walking
+  if (rig.skirt) {
+    rig.skirt.rotation.x = s * 1.05 + Math.abs(swing) * 0.06;
+    rig.skirt.scale.set(1 + s * 0.12, 1 - s * 0.25, 1 + s * 0.12);
+  }
 
   // torso: leans a touch forward when typing, sways with the mop, puffs up (boss) with arms behind
   const breathe = Math.sin(p.time * 1.6) * 0.012;
@@ -154,6 +166,7 @@ export function Person({ look, shadows, rig, rightHand, leftHand, front }: Props
   const legR = useRef<THREE.Group>(null), kneeR = useRef<THREE.Group>(null);
   const armL = useRef<THREE.Group>(null), elbowL = useRef<THREE.Group>(null);
   const armR = useRef<THREE.Group>(null), elbowR = useRef<THREE.Group>(null);
+  const skirt = useRef<THREE.Group>(null);
 
   useLayoutEffect(() => {
     if (!root.current || !hips.current || !torso.current || !head.current || !legL.current || !kneeL.current ||
@@ -168,6 +181,7 @@ export function Person({ look, shadows, rig, rightHand, leftHand, front }: Props
   }, [rig]);
 
   const street = look.outfit === "street";
+  const skirted = look.outfit === "skirt";
   const leg = (side: -1 | 1, hip: RefObject<THREE.Group | null>, knee: RefObject<THREE.Group | null>) => (
     <group ref={hip} position={[side * 0.11, 0, 0]}>
       <mesh position={[0, -LEG / 2 + 0.02, 0]} castShadow={shadows}>
@@ -209,7 +223,7 @@ export function Person({ look, shadows, rig, rightHand, leftHand, front }: Props
       <group ref={elbow} position={[0, -0.29, 0]}>
         <mesh position={[0, -0.12, 0]} castShadow={shadows}>
           <capsuleGeometry args={[street ? 0.078 : 0.058, 0.16, 4, 10]} />
-          <meshStandardMaterial color={street ? look.shirt : look.skin} />
+          <meshStandardMaterial color={street || skirted ? look.shirt : look.skin} />
         </mesh>
         <mesh position={[0, -0.27, 0]}>
           <sphereGeometry args={[0.066, 10, 8]} />
@@ -230,6 +244,19 @@ export function Person({ look, shadows, rig, rightHand, leftHand, front }: Props
         </mesh>
         {leg(-1, legL, kneeL)}
         {leg(1, legR, kneeR)}
+        {skirted && (
+          <group ref={skirt} position={[0, 0.1, 0]}>
+            {/* pleated midi skirt: a flared 16-sided frustum (the facets read as pleats), pivoting at the waist */}
+            <mesh position={[0, -0.29, 0]} castShadow={shadows}>
+              <cylinderGeometry args={[0.2, 0.31, 0.58, 16, 1, true]} />
+              <meshStandardMaterial color={look.skirt ?? look.pants} side={THREE.DoubleSide} roughness={0.9} flatShading />
+            </mesh>
+            <mesh position={[0, 0, 0]}>
+              <cylinderGeometry args={[0.205, 0.205, 0.05, 16]} />
+              <meshStandardMaterial color={look.skirt ?? look.pants} roughness={0.9} />
+            </mesh>
+          </group>
+        )}
 
         <group ref={torso}>
           {/* chest, slightly flattened front to back */}
@@ -260,6 +287,21 @@ export function Person({ look, shadows, rig, rightHand, leftHand, front }: Props
                 <cylinderGeometry args={[0.215, 0.215, 0.05, 16]} />
                 <meshStandardMaterial color={look.shirt} roughness={1} />
               </mesh>
+            </>
+          )}
+          {skirted && (
+            <>
+              {/* the cream top showing between the open cardigan fronts, and a row of buttons */}
+              <mesh position={[0, 0.34, -0.168]} scale={[1, 1, 0.5]}>
+                <boxGeometry args={[0.13, 0.5, 0.02]} />
+                <meshStandardMaterial color="#f7f1ea" />
+              </mesh>
+              {[0.18, 0.3, 0.42].map((y) => (
+                <mesh key={y} position={[-0.085, y, -0.17]}>
+                  <sphereGeometry args={[0.012, 6, 5]} />
+                  <meshStandardMaterial color="#ffffff" />
+                </mesh>
+              ))}
             </>
           )}
           {/* collar */}
@@ -340,6 +382,49 @@ function Hair({ look, shadows }: { look: Look; shadows: boolean }) {
         <mesh position={[0, -0.03, 0.15]} scale={[1.5, 1, 0.75]} castShadow={shadows}>
           <capsuleGeometry args={[0.1, 0.06, 4, 10]} />
           <meshStandardMaterial color={look.hair} roughness={0.7} />
+        </mesh>
+      </group>
+    );
+  }
+  if (look.hairStyle === "wavy") {
+    // long and wavy: full crown with soft curtain bangs, a fall of waves down the back past the shoulders,
+    // two locks in front of the shoulders, and a small clip
+    const mat = <meshStandardMaterial color={look.hair} roughness={0.65} />;
+    return (
+      <group position={[0, 0.17, 0]}>
+        <mesh rotation={[0.25, 0, 0]} scale={[1.06, 1.04, 1.07]} castShadow={shadows}>
+          <sphereGeometry args={[0.222, 22, 14, 0, Math.PI * 2, 0, Math.PI * 0.62]} />
+          {mat}
+        </mesh>
+        {[-1, 1].map((side) => (
+          <mesh key={side} position={[side * 0.085, 0.11, -0.165]} rotation={[0.55, side * 0.4, side * 0.5]} scale={[1.3, 0.5, 0.6]}>
+            <sphereGeometry args={[0.09, 12, 8]} />
+            {mat}
+          </mesh>
+        ))}
+        {/* the back: stacked waves, wider toward the ends */}
+        {[0, 1, 2, 3].map((i) => (
+          <mesh key={`b${i}`} position={[Math.sin(i * 1.7) * 0.02, -0.04 - i * 0.12, 0.13 + i * 0.012]} scale={[1.7 + i * 0.08, 0.95, 0.75]} castShadow={shadows}>
+            <sphereGeometry args={[0.13, 14, 10]} />
+            {mat}
+          </mesh>
+        ))}
+        {/* locks falling in front of each shoulder */}
+        {[-1, 1].map((side) => (
+          <group key={`l${side}`}>
+            <mesh position={[side * 0.19, -0.1, 0.0]} scale={[0.55, 1.4, 0.7]} castShadow={shadows}>
+              <sphereGeometry args={[0.09, 10, 8]} />
+              {mat}
+            </mesh>
+            <mesh position={[side * 0.2, -0.27, -0.04]} scale={[0.6, 1.1, 0.7]}>
+              <sphereGeometry args={[0.08, 10, 8]} />
+              {mat}
+            </mesh>
+          </group>
+        ))}
+        <mesh position={[0.15, 0.11, 0.08]} rotation={[0, 0, 0.6]}>
+          <boxGeometry args={[0.07, 0.025, 0.03]} />
+          <meshStandardMaterial color={look.accent ?? "#f9a8d4"} />
         </mesh>
       </group>
     );

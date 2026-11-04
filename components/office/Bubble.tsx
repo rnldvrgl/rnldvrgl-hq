@@ -6,6 +6,7 @@ import { create } from "zustand";
 import type { MouseEvent, PointerEvent } from "react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useSettings } from "@/lib/settings";
 import type { Vec3 } from "./Furniture";
 
 /**
@@ -83,6 +84,9 @@ export function Bubble({ id, position, zIndex = 20, ...card }: Props) {
 
 function BubbleCard({ icon: Icon, tone, name, status, detail, attention, busy, onClick, chip, expanded }: Omit<Props, "id" | "position" | "zIndex">) {
   const mode = useBubbleMode((s) => s.mode);
+  const showAll = useSettings((s) => s.show.bubbles);
+  // Settings → "Name bubbles" off: only the ones asking for you (and the selected person) stay
+  if (!showAll && !expanded && tone !== "needs" && tone !== "error") return null;
   const compact = mode === "dot";
   const showDetail = mode === "full" || expanded;
   const Tag = onClick ? "button" : "div";
