@@ -11,6 +11,7 @@ import { useSceneNow } from "./scene-clock-ui";
 import { HQ } from "@/hq.config";
 import { useOffice } from "@/lib/store";
 import { useSpotify } from "@/lib/spotify";
+import { useTv } from "./TvModal";
 import { TEAM, type EmployeeStatus } from "@/lib/team";
 
 const TAU = Math.PI * 2;
@@ -333,7 +334,14 @@ function Dashboard({ pal, done, waiting, trashName }: { pal: Palette; done: numb
   const playing = track ? `NOW PLAYING  ${clip(`${track.title} — ${track.artist}`, 34)}` : null;
 
   return (
-    <group position={[x, TV.y, 0.05]} scale={[TV.scale, TV.scale, 1]}>
+    <group
+      position={[x, TV.y, 0.05]}
+      scale={[TV.scale, TV.scale, 1]}
+      // tap the TV for a big, readable copy of it (a drag that pans the camera doesn't count)
+      onClick={(e) => { if (e.delta > 6) return; e.stopPropagation(); useTv.getState().setOpen(true); }}
+      onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = "pointer"; }}
+      onPointerOut={() => { document.body.style.cursor = ""; }}
+    >
       <RoundedBox args={[TV.w + 0.08, TV.h + 0.08, 0.06]} radius={0.02} smoothness={2}>
         <meshStandardMaterial color={pal.bezel} />
       </RoundedBox>

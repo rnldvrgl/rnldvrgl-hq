@@ -29,6 +29,8 @@ import { Traffic } from "./Traffic";
 import { Vendors } from "./Vendors";
 import { Holidays } from "./Holidays";
 import { PlaceCard, PlaceHits } from "./Places";
+import { TvModal } from "./TvModal";
+import { NowPlayingFloat } from "./NowPlayingFloat";
 import { SlowWatch } from "./SlowWatch";
 import { Rider } from "./Rider";
 import { Celebration } from "./Celebration";
@@ -321,6 +323,8 @@ export default function Scene3D() {
 
       <LabelLayer />
       <PlaceCard />
+      <NowPlayingFloat />
+      <TvModal done={done} waiting={waiting} trashName={duty ? teamById[duty].name : null} />
 
       <SceneControls
         onReset={() => { select(null); rig.current?.reset(); }}
