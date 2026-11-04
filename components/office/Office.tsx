@@ -7,7 +7,9 @@ import { Activity, Bell, BellRing, Building2, History, Sparkles, Users, WifiOff,
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useOffice } from "@/lib/store";
-import { isEmployeeId, teamById, type AiProvider, type OfficeState } from "@/lib/team";
+import { isEmployeeId, TEAM, teamById, type AiProvider, type OfficeState } from "@/lib/team";
+import { useSettings } from "@/lib/settings";
+import { playChime } from "@/lib/ambience";
 import { useIsDesktop } from "@/hooks/use-media";
 import { cn } from "@/lib/utils";
 import { ThemePicker } from "@/components/ThemePicker";
@@ -56,7 +58,27 @@ export default function Office({ initial }: { initial: OfficeState }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [select]);
 
+  useNeedsYouChimes();
+
   return isDesktop ? <DesktopOffice /> : <PhoneOffice />;
+}
+
+/** Settings → Sound → chimes: each employee's own little tune the moment they start needing you (sound on only). */
+function useNeedsYouChimes() {
+  useEffect(() => {
+    let list = useOffice.getState().data.employees;
+    let prev = new Map(list.map((e) => [e.id, e.status]));
+    return useOffice.subscribe((st) => {
+      if (st.data.employees === list) return;
+      list = st.data.employees;
+      const next = new Map(st.data.employees.map((e) => [e.id, e.status]));
+      if (useSettings.getState().chimes) {
+        const fresh = TEAM.findIndex((m) => next.get(m.id) === "needs_you" && prev.has(m.id) && prev.get(m.id) !== "needs_you");
+        if (fresh >= 0) playChime(fresh);
+      }
+      prev = next;
+    });
+  }, []);
 }
 
 /* ------------------------------------------------------------------ shared pieces */

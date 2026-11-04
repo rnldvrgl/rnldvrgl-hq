@@ -8,6 +8,7 @@ import {
   DEFAULT_SETTINGS, LIGHT_SHOW, OFFICE_STYLES, ROUTINE_LABELS, SHOW_LABELS, useSettings, type Motion,
 } from "@/lib/settings";
 import { STYLES } from "@/lib/theme";
+import { Passkeys } from "./Passkeys";
 import { ThemePicker, useStyleChoice } from "@/components/ThemePicker";
 import { useIsDesktop } from "@/hooks/use-media";
 import { HQ } from "@/hq.config";
@@ -40,6 +41,9 @@ export function SettingsPanel({ open, onOpenChange }: { open: boolean; onOpenCha
           </Section>
           <Boss />
           <Sound />
+          <Section title="Account" hint="Sign in without a password or an email code.">
+            <Passkeys />
+          </Section>
           <ResetAll />
         </div>
       </SheetContent>
@@ -107,7 +111,7 @@ function Appearance() {
   const [style, setStyle] = useStyleChoice();
   return (
     <Section title="Appearance" hint="Colour style and light or dark.">
-      <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Colour style">
+      <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Colour style">
         {STYLES.map((s) => (
           <button
             key={s.id}
@@ -147,6 +151,8 @@ function Performance() {
   const show = useSettings((s) => s.show);
   const setMotion = useSettings((s) => s.setMotion);
   const setAllShow = useSettings((s) => s.setAllShow);
+  const autoSaver = useSettings((s) => s.autoSaver);
+  const setAutoSaver = useSettings((s) => s.setAutoSaver);
 
   const apply = (p: Preset) => {
     if (p === "full") { setLowPower(false); setMotion("full"); setAllShow(DEFAULT_SETTINGS.show); }
@@ -186,6 +192,7 @@ function Performance() {
         ))}
       </div>
       <SwitchRow label="Low-power rendering" hint="No shadows, 1× resolution, 30 fps" checked={lowPower} onChange={setLowPower} />
+      <SwitchRow label="Auto battery saver" hint="Turn on low-power rendering by itself when the office keeps running slow" checked={autoSaver} onChange={setAutoSaver} />
       <div className="grid gap-1.5 px-2.5">
         <span className="text-sm font-medium">Animation</span>
         <Segmented<Motion>
@@ -268,9 +275,12 @@ function Boss() {
 function Sound() {
   const music = useSettings((s) => s.music);
   const setMusic = useSettings((s) => s.setMusic);
+  const chimes = useSettings((s) => s.chimes);
+  const setChimes = useSettings((s) => s.setChimes);
   return (
     <Section title="Sound" hint="Heard only when the office sound is on (the speaker button, top right).">
       <SwitchRow label="Office music" hint="Lo-fi through the speakers and subwoofer, 8 AM – 7 PM" checked={music} onChange={setMusic} />
+      <SwitchRow label="Who-needs-you chimes" hint="Each employee has their own little tune when they need you" checked={chimes} onChange={setChimes} />
     </Section>
   );
 }

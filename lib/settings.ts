@@ -14,7 +14,7 @@ import { HQ, type BossLook, type BossOffice } from "@/hq.config";
  *   boss      the boss's look and whether he/she wanders around on their own
  */
 
-export type ShowKey = "neighbourhood" | "traffic" | "vendors" | "pets" | "weather" | "streetLights" | "smoke" | "bubbles" | "trees";
+export type ShowKey = "neighbourhood" | "traffic" | "vendors" | "pets" | "weather" | "streetLights" | "smoke" | "bubbles" | "trees" | "holidays";
 export type RoutineKey =
   | "standup" | "meeting" | "lunch" | "trashDrop" | "trashRun" | "commute" | "janitor" | "idleBreaks" | "errorHelp";
 export type Motion = "full" | "minimal";
@@ -26,6 +26,10 @@ export type Settings = {
   boss: { look: BossLook; wanders: boolean; office: OfficeStyle };
   /** The office sound system's lo-fi music, during office hours (only heard when sound is on). */
   music: boolean;
+  /** A short chime, different for each employee, when someone starts needing you (only with sound on). */
+  chimes: boolean;
+  /** Switch to Battery saver by itself when the 3D view keeps running slow. */
+  autoSaver: boolean;
 };
 
 /** The corner office's interior. "auto" follows the boss's look: executive for him, cozy for her. */
@@ -36,12 +40,15 @@ export const OFFICE_STYLES: readonly { id: OfficeStyle; label: string; hint: str
   { id: "gaming", label: "Gaming", hint: "Neon RGB, acoustic panels" },
   { id: "cozy", label: "Cozy", hint: "Blush, arches, plants, fairy lights" },
   { id: "minimal", label: "Minimal", hint: "White oak, clean lines" },
+  { id: "studio", label: "Creator studio", hint: "Foam panels, ring light, ON AIR sign" },
+  { id: "heritage", label: "Filipino heritage", hint: "Narra wood, capiz windows, banig, rattan" },
 ];
 
 export const SHOW_LABELS: readonly { key: ShowKey; label: string; hint: string }[] = [
   { key: "neighbourhood", label: "Neighbourhood", hint: "Shops, gas stations and houses around the office" },
   { key: "traffic", label: "Traffic", hint: "Jeepneys, tricycles and cars on the streets" },
   { key: "vendors", label: "Street vendors", hint: "Pandesal vendors on the sidewalks, 5 AM – 7 PM" },
+  { key: "holidays", label: "Holidays", hint: "Parols and Christmas lights Sept 16 – Jan 6, fireworks at New Year" },
   { key: "trees", label: "Trees", hint: "Trees and hedges" },
   { key: "pets", label: "Pets", hint: "The dog and the cat" },
   { key: "weather", label: "Weather effects", hint: "Rain, splashes and cloud shadows" },
@@ -65,16 +72,18 @@ export const ROUTINE_LABELS: readonly { key: RoutineKey; label: string; hint: st
 const KEY = "hq:settings";
 
 export const DEFAULT_SETTINGS: Settings = {
-  show: { neighbourhood: true, traffic: true, vendors: true, pets: true, weather: true, streetLights: true, smoke: true, bubbles: true, trees: true },
+  show: { neighbourhood: true, traffic: true, vendors: true, pets: true, weather: true, streetLights: true, smoke: true, bubbles: true, trees: true, holidays: true },
   motion: "full",
   routine: { standup: true, meeting: true, lunch: true, trashDrop: true, trashRun: true, commute: true, janitor: true, idleBreaks: true, errorHelp: true },
   boss: { look: HQ.owner.look, wanders: true, office: HQ.owner.office },
   music: true,
+  chimes: true,
+  autoSaver: true,
 };
 
 /** Light settings for weak phones: what "Battery saver" switches to in one tap. */
 export const LIGHT_SHOW: Settings["show"] = {
-  neighbourhood: false, traffic: false, vendors: false, pets: false, weather: false, streetLights: false, smoke: false, bubbles: true, trees: false,
+  neighbourhood: false, traffic: false, vendors: false, pets: false, weather: false, streetLights: false, smoke: false, bubbles: true, trees: false, holidays: false,
 };
 
 function read(): Settings {
@@ -89,6 +98,8 @@ function read(): Settings {
       routine: { ...DEFAULT_SETTINGS.routine, ...v.routine },
       boss: { ...DEFAULT_SETTINGS.boss, ...v.boss },
       music: v.music ?? DEFAULT_SETTINGS.music,
+      chimes: v.chimes ?? DEFAULT_SETTINGS.chimes,
+      autoSaver: v.autoSaver ?? DEFAULT_SETTINGS.autoSaver,
     };
   } catch {
     return DEFAULT_SETTINGS;
@@ -106,14 +117,16 @@ type SettingsStore = Settings & {
   setRoutine: (key: RoutineKey, on: boolean) => void;
   setBoss: (patch: Partial<Settings["boss"]>) => void;
   setMusic: (on: boolean) => void;
+  setChimes: (on: boolean) => void;
+  setAutoSaver: (on: boolean) => void;
   reset: () => void;
 };
 
 export const useSettings = create<SettingsStore>()((set, get) => {
   const commit = (patch: Partial<Settings>) => {
     set(patch);
-    const { show, motion, routine, boss, music } = get();
-    save({ show, motion, routine, boss, music });
+    const { show, motion, routine, boss, music, chimes, autoSaver } = get();
+    save({ show, motion, routine, boss, music, chimes, autoSaver });
   };
   return {
     ...(typeof window === "undefined" ? DEFAULT_SETTINGS : read()),
@@ -123,6 +136,8 @@ export const useSettings = create<SettingsStore>()((set, get) => {
     setRoutine: (key, on) => commit({ routine: { ...get().routine, [key]: on } }),
     setBoss: (patch) => commit({ boss: { ...get().boss, ...patch } }),
     setMusic: (music) => commit({ music }),
+    setChimes: (chimes) => commit({ chimes }),
+    setAutoSaver: (autoSaver) => commit({ autoSaver }),
     reset: () => commit(DEFAULT_SETTINGS),
   };
 });
