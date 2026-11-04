@@ -113,6 +113,60 @@
   color-scheme: dark;
 }
 
+/*
+ * Blush: the same glass, in rosé and plum (Settings → Appearance; default in hq.config.ts → style).
+ * Light is a dusty-rose mist (never candy pink), Dark a deep plum (never black).
+ */
+[data-style="blush"][data-theme="light"], [data-style="blush"]:not([data-theme="dark"]) {
+  --background: #efe2e6;
+  --foreground: #2d2230;
+  --card: rgb(253 247 249 / 0.58);
+  --card-foreground: #2d2230;
+  --popover: rgb(251 244 247 / 0.9);
+  --popover-foreground: #2d2230;
+  --primary: #8a3f62;
+  --primary-foreground: #fff5f8;
+  --secondary: rgb(255 255 255 / 0.5);
+  --secondary-foreground: #2d2230;
+  --muted: rgb(255 255 255 / 0.42);
+  --muted-foreground: #7a6371;
+  --accent: rgb(214 120 160 / 0.15);
+  --accent-foreground: #9b3b6a;
+  --border: rgb(150 100 125 / 0.22);
+  --input: rgb(150 100 125 / 0.26);
+  --ring: #d0799f;
+  --glass-shadow: 0 1px 2px rgb(80 30 60 / 0.06), 0 18px 44px -22px rgb(80 30 60 / 0.36);
+  --st-working: #7c5fd6;
+  --logo-a: #b0577f; --logo-b: #6e2d4c;
+  --blob-a: rgb(236 176 200 / 0.55);
+  --blob-b: rgb(206 186 236 / 0.45);
+  --blob-c: rgb(250 214 196 / 0.5);
+}
+[data-style="blush"][data-theme="dark"] {
+  --background: #2e2230;
+  --foreground: #f3e8ee;
+  --card: rgb(80 58 80 / 0.5);
+  --card-foreground: #f3e8ee;
+  --popover: rgb(60 43 60 / 0.92);
+  --popover-foreground: #f3e8ee;
+  --primary: #f5d0e0;
+  --primary-foreground: #3a2333;
+  --secondary: rgb(255 255 255 / 0.08);
+  --secondary-foreground: #f3e8ee;
+  --muted: rgb(255 255 255 / 0.07);
+  --muted-foreground: #c8b0be;
+  --accent: rgb(240 150 190 / 0.16);
+  --accent-foreground: #f6c2d8;
+  --border: rgb(255 255 255 / 0.1);
+  --input: rgb(255 255 255 / 0.14);
+  --ring: #f0a3c4;
+  --st-working: #a78bfa;
+  --logo-a: #9a4d72; --logo-b: #4a1f37;
+  --blob-a: rgb(150 70 115 / 0.45);
+  --blob-b: rgb(98 72 150 / 0.38);
+  --blob-c: rgb(150 90 80 / 0.32);
+}
+
 /* Frosted glass surface: translucent fill, hairline light edge, top shine, soft shadow, backdrop blur. */
 @utility glass {
   background-color: var(--card);

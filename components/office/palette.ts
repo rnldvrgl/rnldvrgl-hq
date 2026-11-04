@@ -36,6 +36,14 @@ export const PAL = {
 
 export type Palette = typeof PAL;
 
+/** The Blush style's office: a dusty-rose feature wall, blush sofa and rugs, rosé-gold lamps (same layout). */
+export const PAL_BLUSH: Palette = {
+  ...PAL,
+  accentWall: "#a86a80", slat: "#c79a86", slatDark: "#a87866",
+  sofa: "#d7a4b6", sofaDark: "#c08aa0", rugLounge: "#f1dde3", rug: "#b9728f",
+  lampShade: "#e8b4a0", officeFloor: "#8a5f52", divider: "#d9b7c2", signAccent: "#f0a3c4", selected: "#b0577f",
+};
+
 /** Shirt colours, matching --c1..--c8 in globals.css. */
 export const SHIRTS = ["#e0a43a", "#4a8fd8", "#2f9e8f", "#d46a6a", "#8a6fd1", "#5aa34f", "#3f5c7a", "#c46aa6"] as const;
 
@@ -54,7 +62,7 @@ export const OFFICE = { x0: 10.7, x1: ROOM.W, z1: 4.2, doorX: 11.2 } as const;
 /** Glass entrance on the right wall, centred on z. */
 export const ENTRANCE = { z: 6.6, w: 1.3 } as const;
 /** Paved area outside the entrance, with the big bin. */
-export const OUTSIDE = { x0: ROOM.W + 0.05, x1: ROOM.W + 5.5, z0: 3.0, z1: ROOM.D } as const;
+export const OUTSIDE = { x0: ROOM.W + 0.05, x1: ROOM.W + 5.5, z0: 0, z1: ROOM.D } as const;
 /** Vaping patio on the pavement past the parked car (4:00–4:30 PM break). */
 export const VAPE = { x: ROOM.W + 4.1, z: 6.4, r: 0.75 } as const;
 export const DUMPSTER = { x: ROOM.W + 1.75, z: 4.25 } as const;

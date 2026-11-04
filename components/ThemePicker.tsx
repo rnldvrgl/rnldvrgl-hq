@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { Monitor, Moon, Sun, type LucideIcon } from "lucide-react";
-import { applyTheme, readTheme, THEMES, type ThemeChoice } from "@/lib/theme";
+import { applyStyle, applyTheme, readStyle, readTheme, STYLE_KEY, THEMES, type StyleName, type ThemeChoice } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
 const ICON: Record<ThemeChoice, LucideIcon> = { light: Sun, dark: Moon, system: Monitor };
@@ -29,10 +29,14 @@ function useThemeChoice(): [ThemeChoice, (c: ThemeChoice) => void] {
  */
 export function ThemeSync() {
   useEffect(() => {
+    applyStyle(readStyle(), false);
     applyTheme(readTheme(), false);
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const onOs = () => { if (readTheme() === "system") applyTheme("system", false); };
-    const onStorage = (e: StorageEvent) => { if (e.key === "hq:theme") applyTheme(readTheme(), false); };
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "hq:theme") applyTheme(readTheme(), false);
+      if (e.key === STYLE_KEY) applyStyle(readStyle(), false);
+    };
     media.addEventListener("change", onOs);
     window.addEventListener("storage", onStorage);
     return () => {
@@ -41,6 +45,22 @@ export function ThemeSync() {
     };
   }, []);
   return null;
+}
+
+/** The saved colour style (Slate / Blush), kept in sync across tabs. */
+export function useStyleChoice(): [StyleName, (s: StyleName) => void] {
+  const [style, setStyle] = useState<StyleName>("slate");
+  useEffect(() => {
+    setStyle(readStyle());
+    const on = () => setStyle(readStyle());
+    window.addEventListener("hq:style", on);
+    window.addEventListener("storage", on);
+    return () => {
+      window.removeEventListener("hq:style", on);
+      window.removeEventListener("storage", on);
+    };
+  }, []);
+  return [style, (s) => { applyStyle(s); setStyle(s); }];
 }
 
 function subscribeMode(cb: () => void): () => void {

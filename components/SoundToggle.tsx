@@ -18,7 +18,7 @@ function save(on: boolean) {
  * Mute / unmute the office ambience. Starts muted; the choice is remembered on this device.
  * Browsers only allow audio after a tap, so a remembered "on" resumes at your first tap anywhere on the page.
  */
-export function SoundToggle({ className, compact = false }: { className?: string; compact?: boolean }) {
+export function SoundToggle({ className, compact = false, bare = false }: { className?: string; compact?: boolean; /** Icon only, no pill of its own (inside the office's control group). */ bare?: boolean }) {
   const [on, setOn] = useState(false);
 
   // remembered "on": start at the first tap or key press (the browser needs a gesture before playing audio)
@@ -51,15 +51,16 @@ export function SoundToggle({ className, compact = false }: { className?: string
       aria-label={label}
       title={label}
       className={cn(
-        "inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border border-border/70 bg-card/75 text-xs font-medium shadow-sm backdrop-blur-xl transition-colors hover:bg-card focus-visible:outline-2 focus-visible:outline-ring",
-        compact ? "w-9" : "px-3",
-        on && "text-foreground",
-        !on && "text-muted-foreground",
+        bare
+          ? "text-foreground"
+          : "inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border border-border/70 bg-card/75 text-xs font-medium shadow-sm backdrop-blur-xl transition-colors hover:bg-card focus-visible:outline-2 focus-visible:outline-ring",
+        !bare && (compact ? "w-9" : "px-3"),
+        !bare && (on ? "text-foreground" : "text-muted-foreground"),
         className,
       )}
     >
-      {on ? <Volume2 className="size-4" aria-hidden /> : <VolumeX className="size-4" aria-hidden />}
-      {!compact && <span className="hidden xl:inline">{on ? "Sound on" : "Muted"}</span>}
+      {on ? <Volume2 className="size-4" aria-hidden /> : <VolumeX className={cn("size-4", bare && "opacity-60")} aria-hidden />}
+      {!compact && !bare && <span className="hidden xl:inline">{on ? "Sound on" : "Muted"}</span>}
       {on && <span className="sr-only">(playing)</span>}
     </button>
   );

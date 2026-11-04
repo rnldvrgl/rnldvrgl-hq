@@ -1,0 +1,290 @@
+"use client";
+
+import type { ReactNode } from "react";
+import { BatteryLow, Gauge, Sparkles } from "lucide-react";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { useOffice } from "@/lib/store";
+import {
+  DEFAULT_SETTINGS, LIGHT_SHOW, OFFICE_STYLES, ROUTINE_LABELS, SHOW_LABELS, useSettings, type Motion,
+} from "@/lib/settings";
+import { STYLES } from "@/lib/theme";
+import { ThemePicker, useStyleChoice } from "@/components/ThemePicker";
+import { useIsDesktop } from "@/hooks/use-media";
+import { HQ } from "@/hq.config";
+import { cn } from "@/lib/utils";
+
+/**
+ * Settings for this device: how the app looks, how hard the 3D office works (presets, what's drawn, motion),
+ * the team's daily routine and the boss. Everything applies instantly and is remembered in this browser.
+ */
+export function SettingsPanel({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  const isDesktop = useIsDesktop();
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side={isDesktop ? "right" : "bottom"}
+        className={cn("gap-0 overflow-y-auto overflow-x-hidden overscroll-contain", isDesktop ? "w-[400px] sm:max-w-[400px]" : "max-h-[88dvh] rounded-t-3xl pb-[max(16px,env(safe-area-inset-bottom,0px))]")}
+      >
+        <SheetHeader className="pb-2">
+          <SheetTitle>Office settings</SheetTitle>
+          <SheetDescription>Saved on this device only. Lower-end phones: try Battery saver.</SheetDescription>
+        </SheetHeader>
+        <div className="grid gap-6 px-4 pb-6">
+          <Appearance />
+          <Performance />
+          <Section title="Show in the office" hint="Turn layers off to draw less.">
+            <ShowList />
+          </Section>
+          <Section title="Daily routine" hint="What the team does on the clock. Off = they stay at their desks.">
+            <RoutineList />
+          </Section>
+          <Boss />
+          <Sound />
+          <ResetAll />
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
+  return (
+    <section className="grid gap-2.5">
+      <div>
+        <h3 className="text-sm font-semibold">{title}</h3>
+        {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+/** An accessible on/off switch row. */
+function SwitchRow({ label, hint, checked, onChange }: { label: string; hint?: string; checked: boolean; onChange: (on: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className="flex min-h-11 w-full items-center gap-3 rounded-xl px-2.5 py-1.5 text-left transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
+    >
+      <span className="grid min-w-0 flex-1 leading-tight">
+        <span className="text-sm font-medium">{label}</span>
+        {hint && <span className="truncate text-xs text-muted-foreground">{hint}</span>}
+      </span>
+      <span className={cn("relative h-6 w-10 shrink-0 rounded-full border transition-colors", checked ? "border-primary bg-primary" : "border-border bg-muted")} aria-hidden>
+        <span className={cn("absolute top-0.5 size-[18px] rounded-full shadow-sm transition-all", checked ? "left-[18px] bg-primary-foreground" : "left-0.5 bg-foreground/60")} />
+      </span>
+    </button>
+  );
+}
+
+/** A row of mutually exclusive options. */
+function Segmented<T extends string>({ value, options, onChange, label }: { value: T; options: readonly { id: T; label: string }[]; onChange: (v: T) => void; label: string }) {
+  return (
+    <div role="radiogroup" aria-label={label} className="grid auto-cols-fr grid-flow-col gap-1 rounded-xl border border-border bg-muted/50 p-1">
+      {options.map((o) => (
+        <button
+          key={o.id}
+          type="button"
+          role="radio"
+          aria-checked={value === o.id}
+          onClick={() => onChange(o.id)}
+          className={cn(
+            "min-h-9 rounded-lg px-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-ring",
+            value === o.id ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function Appearance() {
+  const [style, setStyle] = useStyleChoice();
+  return (
+    <Section title="Appearance" hint="Colour style and light or dark.">
+      <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Colour style">
+        {STYLES.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            role="radio"
+            aria-checked={style === s.id}
+            onClick={() => setStyle(s.id)}
+            className={cn(
+              "flex items-center gap-2.5 rounded-xl border p-2.5 text-left transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring",
+              style === s.id ? "border-ring bg-accent" : "border-border",
+            )}
+          >
+            <span className="flex -space-x-1.5" aria-hidden>
+              {s.swatch.map((c) => <span key={c} className="size-5 rounded-full border border-white/70 shadow-sm" style={{ background: c }} />)}
+            </span>
+            <span className="grid leading-tight">
+              <span className="text-sm font-semibold">{s.label}</span>
+              <span className="text-[11px] text-muted-foreground">{s.hint}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+      <div className="flex items-center justify-between gap-3 rounded-xl px-2.5">
+        <span className="text-sm font-medium">Light / Dark</span>
+        <ThemePicker />
+      </div>
+    </Section>
+  );
+}
+
+type Preset = "full" | "balanced" | "saver";
+
+function Performance() {
+  const lowPower = useOffice((s) => s.lowPower);
+  const setLowPower = useOffice((s) => s.setLowPower);
+  const motion = useSettings((s) => s.motion);
+  const show = useSettings((s) => s.show);
+  const setMotion = useSettings((s) => s.setMotion);
+  const setAllShow = useSettings((s) => s.setAllShow);
+
+  const apply = (p: Preset) => {
+    if (p === "full") { setLowPower(false); setMotion("full"); setAllShow(DEFAULT_SETTINGS.show); }
+    if (p === "balanced") { setLowPower(true); setMotion("full"); setAllShow({ ...DEFAULT_SETTINGS.show, neighbourhood: true, traffic: false, vendors: false, trees: true, smoke: false }); }
+    if (p === "saver") { setLowPower(true); setMotion("minimal"); setAllShow(LIGHT_SHOW); }
+  };
+  const same = (a: typeof show, b: typeof show) => (Object.keys(a) as (keyof typeof show)[]).every((k) => a[k] === b[k]);
+  const current: Preset | null =
+    !lowPower && motion === "full" && same(show, DEFAULT_SETTINGS.show) ? "full"
+    : lowPower && motion === "minimal" && same(show, LIGHT_SHOW) ? "saver"
+    : lowPower && motion === "full" && !show.traffic && !show.smoke ? "balanced" : null;
+
+  const PRESETS: { id: Preset; label: string; hint: string; icon: typeof Gauge }[] = [
+    { id: "full", label: "Full", hint: "Everything, shadows, 60 fps", icon: Sparkles },
+    { id: "balanced", label: "Balanced", hint: "No shadows or traffic, 30 fps", icon: Gauge },
+    { id: "saver", label: "Battery saver", hint: "Office only, minimal motion", icon: BatteryLow },
+  ];
+
+  return (
+    <Section title="Performance" hint="Pick a preset, or fine-tune below.">
+      <div className="grid grid-cols-3 gap-2">
+        {PRESETS.map(({ id, label, hint, icon: Icon }) => (
+          <button
+            key={id}
+            type="button"
+            aria-pressed={current === id}
+            onClick={() => apply(id)}
+            className={cn(
+              "grid gap-1 rounded-xl border p-2.5 text-left transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring",
+              current === id ? "border-ring bg-accent" : "border-border",
+            )}
+          >
+            <Icon className="size-4 text-muted-foreground" aria-hidden />
+            <span className="text-sm font-semibold leading-tight">{label}</span>
+            <span className="text-[11px] leading-snug text-muted-foreground">{hint}</span>
+          </button>
+        ))}
+      </div>
+      <SwitchRow label="Low-power rendering" hint="No shadows, 1× resolution, 30 fps" checked={lowPower} onChange={setLowPower} />
+      <div className="grid gap-1.5 px-2.5">
+        <span className="text-sm font-medium">Animation</span>
+        <Segmented<Motion>
+          label="Animation"
+          value={motion}
+          onChange={setMotion}
+          options={[{ id: "full", label: "Full" }, { id: "minimal", label: "Minimal" }]}
+        />
+        <p className="text-xs text-muted-foreground">Minimal: people still move around, but without idle animation, traffic, smoke or rain, at 12 fps.</p>
+      </div>
+    </Section>
+  );
+}
+
+function ShowList() {
+  const show = useSettings((s) => s.show);
+  const setShow = useSettings((s) => s.setShow);
+  return (
+    <div className="grid">
+      {SHOW_LABELS.map(({ key, label, hint }) => (
+        <SwitchRow key={key} label={label} hint={hint} checked={show[key]} onChange={(on) => setShow(key, on)} />
+      ))}
+    </div>
+  );
+}
+
+function RoutineList() {
+  const routine = useSettings((s) => s.routine);
+  const setRoutine = useSettings((s) => s.setRoutine);
+  return (
+    <div className="grid">
+      {ROUTINE_LABELS.map(({ key, label, hint }) => (
+        <SwitchRow key={key} label={label} hint={hint} checked={routine[key]} onChange={(on) => setRoutine(key, on)} />
+      ))}
+    </div>
+  );
+}
+
+function Boss() {
+  const boss = useSettings((s) => s.boss);
+  const setBoss = useSettings((s) => s.setBoss);
+  return (
+    <Section title="Boss" hint={`${HQ.owner.name} in the 3D office.`}>
+      <div className="grid gap-1.5 px-2.5">
+        <span className="text-sm font-medium">Look</span>
+        <Segmented
+          label="Boss look"
+          value={boss.look}
+          onChange={(look) => setBoss({ look })}
+          options={[{ id: "him", label: "Him · street style" }, { id: "her", label: "Her · soft street" }]}
+        />
+      </div>
+      <div className="grid gap-1.5 px-2.5">
+        <span className="text-sm font-medium">Office style</span>
+        <div role="radiogroup" aria-label="Office style" className="grid grid-cols-2 gap-1.5">
+          {OFFICE_STYLES.map((o) => (
+            <button
+              key={o.id}
+              type="button"
+              role="radio"
+              aria-checked={boss.office === o.id}
+              onClick={() => setBoss({ office: o.id })}
+              className={cn(
+                "grid min-h-11 rounded-xl border px-2.5 py-1.5 text-left leading-tight transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring",
+                o.id === "auto" && "col-span-2",
+                boss.office === o.id ? "border-ring bg-accent" : "border-border",
+              )}
+            >
+              <span className="text-sm font-semibold">{o.label}</span>
+              <span className="text-[11px] text-muted-foreground">{o.hint}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <SwitchRow label="Walks around on their own" hint="Office rounds and coffee runs through the day" checked={boss.wanders} onChange={(wanders) => setBoss({ wanders })} />
+    </Section>
+  );
+}
+
+function Sound() {
+  const music = useSettings((s) => s.music);
+  const setMusic = useSettings((s) => s.setMusic);
+  return (
+    <Section title="Sound" hint="Heard only when the office sound is on (the speaker button, top right).">
+      <SwitchRow label="Office music" hint="Lo-fi through the speakers and subwoofer, 8 AM – 7 PM" checked={music} onChange={setMusic} />
+    </Section>
+  );
+}
+
+function ResetAll() {
+  const reset = useSettings((s) => s.reset);
+  const setLowPower = useOffice((s) => s.setLowPower);
+  return (
+    <button
+      type="button"
+      onClick={() => { reset(); setLowPower(false); }}
+      className="justify-self-start rounded-full border border-border px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+    >
+      Reset to defaults
+    </button>
+  );
+}

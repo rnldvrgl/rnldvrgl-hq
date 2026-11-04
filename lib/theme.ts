@@ -1,4 +1,11 @@
+import { HQ, type StyleName } from "@/hq.config";
+
+export type { StyleName } from "@/hq.config";
+
 /**
+ * Two colour styles (Slate: cool grey-blue glass; Blush: rosé and plum glass), each in Light and Dark.
+ * The style is saved as "hq:style" and applied as <html data-style="slate|blush">; its default is hq.config.ts → style.
+ *
  * Two theme designs, Light and Dark, both mid-tone glass (never stark white or pure black), plus System,
  * which follows the OS. The choice is saved in localStorage ("hq:theme") and applied as
  * <html data-theme="light|dark" data-mode="light|dark">. The same logic runs before paint in app/layout.tsx.
@@ -15,8 +22,37 @@ export const THEMES: readonly { id: ThemeChoice; label: string }[] = [
   { id: "system", label: "System" },
 ];
 
-/** Browser UI colour (status bar, tab strip) per theme: its background. */
-const BAR: Record<ThemeName, string> = { light: "#dfe3ea", dark: "#232a36" };
+/** Browser UI colour (status bar, tab strip) per style and theme: its background. */
+const BAR: Record<StyleName, Record<ThemeName, string>> = {
+  slate: { light: "#dfe3ea", dark: "#232a36" },
+  blush: { light: "#efe2e6", dark: "#2e2230" },
+};
+
+export const STYLE_KEY = "hq:style";
+export const STYLES: readonly { id: StyleName; label: string; hint: string; swatch: [string, string, string] }[] = [
+  { id: "slate", label: "Slate", hint: "Cool grey-blue glass", swatch: ["#dfe3ea", "#7c8ae0", "#262d3d"] },
+  { id: "blush", label: "Blush", hint: "Rosé and plum glass", swatch: ["#efe2e6", "#d0799f", "#8a3f62"] },
+];
+const isStyle = (v: string | null): v is StyleName => v === "slate" || v === "blush";
+
+export function readStyle(): StyleName {
+  try {
+    const v = window.localStorage.getItem(STYLE_KEY);
+    return isStyle(v) ? v : HQ.style;
+  } catch {
+    return HQ.style;
+  }
+}
+
+/** Apply a colour style to <html> and remember it. */
+export function applyStyle(style: StyleName, save = true): void {
+  document.documentElement.dataset.style = style;
+  if (save) {
+    try { window.localStorage.setItem(STYLE_KEY, style); } catch { /* private mode: not remembered */ }
+  }
+  applyTheme(readTheme(), false); // refresh the browser bar colour
+  window.dispatchEvent(new CustomEvent("hq:style", { detail: style }));
+}
 
 /** Earlier rounds had five themes; map whatever was saved onto the two that remain. */
 const LEGACY: Record<string, ThemeChoice> = {
@@ -50,7 +86,7 @@ export function applyTheme(choice: ThemeChoice, save = true): void {
   root.dataset.mode = name;
   root.style.colorScheme = name;
   document.querySelectorAll('meta[name="theme-color"]').forEach((m) => {
-    m.setAttribute("content", BAR[name]);
+    m.setAttribute("content", BAR[readStyle()][name]);
     m.removeAttribute("media");
   });
   if (save) {
@@ -60,4 +96,4 @@ export function applyTheme(choice: ThemeChoice, save = true): void {
 }
 
 /** Runs in <head> before first paint (kept tiny and dependency-free). Also migrates old theme names. */
-export const THEME_BOOT_SCRIPT = `(function(){var d=document.documentElement,o={graphite:"light",porcelain:"light",onyx:"dark",slate:"dark",auto:"system"};try{var c=localStorage.getItem("${THEME_KEY}");if(o[c]){c=o[c];localStorage.setItem("${THEME_KEY}",c);}if(c!=="light"&&c!=="dark"&&c!=="system")c="${DEFAULT_THEME}";var t=c==="system"?(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"):c;d.dataset.theme=t;d.dataset.mode=t;d.style.colorScheme=t;}catch(e){d.dataset.theme="light";d.dataset.mode="light";}})();`;
+export const THEME_BOOT_SCRIPT = `(function(){var d=document.documentElement;try{var s=localStorage.getItem("${STYLE_KEY}");d.dataset.style=(s==="slate"||s==="blush")?s:"${HQ.style}";}catch(e){d.dataset.style="${HQ.style}";}})();(function(){var d=document.documentElement,o={graphite:"light",porcelain:"light",onyx:"dark",slate:"dark",auto:"system"};try{var c=localStorage.getItem("${THEME_KEY}");if(o[c]){c=o[c];localStorage.setItem("${THEME_KEY}",c);}if(c!=="light"&&c!=="dark"&&c!=="system")c="${DEFAULT_THEME}";var t=c==="system"?(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"):c;d.dataset.theme=t;d.dataset.mode=t;d.style.colorScheme=t;}catch(e){d.dataset.theme="light";d.dataset.mode="light";}})();`;
