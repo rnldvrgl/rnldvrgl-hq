@@ -24,6 +24,8 @@ const Upstream = z.object({
     precipitation: z.number().nullable().optional(),
     cloud_cover: z.number().nullable().optional(),
     is_day: z.number().nullable().optional(),
+    wind_speed_10m: z.number().nullable().optional(),
+    wind_gusts_10m: z.number().nullable().optional(),
   }),
   minutely_15: z.object({
     time: z.array(z.string()),
@@ -69,19 +71,26 @@ export async function GET() {
   const { lat, lon } = HQ.city;
   const url = "https://api.open-meteo.com/v1/forecast"
     + `?latitude=${lat}&longitude=${lon}&timezone=Asia%2FManila`
-    + "&current=weather_code,temperature_2m,apparent_temperature,precipitation,cloud_cover,is_day"
+    + "&current=weather_code,temperature_2m,apparent_temperature,precipitation,cloud_cover,is_day,wind_speed_10m,wind_gusts_10m"
     + "&minutely_15=precipitation&past_minutely_15=2&forecast_minutely_15=2";
   try {
     const res = await fetch(url, { next: { revalidate: REVALIDATE_S }, signal: AbortSignal.timeout(8000) });
     if (!res.ok) throw new Error(`Open-Meteo ${res.status}`);
     const data = Upstream.parse(await res.json());
-    const { kind, label } = decide(data.current, recentPrecipitation(data.minutely_15, data.current.time));
+    const decided = decide(data.current, recentPrecipitation(data.minutely_15, data.current.time));
+    const windKph = data.current.wind_speed_10m ?? null, gustKph = data.current.wind_gusts_10m ?? null;
+    // PAGASA's wind signals: gusts of 62+ km/h are signal 2 (gale-force), 89+ storm-force
+    const gust = gustKph ?? windKph ?? 0;
+    const { kind } = decided;
+    const label = gust >= 89 ? `${decided.label} · Typhoon winds` : gust >= 62 ? `${decided.label} · Gale-force winds` : gust >= 40 ? `${decided.label} · Windy` : decided.label;
     return NextResponse.json({
       kind,
       label,
       tempC: data.current.temperature_2m ?? null,
       feelsC: data.current.apparent_temperature ?? null,
       cloud: data.current.cloud_cover ?? null,
+      windKph,
+      gustKph,
       at: data.current.time ?? null,
     });
   } catch (e) {

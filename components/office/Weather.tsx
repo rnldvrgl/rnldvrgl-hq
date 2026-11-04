@@ -6,16 +6,28 @@ import { useFrame } from "@react-three/fiber";
 import { useOffice } from "@/lib/store";
 import { OUTSIDE, ROOM } from "./palette";
 import { getGlowTexture, light } from "./Lighting";
-import { BACK_STREETS, BACK_X, FAR_WALK, GROUND, ROAD, ROAD_X, SIDE_STREETS, SIDEWALK } from "./world";
+import { BACK_STREETS, BACK_X, FAR_WALK, GROUND, ROAD, ROAD_X, SIDE_STREETS, SIDEWALK, underRoof } from "./world";
 import { useSettings } from "@/lib/settings";
 
 /**
  * Weather outdoors (the windows get their own streaks in the sky shader): rain wherever you're looking
  * (the drops live in a box around the point the camera looks at, so zoomed out over the town it rains on
- * all of it), never inside the office; splash rings where drops land; a wet sheen on the streets, the patio
- * and the lawn; slow cloud shadows drifting across on overcast days. Strength follows the eased cloud / rain
+ * all of it), never inside the office or under the carport and vape gazebo roofs, slanting in strong wind; splash rings
+ * where drops land; a wet sheen on the streets, the patio and the lawn, and puddles, both drying slowly after the rain; slow cloud shadows drifting across on overcast days. Strength follows the eased cloud / rain
  * levels from <Lighting>. Settings → "Weather effects" off, or minimal motion, keeps only the wet sheen.
  */
+
+/** Puddles where water collects: [x, z, width, depth, rotation] on the sidewalks, the street edges and the lot. */
+const PUDDLES: readonly (readonly [number, number, number, number, number])[] = [
+  [3.2, SIDEWALK.z0 + 0.5, 1.1, 0.5, 0.2], [9.8, SIDEWALK.z1 - 0.4, 0.8, 0.4, -0.3], [-1.5, ROAD.z0 + 0.5, 1.6, 0.6, 0.1],
+  [7.5, ROAD.z0 + 0.45, 1.3, 0.5, -0.1], [13.5, ROAD.z1 - 0.5, 1.8, 0.7, 0.05], [21.5, ROAD.z1 - 0.4, 1.2, 0.5, -0.2],
+  [-8.5, ROAD.z1 - 0.6, 1.5, 0.6, 0.3], [27, ROAD.z0 + 0.5, 1.4, 0.5, 0], [17.8, 5.6, 1.0, 0.6, 0.4], [22.6, 9.2, 1.3, 0.7, -0.2],
+  [2.5, FAR_WALK.z0 + 0.6, 0.9, 0.45, 0.1], [16, FAR_WALK.z1 - 0.5, 1.1, 0.5, -0.3], [-4.8, -12, 1.2, 0.6, 0.2], [12, BACK_STREETS[0].z0 + 0.5, 1.6, 0.6, 0],
+  [30, BACK_STREETS[0].z1 - 0.5, 1.3, 0.5, 0.2], [5, BACK_STREETS[1].z1 - 0.6, 1.5, 0.6, -0.1], [-20, ROAD.z0 + 0.6, 1.4, 0.5, 0.15], [38, ROAD.z1 - 0.5, 1.5, 0.6, -0.1],
+];
+
+/** Streets sit 10 cm below the sidewalks. */
+const puddleY = (z: number) => (z > ROAD.z0 && z < ROAD.z1) || BACK_STREETS.some((b) => z > b.z0 && z < b.z1) || z < -8 ? -0.092 : 0.009;
 
 /** The rain box around the view centre, updated every frame. */
 const AREA = { x0: -7, x1: OUTSIDE.x1 + 9, z0: -5, z1: ROAD.z1 + 1 };
@@ -68,8 +80,17 @@ export function Rain() {
   const v = useMemo(() => new THREE.Vector3(), []);
   const sc = useMemo(() => new THREE.Vector3(), []);
 
+  const puddles = useRef<THREE.InstancedMesh>(null);
+  const puddleScale = useRef(0);
+  const pq = useMemo(() => new THREE.Quaternion(), []);
+  const pe = useMemo(() => new THREE.Euler(), []);
+  const tilt = useMemo(() => new THREE.Quaternion(), []);
+  const one = useMemo(() => new THREE.Vector3(1, 1, 1), []);
+  const zAxis = useMemo(() => new THREE.Vector3(0, 0, 1), []);
+
   useFrame(({ clock, camera, size }, dt) => {
     const step = Math.min(dt, 0.05);
+    tilt.setFromAxisAngle(zAxis, -light.wind * 0.6);
     followView(camera, size.width, size.height);
     // falling drops
     const im = mesh.current;
@@ -80,8 +101,12 @@ export function Rain() {
       for (let i = 0; i < shown; i++) {
         const d = drops[i];
         d.y -= d.v * step;
-        if (d.y < 0 || outside(d.x, d.z)) { d.y = d.y < 0 ? d.y + 5 : Math.random() * 5; [d.x, d.z] = randomOutdoor(); }
-        m.makeTranslation(d.x, d.y, d.z);
+        // a drop over the carport or the gazebo ends on its roof
+        if (outside(d.x, d.z)) { d.y = Math.random() * 5; [d.x, d.z] = randomOutdoor(); }
+        else if (d.y < (underRoof(d.x, d.z)?.y ?? 0)) { d.y += 5; [d.x, d.z] = randomOutdoor(); }
+        // the wind blows the drops along -x and tilts them (a typhoon rains sideways)
+        d.x -= light.wind * 6 * step;
+        m.compose(v.set(d.x, d.y, d.z), tilt, one);
         im.setMatrixAt(i, m);
       }
       im.instanceMatrix.needsUpdate = true;
@@ -95,7 +120,7 @@ export function Rain() {
       for (let i = 0; i < shown; i++) {
         const sp = splash[i];
         sp.t += step * 2.2;
-        if (sp.t > 1 || outside(sp.x, sp.z)) { sp.t = 0; [sp.x, sp.z] = randomOutdoor(); }
+        if (sp.t > 1 || outside(sp.x, sp.z)) { sp.t = 0; [sp.x, sp.z] = randomOutdoor(); if (underRoof(sp.x, sp.z)) sp.t = 1; }
         v.set(sp.x, 0.02, sp.z);
         sc.setScalar(0.04 + sp.t * 0.16);
         m.compose(v, q, sc);
@@ -106,7 +131,20 @@ export function Rain() {
       if (mat instanceof THREE.MeshBasicMaterial) mat.opacity = 0.5 * light.rain;
     }
     // wet sheen on the street, sidewalk, pavement and lawn
-    wet.current.forEach((w, i) => { w.opacity = light.rain * (i === LAWN ? 0.18 : 0.35); });
+    wet.current.forEach((w, i) => { w.opacity = light.wet * (i === LAWN ? 0.18 : 0.35); });
+    // puddles linger after the rain, shrinking as the ground dries
+    const pm = puddles.current;
+    if (pm) {
+      pm.visible = light.wet > 0.03;
+      const mat = pm.material;
+      if (mat instanceof THREE.MeshStandardMaterial) mat.opacity = Math.min(0.6, light.wet * 0.75);
+      const k = 0.4 + 0.6 * Math.min(1, light.wet * 1.4);
+      if (pm.visible && Math.abs(k - puddleScale.current) > 0.01) {
+        puddleScale.current = k;
+        PUDDLES.forEach(([x, z, w, d, r], i) => { m.compose(v.set(x, puddleY(z), z), pq.setFromEuler(pe.set(-Math.PI / 2, 0, r)), sc.set(w * k, d * k, 1)); pm.setMatrixAt(i, m); });
+        pm.instanceMatrix.needsUpdate = true;
+      }
+    }
     // cloud shadows drift slowly across the whole scene when it's overcast
     if (shadows.current) {
       const k = Math.max(0, light.cloud - 0.15) * (1 - light.night);
@@ -139,6 +177,10 @@ export function Rain() {
       <instancedMesh ref={mesh} args={[undefined, undefined, count]} frustumCulled={false}>
         <boxGeometry args={[0.012, 0.3, 0.012]} />
         <meshBasicMaterial color="#c7d7e6" transparent opacity={0.6} depthWrite={false} />
+      </instancedMesh>
+      <instancedMesh ref={puddles} args={[undefined, undefined, PUDDLES.length]} visible={false} frustumCulled={false}>
+        <circleGeometry args={[0.5, 20]} />
+        <meshStandardMaterial color="#3a4a5a" roughness={0.02} metalness={0.6} transparent opacity={0} depthWrite={false} />
       </instancedMesh>
       <instancedMesh ref={rings} args={[undefined, undefined, SPLASHES]} frustumCulled={false}>
         <ringGeometry args={[0.8, 1, 18]} />

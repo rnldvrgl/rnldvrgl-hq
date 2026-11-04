@@ -1,12 +1,12 @@
 "use client";
 
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { useOffice } from "@/lib/store";
-import { useShow } from "@/lib/settings";
+import { useSettings, useShow } from "@/lib/settings";
 import { OUTSIDE, ROOM, type Palette } from "./palette";
-import { getGlowTexture } from "./Lighting";
+import { getGlowTexture, light } from "./Lighting";
 import { streetLightLevel } from "./StreetLamp";
 import { mergeParts, mergePlaced, placed, type Part } from "./batch";
 import { BACK_STREETS, BACK_X, FAR_WALK, GROUND, ROAD, ROAD_X, SIDE_STREETS, SIDEWALK, YARD_X1 } from "./world";
@@ -36,7 +36,7 @@ const NEAR_TREES: readonly TreeSpot[] = [
   // along the front sidewalk, between the lamps
   [1.5, SIDEWALK.z0 + 0.7, 1], [6.5, SIDEWALK.z0 + 0.7, 0.9], [11.5, SIDEWALK.z0 + 0.7, 1.05],
   // the office yard to the right of the patio
-  [OUTSIDE.x1 + 1.6, 2.2, 1.2], [OUTSIDE.x1 + 3.2, 5.6, 0.95], [OUTSIDE.x1 + 1.8, 9.2, 1.1], [OUTSIDE.x1 + 4.6, 1.0, 0.8], [OUTSIDE.x1 + 6.4, 3.4, 1.05],
+  [OUTSIDE.x1 + 1.4, 2.2, 1.1], [OUTSIDE.x1 + 2.6, 4.9, 0.9], [OUTSIDE.x1 + 1.5, 9.6, 1.0], [OUTSIDE.x1 + 4.4, 1.0, 0.8], [OUTSIDE.x1 + 4.7, 3.4, 0.95],
   // behind and left of the building
   [-2.2, 1.5, 1.15], [-2.4, 6.5, 1], [3.0, -2.4, 1.1], [9.5, -2.6, 0.95], [15.5, -2.2, 1.2], [-2.3, 10.2, 0.85], [21.5, -2.4, 1],
   // a strip of trees between the office lot and the houses behind it
@@ -76,17 +76,38 @@ function Trees({ shadows }: { shadows: boolean }) {
   const crownA = useRef<THREE.InstancedMesh>(null);
   const crownB = useRef<THREE.InstancedMesh>(null);
 
-  useLayoutEffect(() => {
-    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), s = new THREE.Vector3();
+  const tmp = useMemo(() => ({ m: new THREE.Matrix4(), q: new THREE.Quaternion(), lean: new THREE.Quaternion(), e: new THREE.Euler(), v: new THREE.Vector3(), s: new THREE.Vector3() }), []);
+  const swaying = useRef(false);
+  /** Place every tree; in wind the crowns lean and sway (the trunks stay put), each tree on its own phase. */
+  const place = useCallback((t: number, wind: number) => {
+    const { m, q, lean, e, v, s } = tmp;
+    const up = new THREE.Vector3(0, 1, 0);
     spots.forEach(([x, z, k], i) => {
-      const spin = q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), (x * 7.13 + z * 3.7) % (Math.PI * 2));
+      const phase = x * 0.37 + z * 0.61;
+      q.setFromAxisAngle(up, (x * 7.13 + z * 3.7) % (Math.PI * 2));
       s.setScalar(k);
-      trunk.current?.setMatrixAt(i, m.compose(v.set(x, -0.12 + 0.7 * k, z), spin, s));
-      crownA.current?.setMatrixAt(i, m.compose(v.set(x, -0.12 + 1.75 * k, z), spin, s));
-      crownB.current?.setMatrixAt(i, m.compose(v.set(x + 0.3 * k, -0.12 + 2.25 * k, z + 0.1 * k), spin, s));
+      if (!swaying.current || wind === 0) trunk.current?.setMatrixAt(i, m.compose(v.set(x, -0.12 + 0.7 * k, z), q, s));
+      const sway = wind * (0.18 + 0.1 * Math.sin(t * (1.6 + wind) + phase));
+      lean.setFromEuler(e.set(0, 0, sway)).multiply(q);
+      const dx = -Math.sin(sway) * 1.1 * k;
+      crownA.current?.setMatrixAt(i, m.compose(v.set(x + dx, -0.12 + 1.75 * k, z), lean, s));
+      crownB.current?.setMatrixAt(i, m.compose(v.set(x + 0.3 * k + dx * 1.4, -0.12 + 2.25 * k, z + 0.1 * k), lean, s));
     });
-    for (const r of [trunk, crownA, crownB]) if (r.current) { r.current.instanceMatrix.needsUpdate = true; r.current.computeBoundingSphere(); }
-  }, [spots]);
+    for (const r of [trunk, crownA, crownB]) if (r.current) r.current.instanceMatrix.needsUpdate = true;
+  }, [spots, tmp]);
+
+  useLayoutEffect(() => {
+    swaying.current = false;
+    place(0, 0);
+    for (const r of [trunk, crownA, crownB]) r.current?.computeBoundingSphere();
+  }, [place]);
+
+  useFrame(({ clock }) => {
+    // only while it's windy (and once more to settle them back upright)
+    const wind = useSettings.getState().motion === "full" ? light.wind : 0;
+    if (wind > 0.02) { swaying.current = true; place(clock.elapsedTime, wind); }
+    else if (swaying.current) { place(0, 0); swaying.current = false; }
+  });
 
   return (
     <group>

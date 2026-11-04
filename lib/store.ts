@@ -11,7 +11,7 @@ export type NewReminder = { title: string; local: string; repeat: ReminderRepeat
 export type WeatherKind = "clear" | "partly" | "cloudy" | "rain" | "storm";
 export const WEATHER_KINDS: readonly WeatherKind[] = ["clear", "partly", "cloudy", "rain", "storm"];
 /** From /api/weather: what the office shows, plus the exact condition ("Partly cloudy") and temperatures. */
-export type Weather = { kind: WeatherKind; label?: string; tempC: number | null; feelsC?: number | null; at?: string | null };
+export type Weather = { kind: WeatherKind; label?: string; tempC: number | null; feelsC?: number | null; at?: string | null; windKph?: number | null; gustKph?: number | null };
 
 const LOW_POWER_KEY = "hq:low-power";
 function readLowPower(): boolean {
@@ -186,6 +186,17 @@ export function useTrashDuty(): EmployeeId | null {
   const employees = useOffice((s) => s.data.employees);
   useOffice((s) => s.timeTravel); // re-run when the previewed day changes
   return trashDuty(sceneNow(), (id) => employees.find((e) => e.id === id)?.enabled ?? true);
+}
+
+/**
+ * How windy the 3D office is, 0 calm … 1 typhoon: from the live gusts (40 km/h starts to show, 100+ is the most),
+ * or a strong wind while previewing a storm.
+ */
+export function sceneWind(): number {
+  const s = useOffice.getState();
+  if (s.weatherOverride) return s.weatherOverride === "storm" ? 0.75 : s.weatherOverride === "rain" ? 0.25 : 0;
+  const g = s.weather?.gustKph ?? s.weather?.windKph ?? 0;
+  return Math.min(1, Math.max(0, (g - 30) / 70));
 }
 
 /** The weather the 3D office shows: the preview override, else live Manila weather, else clear. */

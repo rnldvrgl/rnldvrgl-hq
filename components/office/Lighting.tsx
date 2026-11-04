@@ -3,7 +3,7 @@
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
-import { sceneNow, sceneWeather, type WeatherKind } from "@/lib/store";
+import { sceneNow, sceneWeather, sceneWind, type WeatherKind } from "@/lib/store";
 import { manilaMinutes } from "@/lib/office-clock";
 import { CENTER, ROOM } from "./palette";
 
@@ -51,6 +51,10 @@ export const light = {
   /** 0 clear … 1 heavy overcast, and 0–1 rain; eased toward the current weather. */
   cloud: 0,
   rain: 0,
+  /** How wet the ground is: follows the rain up, then dries slowly (puddles stay a while after it stops). */
+  wet: 0,
+  /** 0 calm … 1 typhoon (sceneWind), eased. */
+  wind: 0,
   /** A lightning flash, 0–1 (storms). */
   flash: 0,
 };
@@ -184,6 +188,9 @@ export function Lighting({ shadows }: { shadows: boolean }) {
     const ease = Math.min(1, dt * 0.8);
     light.cloud += (target.cloud - light.cloud) * ease;
     light.rain += (target.rain - light.rain) * ease;
+    // the ground gets wet as fast as it rains, and takes about 15 minutes to dry
+    light.wet = light.rain > light.wet ? light.wet + (light.rain - light.wet) * ease : Math.max(light.rain, light.wet * Math.exp(-dt / 300));
+    light.wind += (sceneWind() - light.wind) * Math.min(1, dt * 0.5);
     // storms: a double flash every 9 seconds or so
     const storm = sceneWeather() === "storm";
     const ph = clock.elapsedTime % 9.3;
