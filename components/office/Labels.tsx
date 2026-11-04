@@ -58,7 +58,9 @@ export function LabelProjector() {
       if (!visible || v.z > 1 || v.z < -1) { el.style.visibility = "hidden"; continue; }
       const x = ((v.x + 1) / 2) * size.width;
       const y = ((1 - v.y) / 2) * size.height;
-      el.style.visibility = "visible";
+      // "" (inherit), never "visible": a visible child shows through a hidden parent, so the bubbles would
+      // float over the Team and Reminders tabs on phones, where the office view is only hidden, not unmounted
+      el.style.visibility = "";
       el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`;
       // nearer the camera = on top, within its layer
       const layer = Number(el.dataset.layer ?? 0);
