@@ -24,13 +24,27 @@ export type Settings = {
   motion: Motion;
   routine: Record<RoutineKey, boolean>;
   boss: { look: BossLook; wanders: boolean; office: OfficeStyle };
-  /** The office sound system's lo-fi music, during office hours (only heard when sound is on). */
+  /** The office sound system's music, during office hours (only heard when sound is on). */
   music: boolean;
+  /** Which music the sound system plays (all generated live, no audio files). */
+  musicStyle: MusicStyle;
   /** A short chime, different for each employee, when someone starts needing you (only with sound on). */
   chimes: boolean;
   /** Switch to Battery saver by itself when the 3D view keeps running slow. */
   autoSaver: boolean;
 };
+
+/** The office sound system's music styles (see lib/ambience.ts for how each one is played). */
+export type MusicStyle = "lofi" | "jazz" | "bossa" | "piano" | "synthwave" | "chiptune";
+export const MUSIC_STYLES: readonly { id: MusicStyle; label: string; hint: string }[] = [
+  { id: "lofi", label: "Cozy lo-fi", hint: "Dusty keys, soft kicks, 78 BPM" },
+  { id: "jazz", label: "Café jazz", hint: "Walking bass, brushes and piano" },
+  { id: "bossa", label: "Bossa nova", hint: "Nylon guitar, rim clicks, shaker" },
+  { id: "piano", label: "Calm piano", hint: "Slow arpeggios, no drums" },
+  { id: "synthwave", label: "Night drive", hint: "Synthwave pads and bass" },
+  { id: "chiptune", label: "8-bit arcade", hint: "Square-wave chiptune" },
+];
+const isMusicStyle = (v: unknown): v is MusicStyle => MUSIC_STYLES.some((m) => m.id === v);
 
 /** The corner office's interior. "auto" follows the boss's look: executive for him, cozy for her. */
 export type OfficeStyle = BossOffice;
@@ -77,6 +91,7 @@ export const DEFAULT_SETTINGS: Settings = {
   routine: { standup: true, meeting: true, lunch: true, trashDrop: true, trashRun: true, commute: true, janitor: true, idleBreaks: true, errorHelp: true },
   boss: { look: HQ.owner.look, wanders: true, office: HQ.owner.office },
   music: true,
+  musicStyle: "lofi",
   chimes: true,
   autoSaver: true,
 };
@@ -98,6 +113,7 @@ function read(): Settings {
       routine: { ...DEFAULT_SETTINGS.routine, ...v.routine },
       boss: { ...DEFAULT_SETTINGS.boss, ...v.boss },
       music: v.music ?? DEFAULT_SETTINGS.music,
+      musicStyle: isMusicStyle(v.musicStyle) ? v.musicStyle : DEFAULT_SETTINGS.musicStyle,
       chimes: v.chimes ?? DEFAULT_SETTINGS.chimes,
       autoSaver: v.autoSaver ?? DEFAULT_SETTINGS.autoSaver,
     };
@@ -117,6 +133,7 @@ type SettingsStore = Settings & {
   setRoutine: (key: RoutineKey, on: boolean) => void;
   setBoss: (patch: Partial<Settings["boss"]>) => void;
   setMusic: (on: boolean) => void;
+  setMusicStyle: (style: MusicStyle) => void;
   setChimes: (on: boolean) => void;
   setAutoSaver: (on: boolean) => void;
   reset: () => void;
@@ -125,8 +142,8 @@ type SettingsStore = Settings & {
 export const useSettings = create<SettingsStore>()((set, get) => {
   const commit = (patch: Partial<Settings>) => {
     set(patch);
-    const { show, motion, routine, boss, music, chimes, autoSaver } = get();
-    save({ show, motion, routine, boss, music, chimes, autoSaver });
+    const { show, motion, routine, boss, music, musicStyle, chimes, autoSaver } = get();
+    save({ show, motion, routine, boss, music, musicStyle, chimes, autoSaver });
   };
   return {
     ...(typeof window === "undefined" ? DEFAULT_SETTINGS : read()),
@@ -136,6 +153,7 @@ export const useSettings = create<SettingsStore>()((set, get) => {
     setRoutine: (key, on) => commit({ routine: { ...get().routine, [key]: on } }),
     setBoss: (patch) => commit({ boss: { ...get().boss, ...patch } }),
     setMusic: (music) => commit({ music }),
+    setMusicStyle: (musicStyle) => commit({ musicStyle }),
     setChimes: (chimes) => commit({ chimes }),
     setAutoSaver: (autoSaver) => commit({ autoSaver }),
     reset: () => commit(DEFAULT_SETTINGS),

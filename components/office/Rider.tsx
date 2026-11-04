@@ -8,6 +8,7 @@ import { manilaMinutes } from "@/lib/office-clock";
 import { Person, REST, applyPose, type Look, type Pose, type PersonRig } from "./Person";
 import { vehicle } from "./Traffic";
 import { mergeParts, type Part } from "./batch";
+import { scooterSound } from "@/lib/ambience";
 import { ENTRANCE, PAL, ROOM } from "./palette";
 import { LANE, ROAD, SIDEWALK } from "./world";
 
@@ -60,6 +61,7 @@ export function Rider({ shadows, frozen }: { shadows: boolean; frozen: boolean }
   const bag = useRef<THREE.Group>(null);
   const rig = useRef<PersonRig | null>(null);
   const pose = useRef<Pose>({ ...REST });
+  const lastT = useRef<number | null>(null);
 
   const { moto, rider } = useMemo(() => {
     // the insulated food box on the back rack
@@ -77,6 +79,14 @@ export function Rider({ shadows, frozen }: { shadows: boolean; frozen: boolean }
     const g = root.current, b = bike.current, w = walker.current, r = rig.current;
     if (!g || !b || !w) return;
     const t = (manilaMinutes(sceneNow()) - START) * 60;
+    // the scooter's sound as it pulls up and rides off (only when time runs normally, not when scrubbing)
+    const prev = lastT.current;
+    lastT.current = t;
+    if (prev !== null && t > prev && t - prev < 1) {
+      const IN_AT = T.arrive - 6, OUT_AT = T_MOUNT + PARK;
+      if (prev < IN_AT && t >= IN_AT) scooterSound("in");
+      if (prev < OUT_AT && t >= OUT_AT) scooterSound("out");
+    }
     const on = t >= 0 && t < T_GONE;
     g.visible = on;
     if (!on) return;

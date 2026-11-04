@@ -11,6 +11,7 @@ import { getGlowTexture, light } from "./Lighting";
 import { Label } from "./Labels";
 import { cn } from "@/lib/utils";
 import { HQ, OWNERS } from "@/hq.config";
+import { carSound } from "@/lib/ambience";
 
 /** Where the car is parked: along the pavement, nose toward the building's side. */
 export const PARKING = { x: OUTSIDE.x0 + 1.95, z: OUTSIDE.z1 - 2.45 } as const;
@@ -314,9 +315,12 @@ export const useCar = create<CarState>((set) => ({
   flashAt: -10,
   toggle: () => set((s) => ({ open: !s.open })),
   close: () => set({ open: false }),
-  setLights: (lights) => set({ lights }),
-  setEngine: (engine) => set({ engine }),
-  lock: () => set({ engine: false, flashAt: now() }),
+  setLights: (lights) => { carSound("lights"); set({ lights }); },
+  setEngine: (engine) => set((s) => {
+    if (engine !== s.engine) carSound(engine ? "start" : "stop");
+    return { engine };
+  }),
+  lock: () => { carSound("lock"); set({ engine: false, flashAt: now() }); },
 }));
 
 /** The card over the car (in the label layer): headlights, engine, lock. */

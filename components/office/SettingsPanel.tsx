@@ -5,7 +5,7 @@ import { BatteryLow, Gauge, Sparkles } from "lucide-react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useOffice } from "@/lib/store";
 import {
-  DEFAULT_SETTINGS, LIGHT_SHOW, OFFICE_STYLES, ROUTINE_LABELS, SHOW_LABELS, useSettings, type Motion,
+  DEFAULT_SETTINGS, LIGHT_SHOW, MUSIC_STYLES, OFFICE_STYLES, ROUTINE_LABELS, SHOW_LABELS, useSettings, type Motion,
 } from "@/lib/settings";
 import { STYLES } from "@/lib/theme";
 import { Passkeys } from "./Passkeys";
@@ -275,11 +275,33 @@ function Boss() {
 function Sound() {
   const music = useSettings((s) => s.music);
   const setMusic = useSettings((s) => s.setMusic);
+  const musicStyle = useSettings((s) => s.musicStyle);
+  const setMusicStyle = useSettings((s) => s.setMusicStyle);
   const chimes = useSettings((s) => s.chimes);
   const setChimes = useSettings((s) => s.setChimes);
   return (
     <Section title="Sound" hint="Heard only when the office sound is on (the speaker button, top right).">
-      <SwitchRow label="Office music" hint="Lo-fi through the speakers and subwoofer, 8 AM – 7 PM" checked={music} onChange={setMusic} />
+      <SwitchRow label="Office music" hint="Through the speakers and subwoofer, 8 AM – 7 PM" checked={music} onChange={setMusic} />
+      {music && (
+        <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Music style">
+          {MUSIC_STYLES.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              role="radio"
+              aria-checked={musicStyle === m.id}
+              onClick={() => setMusicStyle(m.id)}
+              className={cn(
+                "grid min-h-11 rounded-xl border px-2.5 py-1.5 text-left leading-tight transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring",
+                musicStyle === m.id ? "border-ring bg-accent" : "border-border",
+              )}
+            >
+              <span className="text-sm font-semibold">{m.label}</span>
+              <span className="text-[11px] text-muted-foreground">{m.hint}</span>
+            </button>
+          ))}
+        </div>
+      )}
       <SwitchRow label="Who-needs-you chimes" hint="Each employee has their own little tune when they need you" checked={chimes} onChange={setChimes} />
     </Section>
   );
