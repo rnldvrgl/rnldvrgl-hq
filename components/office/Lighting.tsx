@@ -57,6 +57,7 @@ export const light = {
 
 const WEATHER_TARGET: Record<WeatherKind, { cloud: number; rain: number }> = {
   clear: { cloud: 0, rain: 0 },
+  partly: { cloud: 0.3, rain: 0 },
   cloudy: { cloud: 0.65, rain: 0 },
   rain: { cloud: 0.85, rain: 0.8 },
   storm: { cloud: 1, rain: 1 },
