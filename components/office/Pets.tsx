@@ -120,15 +120,15 @@ function pose(rig: Rig, t: number, walk: number, dist: number, tailSpeed: number
 
 /* ------------------------------------------------------------------ the dog */
 
-const DOGHOUSE = { x: OUTSIDE.x1 + 4.0, z: 6.9 } as const;
+const DOGHOUSE = { x: OUTSIDE.x1 + 3.6, z: 6.9 } as const;
 const DOG_ROUTE = compile([
   { x: DOGHOUSE.x - 0.7, z: DOGHOUSE.z, wait: 14, act: "look", face: Math.PI / 2 },
-  { x: OUTSIDE.x1 + 1.0, z: 7.6 },
-  { x: OUTSIDE.x1 + 0.9, z: 4.0, wait: 3, act: "inspect" },
+  { x: OUTSIDE.x1 + 1.1, z: 7.6 },
+  { x: OUTSIDE.x1 + 1.0, z: 5.6, wait: 3, act: "inspect" },
   { x: OUTSIDE.x1 + 2.5, z: 3.4 },
-  { x: OUTSIDE.x1 + 5.3, z: 4.4, wait: 3, act: "inspect" },
-  { x: OUTSIDE.x1 + 5.6, z: 8.6 },
-  { x: OUTSIDE.x1 + 3.6, z: 9.9, wait: 2.5, act: "inspect" },
+  { x: OUTSIDE.x1 + 4.6, z: 4.4, wait: 3, act: "inspect" },
+  { x: OUTSIDE.x1 + 4.8, z: 8.6 },
+  { x: OUTSIDE.x1 + 3.2, z: 9.9, wait: 2.5, act: "inspect" },
   { x: DOGHOUSE.x - 0.7, z: DOGHOUSE.z },
 ] satisfies Waypoint[], 1.1);
 

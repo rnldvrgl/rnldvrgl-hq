@@ -277,6 +277,8 @@ export function lunchRunT(min: number, id: EmployeeId): number | null {
 const VAPE_STAGGER_S = 6;
 /** Pavement lane between the dumpster and the parked car. */
 const OUTSIDE_LANE_Z = 5.75;
+/** Where the outside walkway meets the open front of the vape gazebo. */
+const VAPE_GATE = P(VAPE.x - 0.35, OUTSIDE_LANE_Z);
 /** Places around the patio's standing table. Index = desk order. */
 export const VAPE_SPOTS: readonly Waypoint[] = TEAM.map((_, i) => {
   const a = (i / TEAM.length) * Math.PI * 2 + 0.3;
@@ -292,7 +294,7 @@ export const vapeRoute = memo((id: EmployeeId): Route => {
   const c = chairOf(m);
   const path = [
     ...toEntrance(P(c.x, laneZOf(m))), DOOR, DOOR_OUT,
-    P(DOOR_OUT.x + 0.35, OUTSIDE_LANE_Z), P(VAPE.x - VAPE.r - 0.45, OUTSIDE_LANE_Z),
+    P(DOOR_OUT.x + 0.35, OUTSIDE_LANE_Z), VAPE_GATE,
   ];
   return timedTrip(m, path, [], { ...spot, act: "vape", face: spot.face ?? FACE_BACK }, [],
     (VAPE_TO - VAPE_FROM) * 60 - i * VAPE_STAGGER_S, WALK);
@@ -569,7 +571,7 @@ function placePath(m: EmployeeMeta, place: Exclude<Place, "desk">, slot: number)
   const lane = laneZOf(m);
   if (place === "vape") {
     const spot = VAPE_SPOTS[indexOf(m.id)];
-    return [...toEntrance(P(c.x, lane)), DOOR, DOOR_OUT, P(DOOR_OUT.x + 0.35, OUTSIDE_LANE_Z), P(VAPE.x - VAPE.r - 0.45, OUTSIDE_LANE_Z), spot];
+    return [...toEntrance(P(c.x, lane)), DOOR, DOOR_OUT, P(DOOR_OUT.x + 0.35, OUTSIDE_LANE_Z), VAPE_GATE, spot];
   }
   const spot = BOSS_SPOTS[slot % BOSS_SPOTS.length];
   const toMid = lane === LANES.front ? [P(LANES.right, LANES.front), P(LANES.right, LANES.mid)] : [];
@@ -647,7 +649,7 @@ export function bossErrandRoute(kind: BossErrand, seed = 0): Route {
       OFFICE_DOOR_OUT, OFFICE_DOOR_IN, OWNER_STAND, { ...OWNER_CHAIR, wait: 1.1, act: "sit", face: FACE_BACK },
     ], OWNER_SPEED);
   } else if (kind === "vape") {
-    const patio = [P(DOOR_OUT.x + 0.35, OUTSIDE_LANE_Z), P(VAPE.x - VAPE.r - 0.45, OUTSIDE_LANE_Z)];
+    const patio = [P(DOOR_OUT.x + 0.35, OUTSIDE_LANE_Z), VAPE_GATE];
     route = compile([...bossOut(), ...patio, { ...BOSS_VAPE_SPOT, wait: 80, act: "vape" }, ...[...patio].reverse(), ...bossIn()], OWNER_SPEED);
   } else {
     // a walk down the street (or to the sari-sari store on the left for a snack) and back

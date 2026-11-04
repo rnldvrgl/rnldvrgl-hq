@@ -1,4 +1,4 @@
-import { OUTSIDE, ROOM } from "./palette";
+import { CARPORT, OUTSIDE, ROOM, VAPE, VAPE_DECK } from "./palette";
 
 /**
  * The town around the office, in the same metres as the room (x along the street, z toward the street).
@@ -42,4 +42,12 @@ export const GROUND = { cx: 10, cz: 8, size: 420 } as const;
 export const TOWN = { x0: -26, x1: 50, z0: -12, z1: FAR_WALK.z1 + 10 } as const;
 
 /** The office's own yard to the right of the patio (dog, trees), before the next shop. */
-export const YARD_X1 = OUTSIDE.x1 + 7.2;
+export const YARD_X1 = OUTSIDE.x1 + 5.7;
+
+/** Roofs outdoors that keep the rain off: drops stop at them and nothing splashes underneath. */
+export const ROOFS: readonly { x0: number; x1: number; z0: number; z1: number; y: number }[] = [
+  { x0: CARPORT.x0, x1: CARPORT.x1, z0: CARPORT.z0, z1: CARPORT.z1, y: CARPORT.yEdge },
+  { x0: VAPE.x - VAPE_DECK.w / 2 - 0.15, x1: VAPE.x + VAPE_DECK.w / 2 + 0.15, z0: VAPE.z - VAPE_DECK.d / 2 - 0.15, z1: VAPE.z + VAPE_DECK.d / 2 + 0.15, y: 2.55 },
+];
+export const underRoof = (x: number, z: number): { y: number } | undefined =>
+  ROOFS.find((r) => x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1);

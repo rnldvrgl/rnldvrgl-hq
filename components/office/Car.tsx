@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { HQ, OWNERS } from "@/hq.config";
 
 /** Where the car is parked: along the pavement, nose toward the building's side. */
-export const PARKING = { x: OUTSIDE.x0 + 2.0, z: OUTSIDE.z1 - 2.3 } as const;
+export const PARKING = { x: OUTSIDE.x0 + 1.95, z: OUTSIDE.z1 - 2.45 } as const;
 
 const PAINT = "#f1f1ec"; // Championship White
 const RED = "#d0121e";

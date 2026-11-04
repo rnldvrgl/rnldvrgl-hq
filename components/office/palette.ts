@@ -61,10 +61,17 @@ export const DESK = { W: 1.7, D: 0.85, H: 0.74 } as const;
 export const OFFICE = { x0: 10.7, x1: ROOM.W, z1: 4.2, doorX: 11.2 } as const;
 /** Glass entrance on the right wall, centred on z. */
 export const ENTRANCE = { z: 6.6, w: 1.3 } as const;
-/** Paved area outside the entrance, with the big bin. */
-export const OUTSIDE = { x0: ROOM.W + 0.05, x1: ROOM.W + 5.5, z0: 0, z1: ROOM.D } as const;
-/** Vaping patio on the pavement past the parked car (4:00–4:30 PM break). */
-export const VAPE = { x: ROOM.W + 4.1, z: 6.4, r: 0.75 } as const;
+/** Paved lot outside the entrance: the covered carport at the front, the bins and the vape gazebo at the back. */
+export const OUTSIDE = { x0: ROOM.W + 0.05, x1: ROOM.W + 8.5, z0: 0, z1: ROOM.D } as const;
+/**
+ * The carport: a lean-to roof off the building's side wall over two bays (the boss's car, and the team's
+ * scooters and bike), and the walkway from the door to the street. People walking out stay dry.
+ */
+export const CARPORT = { x0: ROOM.W, x1: ROOM.W + 5.75, z0: 5.95, z1: ROOM.D, yWall: 2.75, yEdge: 2.45 } as const;
+/** The roofed vape gazebo at the back of the lot (the 4:00–4:30 PM break, and where idle people hang out). */
+export const VAPE = { x: ROOM.W + 7.0, z: 3.15, r: 0.8 } as const;
+/** The gazebo's deck, centred on VAPE. */
+export const VAPE_DECK = { w: 2.3, d: 3.3 } as const;
 export const DUMPSTER = { x: ROOM.W + 1.75, z: 4.25 } as const;
 /** The big bin inside, by the entrance: everyone empties their desk bin into it at 5:30 PM. */
 export const MAIN_BIN = { x: ROOM.W - 0.38, z: 8.05 } as const;

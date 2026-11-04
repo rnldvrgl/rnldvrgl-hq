@@ -16,6 +16,7 @@ import { Rain } from "./Weather";
 import { Car } from "./Car";
 import { StreetLamp } from "./StreetLamp";
 import { VapeArea } from "./Vape";
+import { Carport } from "./Carport";
 import { HQ } from "@/hq.config";
 
 type Common = { pal: Palette; shadows: boolean };
@@ -252,7 +253,7 @@ function Entrance({ pal }: { pal: Palette }) {
     );
 }
 
-/* ------------------------------------------------------------------ outside: pavement, dumpster, condensers, street lamp */
+/* ------------------------------------------------------------------ outside: pavement, dumpster, condensers, street lamp (the carport and the vape gazebo have their own files) */
 
 function Outside({ pal, shadows, assignee }: Common & { assignee: EmployeeId | null }) {
     const { x0, x1, z0, z1 } = OUTSIDE;
@@ -290,7 +291,7 @@ function Outside({ pal, shadows, assignee }: Common & { assignee: EmployeeId | n
                 <boxGeometry args={[0.4, 0.08, d]} />
                 <meshStandardMaterial color={pal.grass} roughness={1} />
             </mesh>
-            {[3.5, 5.0, 7.9].map((z) => (
+            {[5.6, 7.9, 10.4].map((z) => (
                 <mesh key={z} position={[x1 - 0.2, 0.18, z]} castShadow={shadows}>
                     <sphereGeometry args={[0.2, 10, 8]} />
                     <meshStandardMaterial color={pal.leafC} flatShading />
@@ -368,6 +369,7 @@ export function Amenities({ pal, shadows, assignee }: Common & { assignee: Emplo
             <TrashBins pal={pal} shadows={shadows} assignee={assignee} />
             <Rain />
             <Car shadows={shadows} />
+            <Carport shadows={shadows} />
             <VapeArea pal={pal} shadows={shadows} />
             {/* split ACs high on the left wall, blowing across the team */}
             <AirCon pal={pal} shadows={shadows} position={[0.12, 2.3, 2.1]} rotY={Math.PI / 2} on={floorAcOn} />
