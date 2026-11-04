@@ -9,7 +9,9 @@ import { HQ } from "@/hq.config";
  * Spotify Connect device ("<app> office", via the Web Playback SDK), so music can play from the office.
  * Free accounts still see what's playing; Spotify only allows playback control on Premium.
  *
- * Tokens live in this browser only (localStorage "hq:spotify"). Set NEXT_PUBLIC_SPOTIFY_CLIENT_ID to enable it.
+ * Connect once from any device: the server keeps the sign-in (Supabase, table spotify_auth) and hands every
+ * signed-in device short-lived access tokens, so your phone, laptop and the office TV all just work.
+ * Set NEXT_PUBLIC_SPOTIFY_CLIENT_ID to enable it.
  */
 
 export const SPOTIFY_CLIENT_ID = process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID ?? "";
@@ -19,14 +21,14 @@ const SCOPES = [
   "streaming", "user-read-email", "user-read-private", "user-read-playback-state",
   "user-modify-playback-state", "user-read-currently-playing", "playlist-read-private",
 ].join(" ");
-const KEY = "hq:spotify";
+/** Where a browser kept its own tokens before they were shared (moved to the server on first load). */
+const LEGACY_KEY = "hq:spotify";
 const VERIFIER_KEY = "hq:spotify:verifier";
 const API = "https://api.spotify.com/v1";
 const POLL_MS = 5000;
 
-export type SpotifyTrack = { title: string; artist: string; album: string; art: string | null; durationMs: number; progressMs: number; playing: boolean };
+export type SpotifyTrack = { id: string; title: string; artist: string; album: string; art: string | null; durationMs: number; progressMs: number; playing: boolean };
 export type SpotifyPlaylist = { id: string; uri: string; name: string; image: string | null; tracks: number };
-type Tokens = { access: string; refresh: string; expiresAt: number };
 
 type SpotifyState = {
   status: "off" | "connecting" | "ready" | "error";
@@ -49,19 +51,10 @@ type SpotifyState = {
   fetchPlaylists: () => Promise<void>;
 };
 
-/* ------------------------------------------------------------------ token storage */
+/* ------------------------------------------------------------------ tokens (shared by every device, kept on the server) */
 
-function readTokens(): Tokens | null {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return null;
-    const t = JSON.parse(raw) as Partial<Tokens>;
-    return t.access && t.refresh && typeof t.expiresAt === "number" ? (t as Tokens) : null;
-  } catch { return null; }
-}
-function writeTokens(t: Tokens | null): void {
-  try { if (t) localStorage.setItem(KEY, JSON.stringify(t)); else localStorage.removeItem(KEY); } catch { /* storage blocked */ }
-}
+/** The access token this tab is using, from /api/spotify. The refresh token never leaves the server. */
+let cached: { access: string; expiresAt: number } | null = null;
 
 const redirectUri = () => `${location.origin}/spotify/callback`;
 
@@ -71,20 +64,14 @@ function base64url(bytes: Uint8Array): string {
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-async function tokenRequest(body: Record<string, string>): Promise<Tokens> {
-  const res = await fetch("https://accounts.spotify.com/api/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ client_id: SPOTIFY_CLIENT_ID, ...body }),
-  });
-  const data = (await res.json().catch(() => ({}))) as { access_token?: string; refresh_token?: string; expires_in?: number; error_description?: string };
-  if (!res.ok || !data.access_token) throw new Error(data.error_description ?? `Spotify sign-in failed (${res.status}).`);
-  return {
-    access: data.access_token,
-    // a refresh may not return a new refresh token: keep the old one
-    refresh: data.refresh_token ?? body.refresh_token ?? "",
-    expiresAt: Date.now() + (data.expires_in ?? 3600) * 1000,
-  };
+type TokenReply = { connected: boolean; access?: string; expiresAt?: number; error?: string };
+
+async function tokenCall(init?: RequestInit): Promise<TokenReply> {
+  const res = await fetch("/api/spotify", { cache: "no-store", ...init, headers: { "Content-Type": "application/json", ...init?.headers } });
+  const data = (await res.json().catch(() => ({}))) as TokenReply;
+  if (!res.ok) throw new Error(data.error ?? `Couldn't reach Spotify (${res.status}).`);
+  cached = data.connected && data.access ? { access: data.access, expiresAt: data.expiresAt ?? Date.now() + 3_000_000 } : null;
+  return data;
 }
 
 /** Step 1 of sign-in: send the browser to Spotify with a fresh PKCE challenge. */
@@ -100,23 +87,34 @@ async function beginLogin(): Promise<void> {
   location.assign(url.toString());
 }
 
-/** Step 2 (on /spotify/callback): trade the code for tokens. */
+/** Step 2 (on /spotify/callback): the server trades the code for tokens and keeps them for every device. */
 export async function finishSpotifyLogin(code: string): Promise<void> {
   let verifier: string | null = null;
   try { verifier = sessionStorage.getItem(VERIFIER_KEY); sessionStorage.removeItem(VERIFIER_KEY); } catch { /* ignore */ }
   if (!verifier) throw new Error("The sign-in expired. Try connecting again.");
-  writeTokens(await tokenRequest({ grant_type: "authorization_code", code, redirect_uri: redirectUri(), code_verifier: verifier }));
+  await tokenCall({ method: "POST", body: JSON.stringify({ code, verifier, redirectUri: redirectUri() }) });
+}
+
+/**
+ * Before tokens were shared, each browser kept its own in localStorage ("hq:spotify"). Hand that one to the
+ * server once, so the device that was already connected connects every other device too.
+ */
+async function adoptLocalTokens(): Promise<boolean> {
+  let refresh: string | undefined;
+  try { refresh = (JSON.parse(localStorage.getItem(LEGACY_KEY) ?? "null") as { refresh?: string } | null)?.refresh; } catch { /* ignore */ }
+  if (!refresh) return false;
+  try { localStorage.removeItem(LEGACY_KEY); } catch { /* ignore */ }
+  const r = await tokenCall({ method: "POST", body: JSON.stringify({ refresh }) }).catch(() => null);
+  return !!r?.connected;
 }
 
 let refreshing: Promise<string | null> | null = null;
-/** A valid access token, refreshed a minute before it expires. null when not connected. */
+/** A valid access token (refreshed by the server a minute before it expires). null when not connected. */
 async function accessToken(): Promise<string | null> {
-  const t = readTokens();
-  if (!t) return null;
-  if (Date.now() < t.expiresAt - 60_000) return t.access;
-  refreshing ??= tokenRequest({ grant_type: "refresh_token", refresh_token: t.refresh })
-    .then((n) => { writeTokens(n); return n.access; })
-    .catch(() => { writeTokens(null); return null; })
+  if (cached && Date.now() < cached.expiresAt - 60_000) return cached.access;
+  refreshing ??= tokenCall()
+    .then(() => cached?.access ?? null)
+    .catch(() => null)
     .finally(() => { refreshing = null; });
   return refreshing;
 }
@@ -151,6 +149,18 @@ type SpotifyWindow = Window & {
 };
 
 let player: SdkPlayer | null = null;
+
+/** "iPhone", "iPad", "Mac", "Windows PC"…: each device's office tab shows up in Spotify Connect under its own name. */
+function deviceName(): string {
+  const ua = navigator.userAgent;
+  if (/iPhone/.test(ua)) return "iPhone";
+  if (/iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return "iPad";
+  if (/Android/.test(ua)) return /Mobile/.test(ua) ? "Android phone" : "Android tablet";
+  if (/Macintosh/.test(ua)) return "Mac";
+  if (/Windows/.test(ua)) return "Windows PC";
+  if (/CrOS/.test(ua)) return "Chromebook";
+  return "office";
+}
 let sdkLoading: Promise<void> | null = null;
 
 function loadSdk(): Promise<void> {
@@ -173,7 +183,7 @@ async function startPlayer(): Promise<void> {
   const w = window as SpotifyWindow;
   if (!w.Spotify) return;
   const p = new w.Spotify.Player({
-    name: `${HQ.appName} office`,
+    name: `${HQ.appName} · ${deviceName()}`,
     getOAuthToken: (cb) => { void accessToken().then((t) => { if (t) cb(t); }); },
     volume: useSpotify.getState().volume,
   });
@@ -192,7 +202,7 @@ type PlayerResponse = {
   is_playing: boolean;
   progress_ms: number | null;
   device?: { name: string; volume_percent: number | null };
-  item?: { name: string; duration_ms: number; artists?: { name: string }[]; album?: { name: string; images?: { url: string }[] }; show?: { name: string }; images?: { url: string }[] } | null;
+  item?: { id?: string; name: string; duration_ms: number; artists?: { name: string }[]; album?: { name: string; images?: { url: string }[] }; show?: { name: string }; images?: { url: string }[] } | null;
 };
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -210,6 +220,7 @@ async function poll(): Promise<void> {
       activeDevice: r?.device?.name ?? null,
       ...(r?.device?.volume_percent != null ? { volume: r.device.volume_percent / 100 } : {}),
       track: item ? {
+        id: item.id ?? `${item.name}|${item.duration_ms}`,
         title: item.name,
         artist: item.artists?.map((a) => a.name).join(", ") ?? item.show?.name ?? "",
         album: item.album?.name ?? item.show?.name ?? "",
@@ -267,9 +278,11 @@ export const useSpotify = create<SpotifyState>((set, get) => ({
 
   connect: async () => {
     if (!spotifyConfigured()) return;
-    if (!readTokens()) { await beginLogin(); return; }
     set({ status: "connecting", error: null });
     try {
+      // already connected (from this or any other device)? then no Spotify sign-in is needed here
+      const shared = await tokenCall();
+      if (!shared.connected && !(await adoptLocalTokens())) { await beginLogin(); return; }
       const me = await api<{ product?: string }>("/me");
       const premium = me?.product === "premium";
       set({ isPremium: premium, status: "ready" });
@@ -284,7 +297,8 @@ export const useSpotify = create<SpotifyState>((set, get) => ({
     stopPolling();
     player?.disconnect();
     player = null;
-    writeTokens(null);
+    cached = null;
+    void fetch("/api/spotify", { method: "DELETE" }).catch(() => {});
     set({ status: "off", track: null, deviceId: null, activeDevice: null, isPremium: null, playlists: [], error: null });
   },
 
@@ -325,9 +339,18 @@ export const useSpotify = create<SpotifyState>((set, get) => ({
   },
 }));
 
-/** Reconnect on load when this browser already has Spotify tokens. */
+/**
+ * On load: pick up Spotify if it's connected on the server (from any device), or adopt this browser's old
+ * local sign-in. Never starts a Spotify sign-in by itself.
+ */
+let resuming = false;
 export function resumeSpotify(): void {
-  if (spotifyConfigured() && readTokens() && useSpotify.getState().status === "off") void useSpotify.getState().connect();
+  if (resuming || !spotifyConfigured() || useSpotify.getState().status !== "off") return;
+  resuming = true;
+  void (async () => {
+    const shared = await tokenCall().catch(() => null);
+    if (shared?.connected || (await adoptLocalTokens())) await useSpotify.getState().connect();
+  })().finally(() => { resuming = false; });
 }
 
 /* ------------------------------------------------------------------ a beat for the subwoofer */

@@ -208,6 +208,24 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["push_subscriptions"]["Insert"]>;
         Relationships: [];
       };
+      spotify_auth: {
+        Row: {
+          id: number;
+          refresh_token: string;
+          access_token: string | null;
+          expires_at: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          id?: number;
+          refresh_token: string;
+          access_token?: string | null;
+          expires_at?: string | null;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["spotify_auth"]["Insert"]>;
+        Relationships: [];
+      };
     };
     Views: { [_ in never]: never };
     Functions: { [_ in never]: never };

@@ -123,3 +123,14 @@ create table if not exists push_subscriptions (
   created_at timestamptz not null default now()
 );
 alter table push_subscriptions enable row level security;
+
+-- Spotify, connected once for every device (see README → Spotify). One row: the owner's tokens.
+-- Only the server reads it (service-role key); the browser gets short-lived access tokens from /api/spotify.
+create table if not exists spotify_auth (
+  id int primary key default 1 check (id = 1),
+  refresh_token text not null,
+  access_token text,
+  expires_at timestamptz,
+  updated_at timestamptz not null default now()
+);
+alter table spotify_auth enable row level security;
