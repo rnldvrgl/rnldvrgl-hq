@@ -15,6 +15,12 @@ Ideas for later. Tick them off (or delete them) as they ship.
 - [x] **More styles**: Creator studio and Filipino heritage boss offices, and the Mango colour theme.
 - [x] **Holidays**: parols and Christmas lights Sept 16 – Jan 6, fireworks at New Year.
 
+- [x] **Spotify on every device**: connect once (kept on the server), lyrics that scroll with the song, and a floating now-playing card that grows when the song changes.
+- [x] **Tap the TV**: a big, readable copy of the office board in a TV frame.
+- [x] **Office radio styles**: lo-fi, café jazz, bossa nova, calm piano, synthwave and 8-bit.
+- [x] **Car sounds**: the boss's car starting, idling, stopping and locking; the lunch rider's scooter; jeepney horns.
+- [x] **New sign-in page**: one glass card over the office's street, set up in `hq.config.ts → login`.
+
 ## Next
 
 - [ ] A per-employee streak (today only the whole team's week is counted).

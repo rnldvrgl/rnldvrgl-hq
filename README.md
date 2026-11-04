@@ -335,7 +335,9 @@ Around the office is a small Filipino town. Along the street: shophouses with th
 
 Outside the entrance, a polycarbonate carport covers the boss's parking bay, a second bay with the team's scooters and a bike, and the walkway to the street; the vape gazebo at the back of the lot has its own roof, a bench and a lamp. Rain stops at both roofs, so nobody gets wet. Inside, the team floor is warm and cozy: fairy lights along the walls, a polaroid wall of the team, macramé planters, a jute rug at the stand-up circle.
 
-The big TV shows today's numbers, a 7-day chart of finished (and failed) runs, what each employee is doing right now, and what's playing on Spotify. When the team has finished reports every day for a week, a cake with seven candles appears on the dining table.
+The big TV shows today's numbers, a 7-day chart of finished (and failed) runs, what each employee is doing right now, and what's playing on Spotify. **Tap the TV** for a big, readable copy of it in a TV frame, with each employee's latest summary (tap one to open their desk).
+
+Tap the boss's car out front for its headlights, engine and lock. With the office sound on you hear it: the starter cranking, the engine catching and idling, the remote-lock chirps. The lunch rider's scooter pulls up and rides off at 11:50 AM, and now and then a jeepney honks down the street. When the team has finished reports every day for a week, a cake with seven candles appears on the dining table.
 
 The windows look out over Mabalacat towards Mount Arayat, with its live weather (from Open-Meteo, no key needed, refreshed every 10 minutes): clear, partly cloudy, cloudy, rain or storm, decided from the last 15 minutes of measured rain and the cloud cover (the forecast's weather code alone is often wrong). Hover the weather pill to see the exact condition, e.g. "Partly cloudy, feels like 36°C". Rain falls wherever you're looking, with splashes and wet streets; storms add lightning. The ground stays wet and puddles linger for about 15 minutes after the rain stops. Strong wind (from the live gusts; the label says "Windy", "Gale-force winds" or "Typhoon winds") slants the rain and sways the trees. The ACs run 8 AM–7 PM on the floor and 7:30 AM–10:30 PM in the corner office.
 
@@ -352,7 +354,7 @@ Use the clock and weather buttons at the top left of the office to preview any o
   - **Show in the office:** turn off the neighbourhood, traffic, street vendors, trees, pets, weather effects, street lights, vape smoke or name bubbles on slower devices.
   - **Daily routine:** switch off the stand-up, team sync, lunch, binning trash, the trash run, the commute, the janitor, breaks when idle, or going to the boss for help. Off means they stay at their desks.
   - **Boss:** the look (him: street style; her: soft street style with long wavy hair and a skirt), the corner office's style (Match the boss, Executive, Gaming, Cozy, Minimal, Creator studio or Filipino heritage; "Match the boss" is executive for him and cozy for her), and whether the boss walks around on their own.
-  - **Sound:** office music, a generated lo-fi loop through the speakers and subwoofer under the big TV during office hours (8 AM – 7 PM). It only plays when the office sound is on (and pauses while Spotify plays); the woofer cone pumps on the kick. **Who-needs-you chimes:** each employee has their own three-note tune that plays the moment they start needing you.
+  - **Sound:** office music through the speakers and subwoofer under the big TV during office hours (8 AM – 7 PM), in one of six styles, all generated live (no audio files): Cozy lo-fi, Café jazz, Bossa nova, Calm piano, Night drive (synthwave) and 8-bit arcade. Pick one here or under **Music → Office radio**. It only plays when the office sound is on (and pauses while Spotify plays); the woofer cone pumps on the kick. **Who-needs-you chimes:** each employee has their own three-note tune that plays the moment they start needing you.
   - **Account:** add or remove passkeys for this device.
 
 The lightning button at the bottom right is a shortcut for low-power rendering.
@@ -365,9 +367,10 @@ HQ is built to be cloned for another person (a different boss, team names, city 
    - `owner.name`: their first name (used in the app and in the AI prompts, e.g. "sign as …").
    - `owner.handle`: the short name on the office sign and the header.
    - `owner.look`: `"him"` or `"her"`.
-   - `owner.office`: the corner office's default style, `"auto"`, `"executive"`, `"gaming"`, `"cozy"` or `"minimal"`.
+   - `owner.office`: the corner office's default style, `"auto"`, `"executive"`, `"gaming"`, `"cozy"`, `"minimal"`, `"studio"` or `"heritage"`.
    - `appName` / `shortName`.
-   - `style`: `"slate"` or `"blush"`.
+   - `style`: `"slate"`, `"blush"` or `"mango"`.
+   - `login`: the sign-in page's `tagline` (under "Good morning, …"), and its `backdrop`: `"street"` (the office's street at this hour in their city) or `"aurora"` (soft colour fields in the colour style). The greeting, the app name, the city, the team and the colours on the sign-in page all come from this file too.
    - `city`: the name, clock label and latitude / longitude for the weather.
    - `town`: `barangay` (the name on the barangay hall) and `realBrands`. Set `realBrands` to `false` for a copy you publish: the signs then show made-up names instead of Jollibee, McDonald's, Shell, Petron, 7-Eleven and Mercury Drug, whose names are their owners' trademarks.
    - `car`: the plate and badge.
@@ -379,15 +382,19 @@ HQ is built to be cloned for another person (a different boss, team names, city 
 
 ## Spotify in the office
 
-The **Music** button (top-right of the office, under the sound button) is a Spotify remote: see what's playing on any of your devices (song, artist, cover, progress), pause or skip, change the volume, or start one of your playlists. While Spotify plays, the office speakers' woofers pump along and HQ's own lo-fi loop goes quiet.
+The **Music** button (top-right of the office, under the sound button) is a Spotify remote: see what's playing on any of your devices (song, artist, cover, progress), pause or skip, change the volume, start one of your playlists, or read the **lyrics**, which scroll along with the song. While Spotify plays, the office speakers' woofers pump along and HQ's own office radio goes quiet.
+
+A small **now-playing card** floats in the bottom-left corner of the office. It grows for a few seconds whenever the song changes, so you can see what just came on, then shrinks back to the cover and title. Tap it to keep it open, with controls and the line being sung right now.
 
 1. Create an app at [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard). Tick **Web API** and **Web Playback SDK**.
 2. Add the redirect URIs `http://localhost:3000/spotify/callback` and `https://<your-app>.vercel.app/spotify/callback`.
-3. Put its Client ID in `NEXT_PUBLIC_SPOTIFY_CLIENT_ID` (`.env.local` and Vercel), redeploy, then press **Music → Connect Spotify**.
+3. Run the `spotify_auth` block at the end of `supabase/schema.sql` in Supabase → SQL Editor (once).
+4. Put its Client ID in `NEXT_PUBLIC_SPOTIFY_CLIENT_ID` (`.env.local` and Vercel), redeploy, then press **Music → Connect Spotify** on any one device.
 
 Notes:
-- Sign-in uses PKCE in the browser (no client secret). The tokens are saved in that browser only; **Disconnect Spotify** removes them.
-- Playback control is a Spotify **Premium** feature. With Premium, the HQ tab also shows up as a Spotify device ("<app name> office"), so music can play from the office itself. On Spotify Free you can still see what's playing.
+- **Connect once, every device has it.** The sign-in (PKCE, no client secret) is kept on the server in the `spotify_auth` table, and each signed-in device gets short-lived access tokens from `/api/spotify`. A device that was connected before this keeps working: its old browser sign-in is moved to the server the first time it loads. **Disconnect Spotify on all devices** removes it everywhere.
+- Playback control is a Spotify **Premium** feature. With Premium, each device's HQ tab also shows up as a Spotify device ("<app name> · iPhone", "· Mac", …), so music can play from the office itself. On Spotify Free you can still see what's playing.
+- Lyrics come from [LRCLIB](https://lrclib.net), a free, open lyrics database (Spotify's API has no lyrics). Most songs have lyrics timed to the music; some only have plain text, and a few have none.
 - While your Spotify app is in development mode, only the accounts you add under the app's **User Management** can connect.
 - Spotify doesn't share a song's beat with new apps, so the woofers pulse at a steady ~100 BPM rather than the song's own tempo.
 
