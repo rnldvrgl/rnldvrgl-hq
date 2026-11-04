@@ -23,10 +23,15 @@ import { LabelLayer, LabelProjector } from "./Labels";
 import { typingSources } from "@/lib/ambience";
 import { chairOf, OWNER_CHAIR } from "./routes";
 import { SceneControls } from "./SceneControls";
-import { PAL, PAL_BLUSH, DESK, ROOM, SCENE, OFFICE } from "./palette";
+import { PAL, PAL_BLUSH, PAL_MANGO, DESK, ROOM, SCENE, OFFICE } from "./palette";
 import { Neighbourhood } from "./Neighbourhood";
 import { Traffic } from "./Traffic";
 import { Vendors } from "./Vendors";
+import { Holidays } from "./Holidays";
+import { PlaceCard, PlaceHits } from "./Places";
+import { SlowWatch } from "./SlowWatch";
+import { Rider } from "./Rider";
+import { Celebration } from "./Celebration";
 import { SoundSystem } from "./SoundSystem";
 import { TOWN } from "./world";
 import { useSettings } from "@/lib/settings";
@@ -243,7 +248,7 @@ export default function Scene3D() {
   const pressAt = useRef<{ x: number; y: number } | null>(null);
   const lowPower = useOffice((s) => s.lowPower);
   const loadWeather = useOffice((s) => s.loadWeather);
-  const pal = style === "blush" ? PAL_BLUSH : PAL;
+  const pal = style === "blush" ? PAL_BLUSH : style === "mango" ? PAL_MANGO : PAL;
   const capped = lowPower || minimal;
   const shadows = isDesktop && !lowPower;
 
@@ -284,6 +289,7 @@ export default function Scene3D() {
       >
         <AdaptiveDpr pixelated={false} />
         {capped && <FrameCap fps={minimal ? 12 : 30} />}
+        <SlowWatch />
         <Lighting shadows={shadows} />
         <BubbleZoomWatcher />
         <LabelProjector />
@@ -293,8 +299,12 @@ export default function Scene3D() {
         <OwnerOffice pal={pal} shadows={shadows} reducedMotion={reducedMotion} />
         <Grounds pal={pal} shadows={shadows} />
         {show.neighbourhood && <Neighbourhood />}
+        {show.neighbourhood && <PlaceHits />}
         {show.traffic && !minimal && <Traffic />}
         {show.vendors && <Vendors shadows={shadows} frozen={minimal} />}
+        <Rider shadows={shadows} frozen={minimal} />
+        <Celebration shadows={shadows} />
+        {show.holidays && <Holidays />}
         {show.pets && <Pets frozen={minimal} />}
         <Amenities pal={pal} shadows={shadows} assignee={duty} />
         {TEAM.map((meta, i) => (
@@ -310,6 +320,7 @@ export default function Scene3D() {
       </Canvas>
 
       <LabelLayer />
+      <PlaceCard />
 
       <SceneControls
         onReset={() => { select(null); rig.current?.reset(); }}
