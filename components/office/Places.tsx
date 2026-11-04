@@ -106,6 +106,8 @@ function buildPlaces(): Place[] {
 }
 
 const usePlace = create<{ id: string | null; open: (id: string | null) => void }>((set) => ({ id: null, open: (id) => set({ id }) }));
+/** Whether a place card is open (the floating music card steps aside for it). */
+export const usePlaceOpen = (): boolean => usePlace((s) => s.id !== null);
 let placesCache: Place[] | null = null;
 const places = () => (placesCache ??= buildPlaces());
 

@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ListMusic, Loader2, Music, Pause, Play, SkipBack, SkipForward, Unplug, Volume1 } from "lucide-react";
+import { ListMusic, Loader2, MicVocal, Music, Pause, Play, Radio, SkipBack, SkipForward, Unplug, Volume1 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { liveProgressMs, resumeSpotify, spotifyConfigured, useSpotify, type SpotifyTrack } from "@/lib/spotify";
 import { cn } from "@/lib/utils";
+import { MUSIC_STYLES, useSettings } from "@/lib/settings";
+import { LyricsView } from "./Lyrics";
 
 const fmt = (ms: number) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
 const roundBtn =
@@ -18,8 +20,13 @@ export function MusicPanel({ className }: { className?: string }) {
   const [open, setOpen] = useState(false);
   const playing = useSpotify((s) => s.track?.playing ?? false);
 
-  // pick up an existing connection on load (tokens saved in this browser)
-  useEffect(() => { resumeSpotify(); }, []);
+  // pick up the shared connection on load, and when coming back to the tab (connected from another device meanwhile)
+  useEffect(() => {
+    resumeSpotify();
+    const onVisible = () => { if (document.visibilityState === "visible") resumeSpotify(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -30,7 +37,10 @@ export function MusicPanel({ className }: { className?: string }) {
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" side="left" className="glass w-[min(20rem,calc(100vw-2rem))] bg-popover/95 p-3">
-        <Body open={open} />
+        <div className="max-h-[min(75dvh,40rem)] space-y-4 overflow-y-auto overscroll-contain">
+          <Body open={open} />
+          <OfficeRadio />
+        </div>
       </PopoverContent>
     </Popover>
   );
@@ -56,7 +66,7 @@ function Body({ open }: { open: boolean }) {
       <div className="space-y-3 text-sm">
         <div>
           <p className="font-medium">Office music from Spotify</p>
-          <p className="text-xs text-muted-foreground">See what&apos;s playing and change it from here. Controls need Spotify Premium.</p>
+          <p className="text-xs text-muted-foreground">Connect once and every device you sign in on has it. Controls need Spotify Premium.</p>
         </div>
         {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
         <button type="button" onClick={() => void connect()} className="h-9 w-full rounded-full bg-[#1db954] text-sm font-semibold text-black transition-opacity hover:opacity-90">
@@ -75,12 +85,24 @@ function Connected({ open }: { open: boolean }) {
   const { track, isPremium, error, volume, activeDevice, deviceId, playlists } = useSpotify();
   const { toggle, next, prev, setVolume, fetchPlaylists, playPlaylist, disconnect } = useSpotify.getState();
   const canControl = isPremium !== false;
+  const [lyrics, setLyrics] = useState(false);
 
   useEffect(() => { if (open && playlists.length === 0) void fetchPlaylists(); }, [open, playlists.length, fetchPlaylists]);
 
   return (
     <div className="space-y-3 text-sm">
       <NowPlaying track={track} />
+      {track && (
+        <div>
+          <button
+            type="button" onClick={() => setLyrics((v) => !v)} aria-expanded={lyrics}
+            className={cn("flex items-center gap-1.5 text-xs font-medium transition-colors", lyrics ? "text-[#1db954]" : "text-muted-foreground hover:text-foreground")}
+          >
+            <MicVocal className="size-3.5" aria-hidden /> {lyrics ? "Hide lyrics" : "Show lyrics"}
+          </button>
+          {lyrics && <LyricsView track={track} className="mt-1.5" />}
+        </div>
+      )}
       <p className="text-[11px] text-muted-foreground" aria-live="polite">
         {activeDevice ? `Playing on ${activeDevice}` : deviceId ? "Nothing playing · press play to start here" : "Nothing playing right now"}
       </p>
@@ -137,7 +159,7 @@ function Connected({ open }: { open: boolean }) {
       </div>
 
       <button type="button" onClick={disconnect} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
-        <Unplug className="size-3.5" aria-hidden /> Disconnect Spotify
+        <Unplug className="size-3.5" aria-hidden /> Disconnect Spotify on all devices
       </button>
     </div>
   );
@@ -181,6 +203,41 @@ function NowPlaying({ track }: { track: SpotifyTrack | null }) {
           <span>{fmt(progress)}</span><span>{fmt(track.durationMs)}</span>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** The office sound system's own music (no Spotify needed): on/off and the style. */
+function OfficeRadio() {
+  const music = useSettings((s) => s.music);
+  const style = useSettings((s) => s.musicStyle);
+  const { setMusic, setMusicStyle } = useSettings.getState();
+  const spotifyPlaying = useSpotify((s) => s.track?.playing ?? false);
+  return (
+    <div className="space-y-2 border-t border-border pt-3 text-sm">
+      <div className="flex items-center justify-between gap-2">
+        <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground"><Radio className="size-3.5" aria-hidden /> Office radio</p>
+        <button
+          type="button" role="switch" aria-checked={music} onClick={() => setMusic(!music)} aria-label="Office radio"
+          className={cn("relative h-5 w-9 rounded-full transition-colors", music ? "bg-primary" : "bg-muted-foreground/30")}
+        >
+          <span className={cn("absolute top-0.5 size-4 rounded-full bg-background shadow transition-[left]", music ? "left-[1.125rem]" : "left-0.5")} />
+        </button>
+      </div>
+      <div className="grid grid-cols-2 gap-1.5" role="radiogroup" aria-label="Office radio style">
+        {MUSIC_STYLES.map((m) => (
+          <button
+            key={m.id} type="button" role="radio" aria-checked={style === m.id} onClick={() => setMusicStyle(m.id)}
+            className={cn("rounded-lg border px-2 py-1.5 text-left leading-tight transition-colors hover:bg-muted", style === m.id ? "border-ring bg-accent" : "border-border")}
+          >
+            <span className="block text-xs font-semibold">{m.label}</span>
+            <span className="block truncate text-[10px] text-muted-foreground">{m.hint}</span>
+          </button>
+        ))}
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        {spotifyPlaying ? "Paused while Spotify plays." : "Plays 8 AM – 7 PM with the office sound on (speaker button)."}
+      </p>
     </div>
   );
 }
