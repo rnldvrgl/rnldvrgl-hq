@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { ICONS, LAMP, STATUS_LABEL, type LampKey } from "./icons";
 import { SHIRTS } from "./palette";
 import { ReportCard, History } from "./panel/Report";
+import { RunTimeline } from "./panel/RunTimeline";
 import { Pipeline } from "./panel/Pipeline";
 import { InboxWaiting } from "./panel/Inbox";
 import { Reminders } from "./panel/Reminders";
@@ -91,6 +92,8 @@ export function DeskPanel({ id, onClose }: { id: EmployeeId; onClose?: () => voi
           <dd>{formatManila(emp.last_run_at)}</dd>
         </div>
       </dl>
+
+      <div data-anim><RunTimeline runs={emp.runs} /></div>
 
       <div data-anim className="flex flex-wrap gap-2">
         <Button disabled={busy || emp.status === "working"} onClick={() => act(() => runNow(id), `${meta.name} is on it.`)}>
