@@ -75,7 +75,8 @@ Push it to a **new private GitHub repo** on your personal account.
     Do the same for the **Confirm signup** template, since your very first sign-in uses that one.
 
     Why: the default email only has a link, and that link fails if it opens in a different browser from the one you signed in from. The code works anywhere, and the new link works in any browser too.
-7. Always open HQ at `http://localhost:3000`, not `127.0.0.1:3000`. They count as different sites, so a session from one doesn't carry over to the other.
+7. **Optional: passkeys** (sign in with Face ID, Touch ID or Windows Hello). Go to **Authentication → Sign In / Providers**, turn on **Passkeys**, and set the relying party to your domain (`localhost` for local dev). Then sign in once with a password or a code, open **Settings → Account** in the office and press **Add a passkey on this device**. After that, **Sign in with a passkey** works on the login page.
+8. Always open HQ at `http://localhost:3000`, not `127.0.0.1:3000`. They count as different sites, so a session from one doesn't carry over to the other.
 
 ### 3a. Free backups: Groq and Gemini (use these until Claude is ready)
 
@@ -317,33 +318,42 @@ The 3D office is in Mabalacat City, Pampanga and follows Philippine time, so eve
 | 7:00 AM | Everyone walks in from the street and sits down. |
 | 7–8 AM, 12–1 PM, 6–7 PM | The janitor mops the aisles (wet-floor sign out). |
 | 9:00 AM (weekdays) | Stand-up: anyone who isn't busy gathers in the circle at the front, Ronald leads, and Maya's morning brief pops up on the screen. |
+| 11:50 AM | A delivery rider pulls up at the kerb on a scooter and walks lunch up the covered walkway to the door. |
 | 12:00–12:55 PM | Lunch: anyone who isn't busy eats at the dining table by the pantry. |
 | 2:00–2:15 PM (weekdays) | Team sync: anyone who isn't busy sits around the table in the glass meeting room. |
 | 1 PM–6 PM | Afternoon: golden light, sunset from about 5:20 PM. |
-| All day | Anyone idle hangs out on the vape patio past the parked car; when work comes in they walk back to their desk. Anyone showing an error goes to Ronald's office and waits on the sofa for help. |
+| All day | Anyone idle hangs out in the roofed vape gazebo at the back of the lot; when work comes in they walk back to their desk. Anyone showing an error goes to Ronald's office and waits on the sofa for help. |
 | 5:30 PM | Everyone empties their desk bin into the main bin by the entrance. |
 | 5:40 PM | Today's trash duty takes the main bin's bag out to the dumpster outside. The team takes turns, one per day. |
 | 7 PM | Idle employees go home. Anyone working, waiting for you or showing an error stays at their desk. |
-| Night | City lights in the windows, office lights on, screens off on empty desks. |
+| Night | City lights in the windows, office lights on, screens off on empty desks, the fairy lights along the walls glowing. |
+| 5–9 AM | With the sound on, the pandesal vendor goes by now and then: two honks of the bulb horn and "Pandesal! Mainit pa!" |
+| Sept 16 – Jan 6 | Christmas season: parols at every gate and shop, Christmas lights on the fences and awnings, a tree in the lounge. Fireworks over the town from 11:30 PM on New Year's Eve. |
 | Through the day | Ronald gets up now and then (every half hour from 9:30 AM to 4:30 PM, and at random), walks the floor and looks over people's shoulders, sometimes via the coffee machine. When someone finishes a report, a sheet of paper flies to his in-tray. |
 
-Around the office is a small Filipino town. Along the street: shophouses with the family's home upstairs (a panaderia, carinderia, labada, kapihan and hardware), a sari-sari store, and Jollibee, McDonald's, Mercury Drug and 7-Eleven. Behind the office, two side streets lead to two residential streets lined with houses: hollow-block walls, GI roofs, window grills, gated fences, carports with tricycles, water tanks, clotheslines, power lines and a basketball hoop. Across the street: a Shell and a Petron station, the TODA tricycle terminal, the barangay court, a parking lot, a park and the barangay hall. Jeepneys, tricycles, motorbikes and cars drive the streets with their lights on after dark, and pandesal vendors are out on the sidewalks from 5 AM to 7 PM. At night the 24-hour places, gas stations, court and signs stay lit, shops light up until 10 PM and homes in the evening. The ground and streets reach far past the town, so zooming out never shows an edge.
+Around the office is a small Filipino town. Along the street: shophouses with the family's home upstairs (a panaderia, carinderia, labada, kapihan and hardware), a sari-sari store, and Jollibee, McDonald's, Mercury Drug and 7-Eleven. Behind the office, two side streets lead to two residential streets lined with houses: hollow-block walls, GI roofs, window grills, gated fences, carports with tricycles, water tanks, clotheslines, power lines and a basketball hoop. Across the street: a Shell and a Petron station, the TODA tricycle terminal, the barangay court, a parking lot, a park and the barangay hall. Jeepneys, tricycles, motorbikes and cars drive the streets with their lights on after dark, and pandesal vendors are out on the sidewalks from 5 AM to 7 PM. At night the 24-hour places, gas stations, court and signs stay lit, shops light up until 10 PM and homes in the evening. The ground and streets reach far past the town, so zooming out never shows an edge. **Tap any building** (a shop, a gas station, a house, the court) for a card with what it is, its hours and whether it's open; the sari-sari store's card can send the boss for a snack.
 
-The windows look out over Mabalacat towards Mount Arayat, with its live weather (from Open-Meteo, no key needed, refreshed every 10 minutes): clear, partly cloudy, cloudy, rain or storm, decided from the last 15 minutes of measured rain and the cloud cover (the forecast's weather code alone is often wrong). Hover the weather pill to see the exact condition, e.g. "Partly cloudy, feels like 36°C". Rain falls wherever you're looking, with splashes and wet streets; storms add lightning. The ACs run 8 AM–7 PM on the floor and 7:30 AM–10:30 PM in the corner office.
+Outside the entrance, a polycarbonate carport covers the boss's parking bay, a second bay with the team's scooters and a bike, and the walkway to the street; the vape gazebo at the back of the lot has its own roof, a bench and a lamp. Rain stops at both roofs, so nobody gets wet. Inside, the team floor is warm and cozy: fairy lights along the walls, a polaroid wall of the team, macramé planters, a jute rug at the stand-up circle.
+
+The big TV shows today's numbers, a 7-day chart of finished (and failed) runs, what each employee is doing right now, and what's playing on Spotify. When the team has finished reports every day for a week, a cake with seven candles appears on the dining table.
+
+The windows look out over Mabalacat towards Mount Arayat, with its live weather (from Open-Meteo, no key needed, refreshed every 10 minutes): clear, partly cloudy, cloudy, rain or storm, decided from the last 15 minutes of measured rain and the cloud cover (the forecast's weather code alone is often wrong). Hover the weather pill to see the exact condition, e.g. "Partly cloudy, feels like 36°C". Rain falls wherever you're looking, with splashes and wet streets; storms add lightning. The ground stays wet and puddles linger for about 15 minutes after the rain stops. Strong wind (from the live gusts; the label says "Windy", "Gale-force winds" or "Typhoon winds") slants the rain and sways the trees. The ACs run 8 AM–7 PM on the floor and 7:30 AM–10:30 PM in the corner office.
 
 Use the clock and weather buttons at the top left of the office to preview any of these. They keep ticking from there; **Back to live** returns to now. Change the times in `lib/office-clock.ts`.
 
 **In the office's top-right corner:**
 
 - **Sound:** mute / unmute the office ambience.
+- **Music:** Spotify (see "Spotify in the office").
 - **Boss** (crown): send the boss on a vape break, a walk down the street, a snack run to the sari-sari store, a coffee, or a round of the office. **Back to the desk** ends it early.
 - **Settings** (sliders), saved on this device:
-  - **Appearance:** colour style (Slate, or Blush: rosé and plum), and light, dark or system.
-  - **Performance:** presets (Full, Balanced, Battery saver), low-power rendering (no shadows, 1× resolution, 30 fps) and animation (Full or Minimal: no idle animation, traffic, smoke or rain particles, 12 fps).
+  - **Appearance:** colour style (Slate; Blush: rosé and plum; or Mango: ripe mango and coffee), and light, dark or system.
+  - **Performance:** presets (Full, Balanced, Battery saver), low-power rendering (no shadows, 1× resolution, 30 fps), **auto battery saver** (steps down by itself when the view keeps running under 25 fps, and says so) and animation (Full or Minimal: no idle animation, traffic, smoke or rain particles, 12 fps).
   - **Show in the office:** turn off the neighbourhood, traffic, street vendors, trees, pets, weather effects, street lights, vape smoke or name bubbles on slower devices.
   - **Daily routine:** switch off the stand-up, team sync, lunch, binning trash, the trash run, the commute, the janitor, breaks when idle, or going to the boss for help. Off means they stay at their desks.
-  - **Boss:** the look (him: street style; her: soft street style with long wavy hair and a skirt), the corner office's style (Match the boss, Executive, Gaming, Cozy or Minimal; "Match the boss" is executive for him and cozy for her), and whether the boss walks around on their own.
-  - **Sound:** office music, a generated lo-fi loop through the speakers and subwoofer under the big TV during office hours (8 AM – 7 PM). It only plays when the office sound is on; the woofer cone pumps on the kick.
+  - **Boss:** the look (him: street style; her: soft street style with long wavy hair and a skirt), the corner office's style (Match the boss, Executive, Gaming, Cozy, Minimal, Creator studio or Filipino heritage; "Match the boss" is executive for him and cozy for her), and whether the boss walks around on their own.
+  - **Sound:** office music, a generated lo-fi loop through the speakers and subwoofer under the big TV during office hours (8 AM – 7 PM). It only plays when the office sound is on (and pauses while Spotify plays); the woofer cone pumps on the kick. **Who-needs-you chimes:** each employee has their own three-note tune that plays the moment they start needing you.
+  - **Account:** add or remove passkeys for this device.
 
 The lightning button at the bottom right is a shortcut for low-power rendering.
 
@@ -366,6 +376,20 @@ HQ is built to be cloned for another person (a different boss, team names, city 
 2. Replace `data/master-profile.json` with their CV and job criteria.
 3. Give them their own accounts: a new Supabase project (step 2), their own AI keys (step 3), Resend with their email (step 4), their Google and GitHub keys (steps 5 and 6), and a new Vercel project (step 8) with all of those as environment variables. Nothing is shared between copies.
 4. The office runs on Philippine time. Another time zone needs `MANILA_OFFSET_MS` in `lib/time.ts` and `Asia/Manila` in the clock formatting and the weather URL changed.
+
+## Spotify in the office
+
+The **Music** button (top-right of the office, under the sound button) is a Spotify remote: see what's playing on any of your devices (song, artist, cover, progress), pause or skip, change the volume, or start one of your playlists. While Spotify plays, the office speakers' woofers pump along and HQ's own lo-fi loop goes quiet.
+
+1. Create an app at [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard). Tick **Web API** and **Web Playback SDK**.
+2. Add the redirect URIs `http://localhost:3000/spotify/callback` and `https://<your-app>.vercel.app/spotify/callback`.
+3. Put its Client ID in `NEXT_PUBLIC_SPOTIFY_CLIENT_ID` (`.env.local` and Vercel), redeploy, then press **Music → Connect Spotify**.
+
+Notes:
+- Sign-in uses PKCE in the browser (no client secret). The tokens are saved in that browser only; **Disconnect Spotify** removes them.
+- Playback control is a Spotify **Premium** feature. With Premium, the HQ tab also shows up as a Spotify device ("<app name> office"), so music can play from the office itself. On Spotify Free you can still see what's playing.
+- While your Spotify app is in development mode, only the accounts you add under the app's **User Management** can connect.
+- Spotify doesn't share a song's beat with new apps, so the woofers pulse at a steady ~100 BPM rather than the song's own tempo.
 
 ## Push notifications on your iPhone
 
