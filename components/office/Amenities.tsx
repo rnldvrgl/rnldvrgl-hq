@@ -16,6 +16,7 @@ import { Rain } from "./Weather";
 import { Car } from "./Car";
 import { StreetLamp } from "./StreetLamp";
 import { VapeArea } from "./Vape";
+import { HQ } from "@/hq.config";
 
 type Common = { pal: Palette; shadows: boolean };
 
@@ -240,7 +241,7 @@ function Entrance({ pal }: { pal: Palette }) {
             </mesh>
             <Suspense fallback={null}>
                 <Text font={SCENE_FONT} position={[x + 0.055, H - 0.15, ENTRANCE.z]} rotation={[0, Math.PI / 2, 0]} fontSize={0.12} color="#ffffff" anchorX="center" anchorY="middle" letterSpacing={0.1}>
-                    rnldvrgl HQ
+                    {`${HQ.owner.handle} ${HQ.shortName}`}
                 </Text>
             </Suspense>
             <mesh position={[x - 0.5, 0.008, ENTRANCE.z]} rotation={[-Math.PI / 2, 0, 0]}>

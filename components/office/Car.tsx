@@ -10,6 +10,7 @@ import { CarFront, KeyRound, Lightbulb, Lock, Power, X } from "lucide-react";
 import { getGlowTexture, light } from "./Lighting";
 import { Label } from "./Labels";
 import { cn } from "@/lib/utils";
+import { HQ, OWNERS } from "@/hq.config";
 
 /** Where the car is parked: along the pavement, nose toward the building's side. */
 export const PARKING = { x: OUTSIDE.x0 + 2.0, z: OUTSIDE.z1 - 2.3 } as const;
@@ -201,13 +202,13 @@ export function Car({ shadows }: { shadows: boolean }) {
         </mesh>
         <Suspense fallback={null}>
           <Text font={SCENE_FONT} position={[0, 0, 0.008]} fontSize={0.075} color="#1b2733" anchorX="center" anchorY="middle" letterSpacing={0.08}>
-            HQ 2026
+            {HQ.car.plate}
           </Text>
         </Suspense>
       </group>
       <Suspense fallback={null}>
         <Text font={SCENE_FONT} position={[0.5, 0.84, LENGTH / 2 - 0.02]} rotation={[0.06, 0, 0]} fontSize={0.065} color={RED} anchorX="center" anchorY="middle" letterSpacing={0.18}>
-          TYPE R
+          {HQ.car.badge}
         </Text>
       </Suspense>
 
@@ -348,7 +349,7 @@ function CarCard() {
           <span className="grid size-8 place-items-center rounded-xl bg-red-500/15 text-red-600"><CarFront className="size-4" aria-hidden /></span>
           <div className="leading-tight">
             <p className="text-sm font-semibold">Civic Type R</p>
-            <p className="text-[11px] text-muted-foreground">Ronald&apos;s car · {engine ? "engine running" : "parked"}</p>
+            <p className="text-[11px] text-muted-foreground">{OWNERS} car · {engine ? "engine running" : "parked"}</p>
           </div>
         </div>
         <button type="button" onClick={close} aria-label="Close" className="grid size-6 place-items-center rounded-full text-muted-foreground hover:bg-muted">

@@ -1,12 +1,13 @@
 import type { MetadataRoute } from "next";
 import { BRAND_BG } from "@/lib/brand-icon";
+import { HQ, OWNERS } from "@/hq.config";
 
 /** Lets you install HQ from Safari: Share → Add to Home Screen. It then opens full-screen, like an app. */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "rnldvrgl HQ",
+    name: HQ.appName,
     short_name: "HQ",
-    description: "Ronald's private headquarters of AI employees.",
+    description: `${OWNERS} private headquarters of AI employees.`,
     start_url: "/",
     scope: "/",
     display: "standalone",

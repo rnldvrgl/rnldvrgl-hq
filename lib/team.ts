@@ -1,5 +1,6 @@
 import type { Schedule } from "@/lib/time";
 import type { EmployeeStatus, Tables } from "@/lib/supabase/database.types";
+import { HQ } from "@/hq.config";
 
 export type { EmployeeStatus } from "@/lib/supabase/database.types";
 
@@ -27,8 +28,8 @@ export type EmployeeMeta = {
 const WEEKDAYS = [1, 2, 3, 4, 5];
 const EVERY_DAY = [0, 1, 2, 3, 4, 5, 6];
 
-/** Rename people, move desks or change hours here. Times are Manila time. */
-export const TEAM: EmployeeMeta[] = [
+/** Rename people in hq.config.ts (teamNames); move desks or change hours here. Times are Manila time. */
+const DEFAULT_TEAM: EmployeeMeta[] = [
   { id: "chief-of-staff", private: true, name: "Maya", title: "Chief of Staff", icon: "sun", color: 1,
     job: "Emails you a morning brief: today's calendar, unread mail, reminders and your job pipeline.",
     desk: { x: 1, y: 1.6 }, schedule: { kind: "times", days: WEEKDAYS, times: ["07:30"] } },
@@ -54,6 +55,8 @@ export const TEAM: EmployeeMeta[] = [
     job: "Friday recap: what the team did, applications sent, interviews ahead, next week's priorities.",
     desk: { x: 8.2, y: 5.4 }, schedule: { kind: "times", days: [5], times: ["17:00"] } },
 ];
+
+export const TEAM: EmployeeMeta[] = DEFAULT_TEAM.map((e) => ({ ...e, name: HQ.teamNames[e.id] ?? e.name }));
 
 export const teamById = Object.fromEntries(TEAM.map((e) => [e.id, e])) as Record<EmployeeId, EmployeeMeta>;
 

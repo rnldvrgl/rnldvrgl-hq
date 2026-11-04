@@ -3,6 +3,7 @@
 import type { KeyboardEvent, ReactElement } from "react";
 import { TEAM, type EmployeeId, type EmployeeMeta, type EmployeeView, type OfficeState } from "@/lib/team";
 import { iconPath } from "@/components/Icons";
+import { HQ } from "@/hq.config";
 
 /* ---------- isometric projection: 2:1 tiles, x runs down-right, y runs down-left, z is up ---------- */
 const TW = 88, TH = 44;            // tile width/height on screen
@@ -189,7 +190,7 @@ export function IsoScene({ state, selected, onSelect, now }: {
   const needsYou = state.employees.filter((e) => e.status === "needs_you").length;
 
   return (
-    <svg className="scene" viewBox="0 0 870 600" role="group" aria-label="rnldvrgl HQ. Select a desk to see that employee's work.">
+    <svg className="scene" viewBox="0 0 870 600" role="group" aria-label={`${HQ.appName}. Select a desk to see that employee's work.`}>
       <Floor />
       <Walls now={now} done={done} needsYou={needsYou} />
       {desks.map((meta) => (

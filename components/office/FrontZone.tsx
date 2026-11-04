@@ -14,6 +14,7 @@ import { DINING_SEATS, MEETING_SEATS, STANDUP_SCREEN } from "./routes";
 import { useBubbleMode } from "./Bubble";
 import { Label } from "./Labels";
 import { useSceneNow } from "./scene-clock-ui";
+import { HQ } from "@/hq.config";
 
 type Common = { pal: Palette; shadows: boolean };
 
@@ -121,7 +122,7 @@ function MeetingRoom({ pal, shadows }: Common) {
             {syncing ? "TEAM SYNC" : "Q4 ROADMAP"}
           </Text>
           <Text font={SCENE_FONT} position={[0, -0.12, 0.03]} fontSize={0.05} color="#93c5fd" anchorX="center" anchorY="middle">
-            rnldvrgl HQ
+            {`${HQ.owner.handle} ${HQ.shortName}`}
           </Text>
         </Suspense>
       </group>

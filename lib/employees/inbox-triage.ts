@@ -6,6 +6,7 @@ import { listMail, createReplyDraft, createTentativeEvent } from "@/lib/google";
 import profile from "@/data/master-profile.json";
 import { INBOX_CATEGORIES } from "@/lib/supabase/database.types";
 import type { WorkResult } from "./types";
+import { OWNER } from "@/hq.config";
 
 const Triage = z.array(z.object({
   id: z.string(),
@@ -38,7 +39,7 @@ export async function inboxTriage(): Promise<WorkResult> {
     system: `You triage email for ${profile.name}, a developer in Manila (UTC+8). ${UNTRUSTED_NOTE} Never promise anything on his behalf; drafts are short, polite, and leave decisions to him.`,
     prompt: [
       "Classify each email:",
-      "- reply: a real person expects an answer → write reply_draft (under 120 words, sign as Ronald)",
+      `- reply: a real person expects an answer → write reply_draft (under 120 words, sign as ${OWNER})`,
       "- interview: an interview or assessment invite with a specific time → fill interview (starts_at_iso in UTC ISO 8601) and a reply_draft confirming availability",
       "- fyi: worth knowing, no reply needed",
       "- ignore: newsletters, promos, notifications",

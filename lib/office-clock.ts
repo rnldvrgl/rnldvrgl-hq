@@ -1,5 +1,6 @@
 import { MANILA_OFFSET_MS } from "@/lib/time";
 import { TEAM, type EmployeeId } from "@/lib/team";
+import { HQ } from "@/hq.config";
 
 /**
  * Office life in Manila time: the light of day, when idle employees go home, the janitor's rounds
@@ -91,7 +92,7 @@ export const PREVIEWS: readonly { id: string; label: string; at: string }[] = [
   { id: "janitor-am", label: "7:15 AM · Janitor mops", at: "07:15" },
   { id: "morning", label: "8:15 AM · Morning", at: "08:15" },
   { id: "standup", label: "9:00 AM · Stand-up", at: "09:00" },
-  { id: "boss", label: "10:30 AM · Ronald walks around", at: "10:30" },
+  { id: "boss", label: `10:30 AM · ${HQ.owner.name} walks around`, at: "10:30" },
   { id: "lunch", label: "12:00 PM · Lunch break", at: "12:00" },
   { id: "meeting", label: "2:00 PM · Team sync (meeting room)", at: "14:00" },
   { id: "afternoon", label: "3:30 PM · Afternoon", at: "15:30" },

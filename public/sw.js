@@ -1,4 +1,4 @@
-/* rnldvrgl HQ service worker: shows push notifications and opens the app when one is tapped. */
+/* HQ service worker: shows push notifications and opens the app when one is tapped. */
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
@@ -10,7 +10,7 @@ self.addEventListener("push", (event) => {
   } catch {
     data = { body: event.data ? event.data.text() : "" };
   }
-  const title = data.title || "rnldvrgl HQ";
+  const title = data.title || "HQ";
   event.waitUntil(
     self.registration.showNotification(title, {
       body: data.body || "",
