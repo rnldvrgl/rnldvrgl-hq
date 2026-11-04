@@ -9,6 +9,7 @@
 export type BossLook = "him" | "her";
 export type BossOffice = "auto" | "executive" | "gaming" | "cozy" | "minimal" | "studio" | "heritage";
 export type StyleName = "slate" | "blush" | "mango";
+export type LoginBackdrop = "street" | "aurora";
 
 export const HQ = {
   /** The owner: shown on the office sign, the header and in prompts ("sign as …"). */
@@ -26,6 +27,17 @@ export const HQ = {
   /** App name in the browser tab, the installed Home Screen app and notifications. */
   appName: "rnldvrgl HQ",
   shortName: "HQ",
+
+  /** The sign-in page. */
+  login: {
+    /** The line under the greeting. */
+    tagline: "Your AI team is on the clock.",
+    /**
+     * What's behind the glass card: "street" is the office's street at this hour in your city (sky, sun or
+     * moon, lit windows at night); "aurora" is soft colour fields in the app's colour style.
+     */
+    backdrop: "street" as LoginBackdrop,
+  },
 
   /** Default colour style of the app (Settings → Appearance can change it per device). "blush" is the rosé look. */
   style: "slate" as StyleName,
