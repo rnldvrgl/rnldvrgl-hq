@@ -31,8 +31,23 @@ const hasClaude = () => !!optionalEnv("ANTHROPIC_API_KEY");
 const hasGemini = () => !!optionalEnv("GEMINI_API_KEY");
 const hasGroq = () => !!optionalEnv("GROQ_API_KEY");
 
-/** A free tier's rate or daily limit: the next backup gets a turn. */
+/** A free tier's rate or daily limit (or a backup that didn't answer in time): the next backup gets a turn. */
 class RateLimitError extends Error {}
+
+/** One AI request may take this long before it's abandoned (a hung connection never ends otherwise). */
+const CALL_TIMEOUT_MS = { claude: 150_000, backup: 100_000 } as const;
+
+/** fetch with a time limit; a timeout becomes a RateLimitError so the next backup gets a turn. */
+async function timedFetch(who: string, url: string, init: RequestInit, ms: number): Promise<Response> {
+  try {
+    return await fetch(url, { ...init, signal: AbortSignal.timeout(ms) });
+  } catch (err) {
+    if (err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError")) {
+      throw new RateLimitError(`${who} didn't answer within ${Math.round(ms / 1000)} s.`);
+    }
+    throw err;
+  }
+}
 
 type Backup = { name: "groq" | "gemini"; run: (opts: AskOptions) => Promise<string> };
 function backups(): Backup[] {
@@ -72,7 +87,7 @@ export async function ask(opts: AskOptions): Promise<string> {
       return await askClaude(opts);
     } catch (err) {
       // Bad key or no credit yet: use the backup for this call if allowed, otherwise surface the error.
-      if (err instanceof ClaudeAccountError && backups().length && (!opts.private || backupAllowsPrivate())) {
+      if ((err instanceof ClaudeAccountError || err instanceof RateLimitError) && backups().length && (!opts.private || backupAllowsPrivate())) {
         console.warn(`[ai] Claude unavailable (${err.message}); using the free backup for this call.`);
         return askBackups(opts);
       }
@@ -113,7 +128,7 @@ async function askClaude(opts: AskOptions): Promise<string> {
 
   // `pause_turn` can come back on long web-search turns; continuing the turn finishes it.
   for (let turn = 0; turn < 4; turn++) {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    const res = await timedFetch("Claude", "https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -127,10 +142,11 @@ async function askClaude(opts: AskOptions): Promise<string> {
         ...(tools ? { tools } : {}),
         messages,
       }),
-    });
+    }, CALL_TIMEOUT_MS.claude);
     if (!res.ok) {
       const body = await res.text();
-      const accountProblem = res.status === 401 || res.status === 403 || /credit balance|billing/i.test(body);
+      // bad key, no credit, rate limited or overloaded: the backups can take this call
+      const accountProblem = res.status === 401 || res.status === 403 || res.status === 429 || res.status === 529 || /credit balance|billing/i.test(body);
       const msg = `Claude API ${res.status}: ${body.slice(0, 300)}`;
       throw accountProblem ? new ClaudeAccountError(msg) : new Error(msg);
     }
@@ -158,7 +174,7 @@ async function askGemini(opts: AskOptions): Promise<string> {
     ? `${opts.prompt}\n\nOnly use results from these sites: ${domains.join(", ")}. Use site: searches to target them.`
     : opts.prompt;
 
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+  const res = await timedFetch("Gemini", `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-goog-api-key": env("GEMINI_API_KEY") },
     body: JSON.stringify({
@@ -168,7 +184,7 @@ async function askGemini(opts: AskOptions): Promise<string> {
       // Thinking tokens count toward the output limit on newer Gemini models, so leave headroom.
       generationConfig: { maxOutputTokens: Math.max(4096, (opts.maxTokens ?? 2000) * 2) },
     }),
-  });
+  }, CALL_TIMEOUT_MS.backup);
   if (!res.ok) {
     const body = await res.text();
     if (res.status === 429) throw new RateLimitError("Gemini free tier limit reached for now. It resets daily; Claude has no such limit.");
@@ -210,7 +226,7 @@ const notAvailable = (status: number, body: string) =>
   status === 404 || /model_not_found|does not exist|do not have access|not supported|unknown tool|tool_use_failed/i.test(body);
 
 async function groqCall(route: GroqRoute, opts: AskOptions, prompt: string): Promise<Response> {
-  return fetch("https://api.groq.com/openai/v1/chat/completions", {
+  return timedFetch("Groq", "https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${env("GROQ_API_KEY")}` },
     body: JSON.stringify({
@@ -219,7 +235,7 @@ async function groqCall(route: GroqRoute, opts: AskOptions, prompt: string): Pro
       messages: [...(opts.system ? [{ role: "system", content: opts.system }] : []), { role: "user", content: prompt }],
       ...(route.browserSearch ? { tools: [{ type: "browser_search" }], tool_choice: "auto" } : {}),
     }),
-  });
+  }, CALL_TIMEOUT_MS.backup);
 }
 
 /** Groq's free tier: plain prompts on a chat model, web prompts on a model that can search. */

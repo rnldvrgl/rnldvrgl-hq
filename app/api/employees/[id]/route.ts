@@ -7,7 +7,7 @@ import { isEmployeeId } from "@/lib/team";
 import { runEmployee } from "@/lib/employees";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 type Ctx = { params: Promise<{ id: string }> };
 

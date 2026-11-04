@@ -2,8 +2,27 @@ import "server-only";
 import { db } from "@/lib/supabase/admin";
 import { TEAM, type OfficeState, type RunView } from "@/lib/team";
 import { activeProvider, backupAllowsPrivate } from "@/lib/ai";
+import { STALE_MS } from "@/lib/employees";
+
+const STUCK_SUMMARY = "Run never finished (stopped mid-way). Tap Run now to try again.";
+
+/**
+ * A desk still on "working" long after its run started was cut off mid-run (the server's time limit, a redeploy),
+ * so nothing ever recorded the end. Close those runs as errors: the employee then goes to your office for help
+ * instead of looking busy forever, and the next run can start.
+ */
+async function releaseStuckDesks(): Promise<void> {
+  const before = new Date(Date.now() - STALE_MS).toISOString();
+  const now = new Date().toISOString();
+  const { data: stuck } = await db().from("employees").update({ status: "error", summary: STUCK_SUMMARY, updated_at: now })
+    .eq("status", "working").lt("updated_at", before).select("id");
+  await db().from("runs").update({ status: "error", error: STUCK_SUMMARY, finished_at: now })
+    .eq("status", "running").lt("started_at", before);
+  if (stuck?.length) console.warn(`[state] released stuck desks: ${stuck.map((r) => r.id).join(", ")}`);
+}
 
 export async function loadOfficeState(): Promise<OfficeState> {
+  await releaseStuckDesks().catch((e: unknown) => console.warn("[state] couldn't release stuck desks:", e instanceof Error ? e.message : e));
   const [employees, runs, jobs, reminders, inbox] = await Promise.all([
     db().from("employees").select("id, enabled, status, summary, last_run_at"),
     db().from("runs").select("id, employee_id, status, output, error, started_at, finished_at, trigger").order("started_at", { ascending: false }).limit(80),

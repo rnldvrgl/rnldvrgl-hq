@@ -26,8 +26,30 @@ const WORK: Record<EmployeeId, Employee> = {
   "weekly-reviewer": weeklyReviewer,
 };
 
-/** A run that started more than this long ago is treated as crashed, so the desk never sticks on "working". */
-const STALE_MS = 10 * 60_000;
+/**
+ * How long one run may take. Past this the run is stopped and recorded as an error, so the employee goes to
+ * your office for help instead of sitting on "working" forever (a stuck AI call, a hung web search…).
+ * It stays under the function limit (maxDuration = 300 s on the routes that run employees).
+ */
+export const RUN_DEADLINE_MS = 240_000;
+/**
+ * A run still marked "working" this long after it started never finished: the server was stopped mid-run
+ * (function time limit, a redeploy). lib/state.ts marks it as an error the next time the office loads.
+ */
+export const STALE_MS = RUN_DEADLINE_MS + 90_000;
+
+class RunTimeoutError extends Error {}
+
+/** Rejects if `work` hasn't settled within `ms`. */
+function withDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new RunTimeoutError(
+      `Stopped after ${Math.round(ms / 60_000)} minutes without finishing (the AI or a website didn't answer). Try "Run now" again later.`,
+    )), ms);
+  });
+  return Promise.race([work, timeout]).finally(() => clearTimeout(timer));
+}
 
 /**
  * Runs one employee end to end: claims the desk, does the work, records the run.
@@ -48,9 +70,10 @@ export async function runEmployee(id: EmployeeId, trigger: RunTrigger): Promise<
   const staleBefore = new Date(now.getTime() - STALE_MS).toISOString();
 
   // Claim the desk atomically: only flips to "working" if nobody else holds it (or the holder went stale).
+  // last_run_at moves now, not at the end: if this run dies mid-way, the same slot isn't retried every 5 minutes.
   const { data: claimed } = await db()
     .from("employees")
-    .update({ status: "working", updated_at: now.toISOString() })
+    .update({ status: "working", last_run_at: now.toISOString(), updated_at: now.toISOString() })
     .eq("id", id)
     .or(`status.neq.working,updated_at.lt.${staleBefore}`)
     .select("id");
@@ -70,9 +93,10 @@ export async function runEmployee(id: EmployeeId, trigger: RunTrigger): Promise<
   }
 
   try {
-    const result = await WORK[id]();
+    const result = await withDeadline(WORK[id](), RUN_DEADLINE_MS);
     const finished = new Date().toISOString();
-    const brain = activeProvider() === "gemini" ? "\n\n— done by the free Gemini backup" : "";
+    const provider = activeProvider();
+    const brain = provider === "gemini" || provider === "groq" ? `\n\n— done by the free ${provider === "groq" ? "Groq" : "Gemini"} backup` : "";
     await db().from("runs").update({ status: result.status, output: result.output + brain, finished_at: finished }).eq("id", run.id);
     await db().from("employees").update({
       status: result.status === "needs_you" ? "needs_you" : "idle",

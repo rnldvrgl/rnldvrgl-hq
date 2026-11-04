@@ -3,7 +3,7 @@ import { isCronRequest } from "@/lib/auth";
 import { tick } from "@/lib/employees";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 async function handle(req: Request) {
   if (!isCronRequest(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
