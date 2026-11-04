@@ -1,14 +1,17 @@
 "use client";
 
-import { Suspense, useEffect, useState, type SubmitEvent } from "react";
+import { Suspense, useEffect, useState, type ReactNode, type SubmitEvent } from "react";
 import { useSearchParams } from "next/navigation";
-import { MailCheck } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, KeyRound, Lock, Mail, MailCheck } from "lucide-react";
 import { browserClient } from "@/lib/supabase/browser";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ThemePicker } from "@/components/ThemePicker";
+import { HQ, OWNER } from "@/hq.config";
+import { BrandIcon } from "@/lib/brand-icon";
+import { TEAM } from "@/lib/team";
+import { cn } from "@/lib/utils";
 
 const ERRORS: Record<string, string> = {
   owner: "HQ only opens for its owner. Sign in with the owner's email.",
@@ -33,6 +36,7 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [step, setStep] = useState<"password" | "email" | "code">("password");
   const [busy, setBusy] = useState(false);
+  const [showPw, setShowPw] = useState(false);
   const [err, setErr] = useState(() => {
     const reason = params.get("reason");
     const base = ERRORS[params.get("error") ?? ""] ?? "";
@@ -79,63 +83,93 @@ function LoginForm() {
     window.location.assign("/"); // full reload so the server sees the new session cookie
   }
 
+  const mode = step === "code" ? "email" : step;
+  const switchTo = (next: "password" | "email") => { setStep(next); setErr(""); setCode(""); };
+
   return (
-    <main className="relative grid min-h-dvh place-items-center px-[max(16px,env(safe-area-inset-left,0px))] pb-[env(safe-area-inset-bottom,0px)] pt-[env(safe-area-inset-top,0px)]">
-      <div className="absolute top-[max(16px,env(safe-area-inset-top,0px))] right-[max(16px,env(safe-area-inset-right,0px))]">
+    <main className="relative grid min-h-dvh place-items-center px-[max(16px,env(safe-area-inset-left,0px))] pb-[max(16px,env(safe-area-inset-bottom,0px))] pt-[max(16px,env(safe-area-inset-top,0px))]">
+      <div className="absolute top-[max(16px,env(safe-area-inset-top,0px))] right-[max(16px,env(safe-area-inset-right,0px))] z-10">
         <ThemePicker />
       </div>
-      <Card className="w-full max-w-sm rounded-3xl">
-        <CardHeader>
-          <p className="font-mono text-xs uppercase tracking-[0.08em] text-primary">rnldvrgl</p>
-          <CardTitle className="text-2xl">HQ</CardTitle>
-          <CardDescription>
-            {step === "password" ? "Sign in with your email and password." : step === "email" ? "We'll email you a 6-digit code instead." : `We sent a code to ${email}.`}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {step === "password" ? (
-            <form onSubmit={signInWithPassword} className="grid gap-3">
-              <div className="grid gap-1.5">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="password">Password</Label>
-                <Input id="password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
-              </div>
-              <Button type="submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</Button>
-              <button type="button" className="text-sm text-muted-foreground underline-offset-4 hover:underline" onClick={() => { setStep("email"); setErr(""); }}>
-                Email me a code instead
+      <div className="grid w-full max-w-5xl overflow-hidden rounded-[2rem] glass lg:grid-cols-[1.15fr_1fr]">
+        <Hero />
+        <section className="grid content-center gap-6 p-6 sm:p-10">
+          <header className="grid gap-1.5">
+            <p className="font-mono text-xs uppercase tracking-[0.12em] text-primary">{HQ.owner.handle} · {HQ.shortName}</p>
+            <h1 className="text-balance text-3xl font-semibold tracking-tight">Welcome back</h1>
+            <p className="text-sm text-muted-foreground">
+              {step === "code" ? <>We sent a code to <span className="font-medium text-foreground">{email}</span>.</> : "Sign in to open the office."}
+            </p>
+          </header>
+
+          <div role="tablist" aria-label="How to sign in" className="grid grid-cols-2 gap-1 rounded-xl border border-border bg-muted/50 p-1">
+            {([["password", "Password", KeyRound], ["email", "Email code", Mail]] as const).map(([id, label, Icon]) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={mode === id}
+                onClick={() => switchTo(id)}
+                className={cn(
+                  "inline-flex min-h-10 items-center justify-center gap-2 rounded-lg text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-ring",
+                  mode === id ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Icon className="size-4" aria-hidden />
+                {label}
               </button>
+            ))}
+          </div>
+
+          {step === "password" ? (
+            <form onSubmit={signInWithPassword} className="grid gap-4">
+              <Field id="email" label="Email">
+                <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="h-11" />
+              </Field>
+              <Field id="password" label="Password">
+                <div className="relative">
+                  <Input id="password" type={showPw ? "text" : "password"} autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} className="h-11 pr-11" />
+                  <button
+                    type="button"
+                    onClick={() => setShowPw((v) => !v)}
+                    aria-label={showPw ? "Hide password" : "Show password"}
+                    aria-pressed={showPw}
+                    className="absolute inset-y-0 right-0 grid w-11 place-items-center rounded-r-md text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+                  >
+                    {showPw ? <EyeOff className="size-4" aria-hidden /> : <Eye className="size-4" aria-hidden />}
+                  </button>
+                </div>
+              </Field>
+              <Button type="submit" size="lg" className="h-11 rounded-xl" disabled={busy}>
+                {busy ? "Signing in…" : <>Sign in <ArrowRight className="size-4" aria-hidden /></>}
+              </Button>
             </form>
           ) : step === "email" ? (
-            <form onSubmit={sendCode} className="grid gap-3">
-              <div className="grid gap-1.5">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-              </div>
-              <Button type="submit" disabled={busy}>{busy ? "Sending…" : "Email me a code"}</Button>
-              <button type="button" className="text-sm text-muted-foreground underline-offset-4 hover:underline" onClick={() => { setStep("password"); setErr(""); }}>
-                Use my password instead
-              </button>
+            <form onSubmit={sendCode} className="grid gap-4">
+              <Field id="email" label="Email">
+                <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="h-11" />
+              </Field>
+              <Button type="submit" size="lg" className="h-11 rounded-xl" disabled={busy}>
+                {busy ? "Sending…" : <>Email me a 6-digit code <ArrowRight className="size-4" aria-hidden /></>}
+              </Button>
+              <p className="text-xs text-muted-foreground">No password needed. The code works in any browser.</p>
             </form>
           ) : (
-            <form onSubmit={verify} className="grid gap-3">
-              <p className="flex gap-2 text-sm text-muted-foreground">
+            <form onSubmit={verify} className="grid gap-4">
+              <p className="flex gap-2.5 rounded-xl border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
                 <MailCheck className="size-5 shrink-0 text-primary" aria-hidden />
                 Type the code from the email. It works in any browser, so you don&apos;t need to click the link.
               </p>
-              <div className="grid gap-1.5">
-                <Label htmlFor="code">Code</Label>
+              <Field id="code" label="Code">
                 <Input
                   id="code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6,10}" maxLength={10}
                   placeholder="123456" required autoFocus value={code}
                   onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                  className="font-mono text-lg tracking-[0.3em]"
+                  className="h-14 text-center font-mono text-2xl tracking-[0.45em]"
                 />
-              </div>
-              <Button type="submit" disabled={busy || code.length < 6}>{busy ? "Checking…" : "Sign in"}</Button>
-              <div className="flex justify-between text-sm">
+              </Field>
+              <Button type="submit" size="lg" className="h-11 rounded-xl" disabled={busy || code.length < 6}>{busy ? "Checking…" : "Sign in"}</Button>
+              <div className="flex justify-between gap-3 text-sm">
                 <button type="button" className="text-muted-foreground underline-offset-4 hover:underline" onClick={() => { setStep("email"); setCode(""); setErr(""); }}>
                   Use a different email
                 </button>
@@ -145,10 +179,154 @@ function LoginForm() {
               </div>
             </form>
           )}
-          <p className="mt-3 min-h-5 text-sm text-destructive" aria-live="polite">{err}</p>
-        </CardContent>
-      </Card>
+          <p className={cn("min-h-5 text-sm text-destructive", err && "rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2")} aria-live="polite">{err}</p>
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Lock className="size-3.5" aria-hidden /> Only {OWNER} can sign in. Nobody else gets in, even with an account.
+          </p>
+        </section>
+      </div>
     </main>
+  );
+}
+
+function Field({ id, label, children }: { id: string; label: string; children: ReactNode }) {
+  return (
+    <div className="grid gap-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      {children}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ the picture */
+
+type Phase = "dawn" | "day" | "dusk" | "night";
+const SKY: Record<Phase, { top: string; bottom: string; hill: string; far: string; lit: boolean; ground: string }> = {
+  dawn: { top: "#f2b8a2", bottom: "#fde6cf", hill: "#9a8fa8", far: "#c7b3bd", lit: true, ground: "#7c8a6f" },
+  day: { top: "#7fbbe6", bottom: "#dcf0fb", hill: "#6f9a86", far: "#a9c6bd", lit: false, ground: "#86a67a" },
+  dusk: { top: "#4b3f7e", bottom: "#f19c7a", hill: "#4a4568", far: "#7a6585", lit: true, ground: "#4d5a4a" },
+  night: { top: "#0c1730", bottom: "#24365e", hill: "#1a2742", far: "#22324f", lit: true, ground: "#1d2a2a" },
+};
+
+function phaseAt(hour: number): Phase {
+  return hour >= 5 && hour < 7 ? "dawn" : hour >= 7 && hour < 17 ? "day" : hour >= 17 && hour < 19 ? "dusk" : "night";
+}
+
+const HOUR = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", hour: "numeric", hourCycle: "h23" });
+const CLOCK = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit", hour12: true });
+
+/** The left panel: the office's street right now (sky by the hour in the office's city), the time and the team. */
+function Hero() {
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+    const t = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  const hour = now ? Number(HOUR.format(now)) : 10;
+  const phase = phaseAt(hour);
+  const sky = SKY[phase];
+  const greet = hour < 12 && hour >= 4 ? "Good morning" : hour < 18 && hour >= 12 ? "Good afternoon" : "Good evening";
+
+  return (
+    <aside
+      className={cn("relative isolate flex min-h-[260px] flex-col gap-4 overflow-hidden p-6 sm:min-h-[340px] sm:p-8 lg:min-h-[580px]", sky.lit ? "text-white" : "text-slate-900")}
+      style={{ background: `linear-gradient(${sky.top}, ${sky.bottom})` }}
+    >
+      <Street sky={sky} phase={phase} />
+      <div className="relative flex items-center gap-3">
+        <span className="overflow-hidden rounded-xl shadow-lg ring-1 ring-white/40"><BrandIcon size={40} /></span>
+        <div className="leading-tight">
+          <p className="text-sm font-semibold">{HQ.appName}</p>
+          <p className={cn("text-xs", sky.lit ? "text-white/80" : "text-slate-700")}>{HQ.city.full}</p>
+        </div>
+      </div>
+      <div className={cn("relative grid gap-3 sm:mt-4", sky.lit && "drop-shadow-[0_1px_8px_rgba(0,0,0,0.45)]")}>
+        <p className="text-balance text-2xl font-semibold tracking-tight sm:text-4xl">{greet}, {OWNER}.</p>
+        <p className={cn("hidden max-w-sm text-sm sm:block", sky.lit ? "text-white/90" : "text-slate-700")}>
+          {now ? <>It&apos;s <span className="font-mono tabular-nums">{CLOCK.format(now)}</span> in {HQ.city.name}. </> : null}
+          Your team of {TEAM.length} is on the clock: briefs, inbox, jobs, reminders and code reviews.
+        </p>
+        <ul className="hidden -space-x-2 sm:flex" aria-label="The team">
+          {TEAM.map((m) => (
+            <li key={m.id} title={`${m.name} · ${m.title}`} className="grid size-9 place-items-center rounded-full text-xs font-semibold text-white shadow ring-2 ring-white/70" style={{ background: `var(--c${m.color})` }}>
+              {m.name.slice(0, 1)}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </aside>
+  );
+}
+
+/** A flat little street scene: Mount Arayat in the distance, the HQ office between two shops, a jeepney. */
+function Street({ sky, phase }: { sky: (typeof SKY)[Phase]; phase: Phase }) {
+  const win = sky.lit ? "#ffd27a" : "#a7cbe2";
+  const night = phase === "night";
+  return (
+    <svg className="absolute inset-0 -z-10 h-full w-full" viewBox="0 0 400 300" preserveAspectRatio="xMidYMax slice" aria-hidden>
+      {/* sun or moon, stars at night */}
+      {night
+        ? <><circle cx="318" cy="64" r="14" fill="#f4efe1" /><circle cx="324" cy="60" r="12" fill={sky.top} />
+            {[[40, 40], [90, 70], [150, 30], [220, 55], [260, 25], [360, 90], [190, 95]].map(([x, y]) => <circle key={x} cx={x} cy={y} r="1.2" fill="#fff" opacity="0.8" />)}</>
+        : <circle cx={phase === "dusk" ? 300 : phase === "dawn" ? 90 : 310} cy={phase === "day" ? 60 : 150} r="22" fill={phase === "day" ? "#fff4c9" : "#ffd29c"} opacity="0.95" />}
+      {/* Mount Arayat and the far hills */}
+      <path d="M0 205 L60 190 L110 198 L160 178 L210 120 L238 104 L262 118 L300 150 L340 170 L400 165 L400 300 L0 300Z" fill={sky.far} />
+      <path d="M0 225 L70 210 L140 222 L220 206 L300 218 L400 204 L400 300 L0 300Z" fill={sky.hill} />
+      {/* the ground and the road */}
+      <rect x="0" y="246" width="400" height="54" fill={sky.ground} />
+      <rect x="0" y="262" width="400" height="22" fill={night ? "#2a2f38" : "#4b5057"} />
+      {Array.from({ length: 10 }, (_, i) => <rect key={i} x={10 + i * 42} y="272" width="20" height="2" fill="#f1ecd8" opacity="0.8" />)}
+      {/* left shop: sari-sari */}
+      <rect x="22" y="200" width="70" height="50" fill={night ? "#6b5a48" : "#f1d9a8"} />
+      <rect x="22" y="196" width="70" height="6" fill="#7c4a2d" />
+      <rect x="18" y="222" width="78" height="6" fill="#2563eb" transform="skewX(-12)" />
+      <rect x="32" y="206" width="22" height="13" fill={win} />
+      <rect x="62" y="206" width="22" height="13" fill={win} />
+      {/* the HQ office: glass front, warm light, the sign */}
+      <rect x="110" y="168" width="150" height="82" fill={night ? "#24303d" : "#e9edf0"} />
+      <rect x="106" y="162" width="158" height="8" fill="#1f3a52" />
+      {Array.from({ length: 6 }, (_, i) => <rect key={i} x={116 + i * 24} y="182" width="20" height="60" fill={win} opacity={sky.lit ? 0.95 : 0.75} />)}
+      {Array.from({ length: 7 }, (_, i) => <rect key={i} x={114 + i * 24} y="180" width="2" height="64" fill="#2b3640" />)}
+      <rect x="150" y="146" width="70" height="16" rx="3" fill="#1f3a52" />
+      <text x="185" y="158" textAnchor="middle" fontFamily="ui-monospace, monospace" fontSize="10" fontWeight="700" fill="#e7b04a" letterSpacing="2">HQ</text>
+      {/* right shop: panaderia */}
+      <rect x="276" y="192" width="76" height="58" fill={night ? "#5e5040" : "#f6dfa8"} />
+      <rect x="276" y="188" width="76" height="6" fill="#92400e" />
+      <rect x="286" y="200" width="56" height="14" fill="#78350f" />
+      <text x="314" y="210" textAnchor="middle" fontFamily="ui-sans-serif, system-ui" fontSize="7" fontWeight="800" fill="#fde68a">PANADERIA</text>
+      <rect x="290" y="222" width="22" height="16" fill={win} />
+      <rect x="318" y="222" width="22" height="16" fill={win} />
+      {/* street lamps */}
+      {[100, 268].map((x) => (
+        <g key={x}>
+          <rect x={x} y="196" width="2" height="54" fill="#2b3238" />
+          <rect x={x - 6} y="194" width="10" height="3" rx="1" fill="#2b3238" />
+          {sky.lit && <circle cx={x - 1} cy="198" r="9" fill="#ffd9a0" opacity="0.35" />}
+        </g>
+      ))}
+      {/* the jeepney */}
+      <g transform="translate(150 250)">
+        <rect x="0" y="0" width="92" height="18" rx="2" fill="#f3f0e6" />
+        <rect x="0" y="12" width="92" height="3" fill="#e11d48" />
+        <rect x="0" y="15" width="92" height="2" fill="#2563eb" />
+        <rect x="6" y="3" width="62" height="7" fill="#2b3138" />
+        <rect x="74" y="5" width="22" height="13" rx="2" fill="#cbd5e1" />
+        <rect x="-2" y="-3" width="80" height="3" fill="#9ca3af" />
+        <circle cx="18" cy="20" r="5" fill="#111417" /><circle cx="80" cy="20" r="5" fill="#111417" />
+        {sky.lit && <circle cx="98" cy="12" r="5" fill="#fff7df" opacity="0.9" />}
+      </g>
+      {/* a soft shade at the top so the text reads */}
+      <rect x="0" y="0" width="400" height="300" fill="url(#shade)" />
+      <defs>
+        <linearGradient id="shade" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#000" stopOpacity={sky.lit ? 0.25 : 0} />
+          <stop offset="0.45" stopColor="#000" stopOpacity="0" />
+          <stop offset="0.75" stopColor="#000" stopOpacity="0" />
+          <stop offset="1" stopColor="#000" stopOpacity="0.35" />
+        </linearGradient>
+      </defs>
+    </svg>
   );
 }
 
