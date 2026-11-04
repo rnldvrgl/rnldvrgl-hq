@@ -238,8 +238,9 @@ curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/tick
 1. vercel.com → **Add New Project** → import the repo.
 2. Add every variable from `.env.local` under **Settings → Environment Variables**. Change `APP_URL` to the Vercel URL.
 3. Deploy, then in Supabase **Authentication → URL Configuration** add `https://YOUR-APP.vercel.app` and `https://YOUR-APP.vercel.app/auth/callback`.
-4. Add the Google and GitHub keys from steps 5 and 6 (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `GITHUB_TOKEN`, `GITHUB_USERNAME`) to the Vercel environment variables too. The same refresh token works locally and live.
-5. After your first sign-in, turn off **Authentication → Providers → Email → Allow new users to sign up** so nobody else can create an account.
+4. Running employees can take a few minutes (web research), so the routes that run them ask for up to 300 s (`maxDuration = 300` in `app/api/tick` and `app/api/employees/[id]`). That's the Hobby plan's limit with Fluid Compute (on by default for new projects). If a deploy complains about it, turn on **Settings → Functions → Fluid Compute**.
+5. Add the Google and GitHub keys from steps 5 and 6 (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `GITHUB_TOKEN`, `GITHUB_USERNAME`) to the Vercel environment variables too. The same refresh token works locally and live.
+6. After your first sign-in, turn off **Authentication → Providers → Email → Allow new users to sign up** so nobody else can create an account.
 
 ### 9. Start the office clock
 
@@ -251,7 +252,8 @@ Why Supabase and not Vercel Cron: Vercel's free plan only runs a cron once a day
 
 ### 10. Tune your team
 
-- **Names, desks, hours:** `lib/team.ts`
+- **Your name, the city, employee names, default look and colour style:** `hq.config.ts` (see "Make a copy for someone else")
+- **Desks, hours:** `lib/team.ts`
 - **3D colours and room size:** `components/office/palette.ts`
 - **Animations:** `components/office/Desk3D.tsx` (drop-in, typing, hop) and `Scene3D.tsx` (camera controls and the glide to a desk)
 - **Job criteria and your CV:** `data/master-profile.json` (fill in the `TODO` screening answers)
@@ -313,9 +315,10 @@ The 3D office is in Mabalacat City, Pampanga and follows Philippine time, so eve
 |---|---|
 | 6 AM–11:30 AM | Morning light: a warm sunrise in the windows, then bright day. |
 | 7:00 AM | Everyone walks in from the street and sits down. |
-| 7–8 AM, 12–1 PM, 6–7 PM | Ben the janitor mops the aisles (wet-floor sign out). |
+| 7–8 AM, 12–1 PM, 6–7 PM | The janitor mops the aisles (wet-floor sign out). |
 | 9:00 AM (weekdays) | Stand-up: anyone who isn't busy gathers in the circle at the front, Ronald leads, and Maya's morning brief pops up on the screen. |
 | 12:00–12:55 PM | Lunch: anyone who isn't busy eats at the dining table by the pantry. |
+| 2:00–2:15 PM (weekdays) | Team sync: anyone who isn't busy sits around the table in the glass meeting room. |
 | 1 PM–6 PM | Afternoon: golden light, sunset from about 5:20 PM. |
 | All day | Anyone idle hangs out on the vape patio past the parked car; when work comes in they walk back to their desk. Anyone showing an error goes to Ronald's office and waits on the sofa for help. |
 | 5:30 PM | Everyone empties their desk bin into the main bin by the entrance. |
@@ -324,11 +327,45 @@ The 3D office is in Mabalacat City, Pampanga and follows Philippine time, so eve
 | Night | City lights in the windows, office lights on, screens off on empty desks. |
 | Through the day | Ronald gets up now and then (every half hour from 9:30 AM to 4:30 PM, and at random), walks the floor and looks over people's shoulders, sometimes via the coffee machine. When someone finishes a report, a sheet of paper flies to his in-tray. |
 
-The windows look out over Mabalacat towards Mount Arayat, with its live weather (from Open-Meteo, no key needed, refreshed every 15 minutes): clouds, rain on the glass and the pavement, and lightning in storms. The ACs run 8 AM–7 PM on the floor and 7:30 AM–10:30 PM in the corner office.
+Around the office is a small Filipino town. Along the street: shophouses with the family's home upstairs (a panaderia, carinderia, labada, kapihan and hardware), a sari-sari store, and Jollibee, McDonald's, Mercury Drug and 7-Eleven. Behind the office, two side streets lead to two residential streets lined with houses: hollow-block walls, GI roofs, window grills, gated fences, carports with tricycles, water tanks, clotheslines, power lines and a basketball hoop. Across the street: a Shell and a Petron station, the TODA tricycle terminal, the barangay court, a parking lot, a park and the barangay hall. Jeepneys, tricycles, motorbikes and cars drive the streets with their lights on after dark, and pandesal vendors are out on the sidewalks from 5 AM to 7 PM. At night the 24-hour places, gas stations, court and signs stay lit, shops light up until 10 PM and homes in the evening. The ground and streets reach far past the town, so zooming out never shows an edge.
 
-Use the clock and weather buttons at the top left of the office to preview any of these. They keep ticking from there; **Back to live** returns to now. The lightning button at the bottom right switches **low-power mode** (no shadows, lower resolution, 30 fps), which this device remembers. Change the times in `lib/office-clock.ts`.
+The windows look out over Mabalacat towards Mount Arayat, with its live weather (from Open-Meteo, no key needed, refreshed every 10 minutes): clear, partly cloudy, cloudy, rain or storm, decided from the last 15 minutes of measured rain and the cloud cover (the forecast's weather code alone is often wrong). Hover the weather pill to see the exact condition, e.g. "Partly cloudy, feels like 36°C". Rain falls wherever you're looking, with splashes and wet streets; storms add lightning. The ACs run 8 AM–7 PM on the floor and 7:30 AM–10:30 PM in the corner office.
 
-**Themes:** the palette button in the header switches between Graphite (default, light gray), Porcelain (white), Onyx (black), Slate (dark blue-gray) and Auto (Porcelain or Onyx following your device). Each browser remembers its choice.
+Use the clock and weather buttons at the top left of the office to preview any of these. They keep ticking from there; **Back to live** returns to now. Change the times in `lib/office-clock.ts`.
+
+**In the office's top-right corner:**
+
+- **Sound:** mute / unmute the office ambience.
+- **Boss** (crown): send the boss on a vape break, a walk down the street, a snack run to the sari-sari store, a coffee, or a round of the office. **Back to the desk** ends it early.
+- **Settings** (sliders), saved on this device:
+  - **Appearance:** colour style (Slate, or Blush: rosé and plum), and light, dark or system.
+  - **Performance:** presets (Full, Balanced, Battery saver), low-power rendering (no shadows, 1× resolution, 30 fps) and animation (Full or Minimal: no idle animation, traffic, smoke or rain particles, 12 fps).
+  - **Show in the office:** turn off the neighbourhood, traffic, street vendors, trees, pets, weather effects, street lights, vape smoke or name bubbles on slower devices.
+  - **Daily routine:** switch off the stand-up, team sync, lunch, binning trash, the trash run, the commute, the janitor, breaks when idle, or going to the boss for help. Off means they stay at their desks.
+  - **Boss:** the look (him: street style; her: soft street style with long wavy hair and a skirt), the corner office's style (Match the boss, Executive, Gaming, Cozy or Minimal; "Match the boss" is executive for him and cozy for her), and whether the boss walks around on their own.
+  - **Sound:** office music, a generated lo-fi loop through the speakers and subwoofer under the big TV during office hours (8 AM – 7 PM). It only plays when the office sound is on; the woofer cone pumps on the kick.
+
+The lightning button at the bottom right is a shortcut for low-power rendering.
+
+## Make a copy for someone else
+
+HQ is built to be cloned for another person (a different boss, team names, city and accounts):
+
+1. Fork or copy the repo, then edit **`hq.config.ts`**:
+   - `owner.name`: their first name (used in the app and in the AI prompts, e.g. "sign as …").
+   - `owner.handle`: the short name on the office sign and the header.
+   - `owner.look`: `"him"` or `"her"`.
+   - `owner.office`: the corner office's default style, `"auto"`, `"executive"`, `"gaming"`, `"cozy"` or `"minimal"`.
+   - `appName` / `shortName`.
+   - `style`: `"slate"` or `"blush"`.
+   - `city`: the name, clock label and latitude / longitude for the weather.
+   - `town`: `barangay` (the name on the barangay hall) and `realBrands`. Set `realBrands` to `false` for a copy you publish: the signs then show made-up names instead of Jollibee, McDonald's, Shell, Petron, 7-Eleven and Mercury Drug, whose names are their owners' trademarks.
+   - `car`: the plate and badge.
+   - `teamNames`: rename any employee, e.g. `{ "chief-of-staff": "Bea", "researcher": "Nico" }`.
+   - `janitorName`.
+2. Replace `data/master-profile.json` with their CV and job criteria.
+3. Give them their own accounts: a new Supabase project (step 2), their own AI keys (step 3), Resend with their email (step 4), their Google and GitHub keys (steps 5 and 6), and a new Vercel project (step 8) with all of those as environment variables. Nothing is shared between copies.
+4. The office runs on Philippine time. Another time zone needs `MANILA_OFFSET_MS` in `lib/time.ts` and `Asia/Manila` in the clock formatting and the weather URL changed.
 
 ## Push notifications on your iPhone
 
@@ -387,4 +424,5 @@ You'll get one notification per desk (a newer one replaces the older), and tappi
 | `Cannot find module '@/components/ui/…'` | Run `npm run ui`. |
 | Maya, Iggy or Dex say "Waiting for your Claude key" | Expected on the Gemini backup. Add `ANTHROPIC_API_KEY` and redeploy. |
 | `Gemini free tier limit reached` / `Groq free tier limit reached` | Add the other backup (step 3a) so calls move over, wait for the reset, or add the Claude key. |
-| Desk stuck on "working" | It frees itself after 10 minutes; check Vercel → Logs for a timeout. |
+| Desk stuck on "working" | A run stops itself after 4 minutes and becomes an error, so the employee goes to the boss's office for help. A run that was cut off mid-way (redeploy, function time limit) is marked as an error about 5½ minutes after it started, the next time the office loads. Then check Vercel → Logs, and **Run now** to retry. |
+| Every desk errors with "Every free backup is at its limit" | The free AI quotas are used up for the day. The employees wait in the boss's office; add the other backup or the Claude key, or wait for the reset. |
