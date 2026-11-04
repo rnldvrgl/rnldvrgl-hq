@@ -42,7 +42,7 @@ const brand = (real: string, generic: string) => (REAL ? real : generic);
 type SignStyle = "plain" | "jollibee" | "mcdo" | "seven" | "mercury" | "shell" | "petron" | "hall";
 type SignSpec = { text: string; sub: string; bg: string; ink: string; style?: SignStyle };
 
-const SIGN = {
+export const SIGN = {
   sari: { text: "SARI-SARI STORE", sub: "Aling Nena's · load · yelo", bg: "#1d4ed8", ink: "#ffffff" },
   jollibee: { text: brand("Jollibee", "Bida Bee"), sub: brand("Chickenjoy · Yumburger · 24 hrs", "fried chicken · burgers · 24 hrs"), bg: "#e31837", ink: "#ffc522", style: "jollibee" },
   mercury: { text: brand("Mercury Drug", "Botika ng Bayan"), sub: "pharmacy · open 24 hours", bg: "#ffffff", ink: "#e4002b", style: "mercury" },
@@ -217,7 +217,7 @@ type Est = {
   wall: string; trim: string; awning: string; upper?: string; sign: SignId; allNight?: boolean;
 };
 
-const EST: readonly Est[] = [
+export const EST: readonly Est[] = [
   // left of the side street, going away from the office
   { x0: -12.0, x1: -7.2, depth: 5.5, h: 3.2, floors: 2, kind: "sari", wall: "#f1d9a8", trim: "#7c4a2d", awning: "#2563eb", upper: "#e9e2cf", sign: "sari" },
   { x0: -22.8, x1: -12.8, depth: 8, h: 3.9, floors: 1, kind: "food", wall: "#f8fafc", trim: "#e31837", awning: "#ffc522", sign: "jollibee", allNight: true },
