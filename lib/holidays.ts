@@ -22,6 +22,8 @@ export type Decor = {
   acrossStreet: boolean;
   /** Fireworks over the town in the evening (hours, Manila). */
   fireworks: readonly [number, number] | null;
+  /** Only on this day (month 0–11, day), when the holiday runs longer than its big night. */
+  fireworksOn?: readonly [number, number];
   /**
    * Something more for this one: heart balloons and garlands (Valentine's), the penitensya procession (Holy
    * Week), ghosts, bats and trick-or-treaters (Halloween), the banner and the fruit table (New Year), the
@@ -109,11 +111,11 @@ export const HOLIDAYS: readonly Holiday[] = [
   },
   {
     id: "flags", name: "Independence Day", when: "Flag days May 28 – June 30, Araw ng Kalayaan June 12",
-    looks: "Philippine flags at every shop and gate, blue, red and yellow bunting, fireworks on the 12th",
-    swatch: ["#1d4ed8", "#dc2626", "#facc15"], previewAt: "19:45",
+    looks: "Philippine flags rippling on every lamp post along the main road, a tall flagpole with a big flag at the office, a giant flag hung across the street, little flags and blue, white and red fans at every shop and gate, bunting, fireworks on the 12th",
+    swatch: ["#1d4ed8", "#dc2626", "#facc15"], previewAt: "10:00",
     on: (p) => (p.month === 4 && p.day >= 28) || p.month === 5,
     first: () => [4, 28],
-    decor: { ornament: "flag", bunting: ["#1d4ed8", "#f8fafc", "#dc2626", "#facc15"], acrossStreet: true, fireworks: [19, 21] },
+    decor: { ornament: "flag", bunting: ["#1d4ed8", "#f8fafc", "#dc2626", "#facc15"], acrossStreet: true, fireworks: [19, 21], fireworksOn: [5, 12], extras: "kalayaan" },
   },
   {
     id: "undas", name: "Halloween and Undas", when: "Oct 31 – Nov 2",

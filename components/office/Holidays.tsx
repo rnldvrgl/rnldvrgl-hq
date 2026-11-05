@@ -22,6 +22,7 @@ import { Halloween } from "./Halloween";
 import { NewYear } from "./NewYear";
 import { Lunar } from "./Lunar";
 import { Fiesta } from "./Fiesta";
+import { Kalayaan } from "./Kalayaan";
 
 /**
  * Pasko and Bagong Taon in the town.
@@ -368,7 +369,9 @@ export function Holidays() {
   const festive = list.filter((h) => h.decor);
   const otherShow = festive.some((h) => {
     const fw = h.decor!.fireworks;
-    return !!fw && (previewId === h.id || (hour >= fw[0] && hour < fw[1]));
+    const day = h.decor!.fireworksOn;
+    const onDay = !day || (nowParts.month === day[0] && nowParts.day === day[1]);
+    return !!fw && (previewId === h.id || onDay) && hour >= fw[0] && hour < fw[1];
   });
   const fireworks = !minimal && (previewId === "newyear" || (!previewId && ny !== null) || otherShow);
   // the big burst: the last two minutes of the year and the first five of the new one
@@ -387,6 +390,7 @@ export function Holidays() {
       )}
       {festive.some((h) => h.decor!.extras === "lunar") && <Lunar frozen={minimal} lowPower={lowPower} />}
       {festive.some((h) => h.decor!.extras === "fiesta") && <Fiesta frozen={minimal} lowPower={lowPower} />}
+      {festive.some((h) => h.decor!.extras === "kalayaan") && <Kalayaan frozen={minimal} />}
       {festive.some((h) => h.decor!.extras === "halloween") && <Halloween frozen={minimal} lowPower={lowPower} />}
       {fireworks && <Fireworks lowPower={lowPower} peak={() => peakRef.current} preview={previewId === "newyear"} />}
     </group>
