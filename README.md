@@ -417,6 +417,8 @@ Any one AI key is enough for most desks. The desks that read private data (mail,
 
 **Chat:** in the Friends tab, the **Lounge** is a group chat with everyone, and tapping a friend opens a direct chat. Messages are kept in `hq_messages` (added by `multi-hq.sql`; up to 1000 characters, 20 a minute per HQ). Only the server reads them and it checks you're in the room; the Realtime lobby only carries a "something new in room X" ping, never the text. A new message in a room you're not looking at shows a toast and an unread badge.
 
+**Voice lounge:** Friends tab → **Join** (the browser asks for the microphone). Everyone in it is connected straight to everyone else with WebRTC (free; no audio goes through a server); Supabase Realtime only carries who's in and the handshakes (private channel `hq:voice`, policy in `multi-hq.sql`). Mute, deafen and leave from the card or the bar over the office; a green ring shows who's talking. Good for a handful of people. There's no relay server, so on some strict networks (some office or mobile networks) two people can't connect; their tile says "No link".
+
 **The 5-minute tick** calls itself once per HQ, in parallel, so every HQ's work gets its own function and time limit. If you create one of the optional tables later (push notifications, Spotify, names), run `supabase/multi-hq.sql` again afterwards to give it its `hq_id`.
 
 ## Spotify in the office

@@ -5,6 +5,7 @@ import { ChevronRight, MessagesSquare, UserPlus, WifiOff } from "lucide-react";
 import { unreadRooms, useChat } from "@/lib/chat-client";
 import { dmRoom, LOUNGE } from "@/lib/chat";
 import { ChatView } from "./ChatView";
+import { VoiceCard } from "./Voice";
 import { usePresence, type Friend } from "@/lib/presence";
 import { useOffice } from "@/lib/store";
 import { openSettings } from "@/lib/settings-nav";
@@ -61,6 +62,7 @@ export function FriendsPanel() {
           Can&apos;t see who&apos;s online right now (Realtime isn&apos;t reachable or isn&apos;t set up yet: run supabase/multi-hq.sql).
         </p>
       )}
+      {me && others.length > 0 && <VoiceCard />}
       {me && others.length > 0 && (
         <button type="button" onClick={() => setRoom(LOUNGE)}
           className="flex items-center gap-3 rounded-2xl border border-border bg-card/60 p-2.5 text-left transition-colors hover:bg-muted/60">

@@ -48,6 +48,7 @@ import { TOWN } from "./world";
 import { useSettings } from "@/lib/settings";
 import { useStyleChoice } from "@/components/ThemePicker";
 import { HQ } from "@/hq.config";
+import { VoiceBar } from "./Voice";
 
 const { ACTION } = CameraControlsImpl;
 const DEG = Math.PI / 180;
@@ -351,6 +352,7 @@ export default function Scene3D() {
       <LabelLayer />
       <PlaceCard />
       <NowPlayingFloat />
+      <VoiceBar />
       <TvModal done={done} waiting={waiting} trashName={duty ? teamById[duty].name : null} />
 
       <SceneControls
