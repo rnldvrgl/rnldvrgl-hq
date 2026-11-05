@@ -101,11 +101,11 @@ export const HOLIDAYS: readonly Holiday[] = [
   },
   {
     id: "fiesta", name: "Flores de Mayo fiesta", when: "May",
-    looks: "Colourful banderitas across the street and along every shop, the barangay fiesta",
-    swatch: ["#22c55e", "#3b82f6", "#f43f5e"], previewAt: "10:30",
+    looks: "Colourful banderitas across the street and along every shop, flowered arko arches at the side streets, the Santacruzan walking down the street (the sagala in their gowns under arches of flowers, Reyna Elena last), a perya with a little Ferris wheel on the barangay court",
+    swatch: ["#22c55e", "#3b82f6", "#f43f5e"], previewAt: "17:45",
     on: (p) => p.month === 4 && p.day < 28,
     first: () => [4, 1],
-    decor: { ornament: null, bunting: ["#ef4444", "#facc15", "#22c55e", "#3b82f6", "#ec4899", "#f97316"], acrossStreet: true, fireworks: null },
+    decor: { ornament: null, bunting: ["#ef4444", "#facc15", "#22c55e", "#3b82f6", "#ec4899", "#f97316"], acrossStreet: true, fireworks: null, extras: "fiesta" },
   },
   {
     id: "flags", name: "Independence Day", when: "Flag days May 28 – June 30, Araw ng Kalayaan June 12",
