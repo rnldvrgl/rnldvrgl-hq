@@ -32,6 +32,14 @@ export type SpotifyTrack = { id: string; title: string; artist: string; album: s
 export type SpotifyDevice = { id: string; name: string; type: string; active: boolean; restricted: boolean; volume: number | null };
 /** `tracks` is the song count, or null when Spotify didn't send one (it only does for some playlists now). */
 export type SpotifyPlaylist = { id: string; uri: string; name: string; image: string | null; tracks: number | null; owner: string | null; mine: boolean };
+/** A song (or podcast episode) in a list: search results, a playlist's songs. */
+export type SpotifySong = {
+  key: string; uri: string; title: string; artist: string; art: string | null; durationMs: number; playable: boolean;
+  /** Its place in the playlist it was listed from (0-based), for playing it there. */
+  position?: number;
+};
+/** One page of a list from Spotify, with where the next page starts (null at the end). */
+export type SpotifyPage<T> = { items: T[]; total: number | null; nextOffset: number | null };
 
 type SpotifyState = {
   status: "off" | "connecting" | "ready" | "error";
@@ -54,6 +62,8 @@ type SpotifyState = {
   next: () => Promise<void>;
   prev: () => Promise<void>;
   playPlaylist: (uri: string) => Promise<void>;
+  /** Play one song: inside a playlist (`context`, so the rest of it follows), or on its own. */
+  playSong: (song: SpotifySong, context?: { uri: string; position: number }) => Promise<void>;
   setVolume: (v: number) => Promise<void>;
   fetchPlaylists: () => Promise<void>;
   fetchDevices: () => Promise<void>;
@@ -288,6 +298,68 @@ function deviceQuery(): string {
   return !activeDevice && deviceId ? `?device_id=${deviceId}` : "";
 }
 
+/* ------------------------------------------------------------------ playlists, their songs, search */
+
+/**
+ * A playlist as Spotify sends it. Spotify's February 2026 Web API changes renamed the playlist's
+ * `tracks` ({ href, total }) to `items`, and only fill it in for playlists you own; older responses still
+ * use `tracks`. Read both, and keep "unknown" as null (never a made-up 0).
+ */
+type RawPlaylist = {
+  id: string; uri: string; name: string; images?: { url: string }[] | null;
+  items?: { total?: number } | null; tracks?: { total?: number } | null;
+  owner?: { id?: string; display_name?: string | null } | null;
+};
+const toPlaylist = (p: RawPlaylist): SpotifyPlaylist => ({
+  id: p.id, uri: p.uri, name: p.name, image: p.images?.[0]?.url ?? null,
+  tracks: p.items?.total ?? p.tracks?.total ?? null,
+  owner: p.owner?.display_name ?? p.owner?.id ?? null,
+  mine: !!meId && p.owner?.id === meId,
+});
+/** Learn the signed-in user's id once (to tell your own playlists from ones you follow). */
+async function knowMe(): Promise<void> {
+  if (meId) return;
+  meId = (await api<{ id?: string }>("/me").catch(() => null))?.id ?? null;
+}
+
+type RawSong = {
+  id?: string | null; uri?: string; name?: string; duration_ms?: number; is_playable?: boolean;
+  artists?: { name: string }[]; album?: { images?: { url: string }[] }; show?: { name: string; images?: { url: string }[] }; images?: { url: string }[];
+};
+function toSong(t: RawSong | null | undefined, key: string, local = false): SpotifySong | null {
+  if (!t?.uri || !t.name) return null;
+  return {
+    key, uri: t.uri, title: t.name,
+    artist: t.artists?.map((a) => a.name).filter(Boolean).join(", ") || t.show?.name || "",
+    art: t.album?.images?.at(-1)?.url ?? t.images?.at(-1)?.url ?? t.show?.images?.at(-1)?.url ?? null,
+    durationMs: t.duration_ms ?? 0,
+    playable: !local && t.is_playable !== false,
+  };
+}
+
+/** Spotify allows at most 10 search results per request since February 2026 (it was 50). */
+export const SEARCH_PAGE = 10;
+export type SpotifySearch = { songs: SpotifyPage<SpotifySong>; playlists: SpotifyPlaylist[] };
+/** Search Spotify for songs (and playlists on the first page). */
+export async function searchSpotify(query: string, offset = 0, signal?: AbortSignal): Promise<SpotifySearch> {
+  type Paging<T> = { items?: (T | null)[]; total?: number; next?: string | null };
+  const types = offset === 0 ? "track,playlist" : "track";
+  const q = new URLSearchParams({ q: query, type: types, limit: String(SEARCH_PAGE), offset: String(offset), market: "from_token" });
+  const [r] = await Promise.all([
+    api<{ tracks?: Paging<RawSong>; playlists?: Paging<RawPlaylist> }>(`/search?${q}`, { signal }),
+    knowMe(),
+  ]);
+  const raw = r?.tracks?.items ?? [];
+  return {
+    songs: {
+      items: raw.map((t, i) => toSong(t, t?.id ?? `${offset + i}`)).filter((s): s is SpotifySong => !!s),
+      total: r?.tracks?.total ?? null,
+      nextOffset: r?.tracks?.next ? offset + raw.length : null,
+    },
+    playlists: (r?.playlists?.items ?? []).filter((p): p is RawPlaylist => !!p?.id).map(toPlaylist),
+  };
+}
+
 export const useSpotify = create<SpotifyState>((set, get) => ({
   status: "off",
   track: null,
@@ -345,6 +417,12 @@ export const useSpotify = create<SpotifyState>((set, get) => ({
 
   playPlaylist: (uri) => control(() => api(`/me/player/play${deviceQuery()}`, { method: "PUT", body: JSON.stringify({ context_uri: uri }) })),
 
+  playSong: (song, context) => control(() => {
+    // inside a playlist, start at the song's place in it (exact even when a song is in it twice), so the rest follows
+    const body = context ? { context_uri: context.uri, offset: { position: context.position } } : { uris: [song.uri] };
+    return api(`/me/player/play${deviceQuery()}`, { method: "PUT", body: JSON.stringify(body) });
+  }),
+
   setVolume: async (v) => {
     const vol = Math.max(0, Math.min(1, v));
     set({ volume: vol });
@@ -392,26 +470,8 @@ export const useSpotify = create<SpotifyState>((set, get) => ({
 
   fetchPlaylists: async () => {
     try {
-      // Spotify's Feb 2026 Web API changes renamed the playlist's `tracks` ({ href, total }) to `items`, and only
-      // send it for playlists you own; older responses still use `tracks`. Read both, and keep "unknown" as null.
-      type Raw = {
-        id: string; uri: string; name: string; images?: { url: string }[] | null;
-        items?: { total?: number } | null; tracks?: { total?: number } | null;
-        owner?: { id?: string; display_name?: string | null } | null;
-      };
-      const [r, me] = await Promise.all([
-        api<{ items: (Raw | null)[] }>("/me/playlists?limit=50"),
-        meId ? Promise.resolve({ id: meId }) : api<{ id?: string }>("/me").catch(() => null),
-      ]);
-      meId = me?.id ?? meId;
-      set({
-        playlists: (r?.items ?? []).filter((p): p is Raw => !!p).map((p) => ({
-          id: p.id, uri: p.uri, name: p.name, image: p.images?.[0]?.url ?? null,
-          tracks: p.items?.total ?? p.tracks?.total ?? null,
-          owner: p.owner?.display_name ?? p.owner?.id ?? null,
-          mine: !!meId && p.owner?.id === meId,
-        })),
-      });
+      const [r] = await Promise.all([api<{ items: (RawPlaylist | null)[] }>("/me/playlists?limit=50"), knowMe()]);
+      set({ playlists: (r?.items ?? []).filter((p): p is RawPlaylist => !!p?.id).map(toPlaylist) });
     } catch (e) {
       set({ error: e instanceof Error ? e.message : "Couldn't load your playlists." });
     }

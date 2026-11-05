@@ -6,12 +6,13 @@ import {
   SlidersHorizontal, Smartphone, Speaker, Tablet, Tv, Unplug, Volume1, type LucideIcon,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { liveProgressMs, resumeSpotify, spotifyConfigured, useSpotify, type SpotifyDevice, type SpotifyPlaylist, type SpotifyTrack } from "@/lib/spotify";
+import { liveProgressMs, resumeSpotify, spotifyConfigured, useSpotify, type SpotifyDevice, type SpotifyTrack } from "@/lib/spotify";
 import { useIsPhone } from "@/hooks/use-media";
 import { cn } from "@/lib/utils";
 import { MUSIC_STYLES, useSettings } from "@/lib/settings";
 import { LyricsView } from "./Lyrics";
 import { SoundMixer } from "./SoundMixer";
+import { Library } from "./SpotifyLibrary";
 
 const fmt = (ms: number) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
 const roundBtn =
@@ -33,7 +34,7 @@ const TABS: readonly { id: Tab; label: string; icon: LucideIcon; spotify: boolea
  * The office's music (top-right controls), in four tabs so nothing scrolls inside anything else:
  *   Playing  Spotify: connect, what's playing, play / skip, volume, the device it plays on
  *   Lyrics   the song's lyrics, scrolling along
- *   Library  your playlists
+ *   Library  search songs, your playlists
  *   Sound    the office radio's style and the office sound's volumes
  */
 export function MusicPanel({ className }: { className?: string }) {
@@ -83,7 +84,7 @@ export function MusicPanel({ className }: { className?: string }) {
             </button>
           ))}
         </div>
-        <div role="tabpanel" className={cn("min-h-0 flex-1 p-3 pr-1.5", current === "lyrics" ? "flex flex-col" : "scroll-thin")}>
+        <div role="tabpanel" className={cn("min-h-0 flex-1 p-3 pr-1.5", current === "lyrics" || current === "library" ? "flex flex-col" : "scroll-thin")}>
           {current === "playing" && <Body open={open} />}
           {current === "lyrics" && <LyricsTab />}
           {current === "library" && <Library open={open} />}
@@ -195,42 +196,6 @@ function LyricsTab() {
       <LyricsView track={track} className="scroll-thin h-[min(56dvh,26rem)] max-h-none min-h-0 flex-1" />
     </>
   );
-}
-
-function Library({ open }: { open: boolean }) {
-  const playlists = useSpotify((s) => s.playlists);
-  const canControl = useSpotify((s) => s.isPremium !== false);
-  const { fetchPlaylists, playPlaylist } = useSpotify.getState();
-  useEffect(() => { if (open && playlists.length === 0) void fetchPlaylists(); }, [open, playlists.length, fetchPlaylists]);
-  return (
-    <ul className="space-y-0.5 pr-1.5" aria-label="Your playlists">
-      {playlists.length === 0 && <li className="py-2 text-xs text-muted-foreground">No playlists yet.</li>}
-      {playlists.map((p) => (
-        <li key={p.id}>
-          <button
-            type="button" disabled={!canControl} onClick={() => void playPlaylist(p.uri)}
-            className="flex w-full items-center gap-3 rounded-xl p-1.5 text-left transition-colors hover:bg-muted disabled:opacity-50"
-            aria-label={`Play ${p.name}`}
-          >
-            {p.image
-              ? <img src={p.image} alt="" className="size-10 shrink-0 rounded-lg object-cover" />
-              : <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-muted"><Music className="size-4" aria-hidden /></span>}
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-medium">{p.name}</span>
-              <span className="block truncate text-[11px] text-muted-foreground">{playlistMeta(p)}</span>
-            </span>
-            <Play className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-          </button>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-/** "24 songs", or who made it when Spotify doesn't say how many songs (it only counts your own playlists now). */
-function playlistMeta(p: SpotifyPlaylist): string {
-  if (p.tracks != null) return `${p.tracks} ${p.tracks === 1 ? "song" : "songs"}`;
-  return p.mine || !p.owner ? "Playlist" : `Playlist · ${p.owner}`;
 }
 
 function NowPlaying({ track }: { track: SpotifyTrack | null }) {
