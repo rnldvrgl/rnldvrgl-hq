@@ -7,12 +7,12 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
  * material instead of one per part. Built once (useMemo) and never touched again.
  */
 
-export type Shape = "box" | "gable" | "cyl" | "cone";
+export type Shape = "box" | "gable" | "hip" | "cyl" | "cone";
 export type Part = {
   shape?: Shape;
-  /** Box: [w, h, d]. Gable roof: [w along x, ridge height, d] (ridge runs along x). Cylinder / cone: [radius, h, segments]. */
+  /** Box: [w, h, d]. Gable / hip roof: [w along x, ridge height, d] (ridge runs along x). Cylinder / cone: [radius, h, segments]. */
   size: readonly [number, number, number];
-  /** Centre of a box / cylinder; for a gable roof, the centre of its base. */
+  /** Centre of a box / cylinder; for a gable or hip roof, the centre of its base. */
   pos: readonly [number, number, number];
   rotY?: number;
   /** Full rotation [x, y, z] (overrides rotY). */
@@ -39,10 +39,22 @@ function gable(w: number, h: number, d: number): THREE.BufferGeometry {
   return g;
 }
 
+/** A hip roof: four slopes of the same pitch, the ridge along x (a pyramid when w <= d). Flat-shaded. */
+function hip(w: number, h: number, d: number): THREE.BufferGeometry {
+  const r = Math.max(0, (w - d) / 2), x = w / 2, z = d / 2;
+  const A = [-x, 0, -z], B = [x, 0, -z], C = [x, 0, z], D = [-x, 0, z], R1 = [-r, h, 0], R2 = [r, h, 0];
+  const tris = [D, C, R2, D, R2, R1, B, A, R1, B, R1, R2, C, B, R2, A, D, R1, A, B, C, A, C, D];
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(tris.flat(), 3));
+  g.computeVertexNormals();
+  return g;
+}
+
 function partGeometry(p: Part): THREE.BufferGeometry {
   const [a, b, c] = p.size;
   let g: THREE.BufferGeometry;
   if (p.shape === "gable") g = gable(a, b, c);
+  else if (p.shape === "hip") g = hip(a, b, c);
   else if (p.shape === "cyl") g = new THREE.CylinderGeometry(a, a, b, Math.max(3, Math.round(c)));
   else if (p.shape === "cone") g = new THREE.ConeGeometry(a, b, Math.max(3, Math.round(c)));
   else g = new THREE.BoxGeometry(a, b, c);

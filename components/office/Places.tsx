@@ -11,6 +11,7 @@ import { useOffice } from "@/lib/store";
 import { manilaMinutes } from "@/lib/office-clock";
 import { cn } from "@/lib/utils";
 import { HQ, OWNER } from "@/hq.config";
+import { houseStyleOf, useSettings, type HouseStyle } from "@/lib/settings";
 import { EST, SIGN } from "./Neighbourhood";
 import { ROOM } from "./palette";
 import { FAR_WALK } from "./world";
@@ -48,6 +49,16 @@ const BLURB: Partial<Record<keyof typeof SIGN, string>> = {
   petron: "Fuel up before the drive to Clark. The pump attendant always asks how much.",
   toda: "The tricycle drivers' association terminal. Tell them where you're going and pay the fixed fare.",
   hall: "The barangay hall: clearances, the tanod's post, and the captain's office upstairs.",
+};
+
+/** The line under the boss's house name, for the style picked in Settings. */
+const HOUSE_SUB: Record<HouseStyle, string> = {
+  modern: "Modern two-storey, garage, garden",
+  pastel: "Pastel dream: pink, flower boxes, a rose arch",
+  heritage: "Bahay na bato: stone below, capiz windows above",
+  mediterranean: "Mediterranean: stucco, terracotta, arches",
+  tropical: "Tropical resort: wood, stone, a pool, palms",
+  japandi: "Japandi: dark timber, low roof, zen garden",
 };
 
 const FAMILIES = ["Santos", "Reyes", "Cruz", "Bautista", "Garcia", "Mendoza", "Dizon", "Manalo", "Lansangan", "Pineda", "David", "Tolentino", "Gomez", "Mercado", "Yap", "Sison"];
@@ -160,6 +171,7 @@ export function PlaceCard() {
   const close = () => usePlace.getState().open(null);
   const sendBoss = useOffice((s) => s.sendBoss);
   const now = useSceneNow(30_000);
+  const house = useSettings((s) => houseStyleOf(s.boss));
   const place = id ? places().find((p) => p.id === id) : undefined;
   if (!place) return null;
   const open = isOpen(place.hours, manilaMinutes(now));
@@ -172,7 +184,7 @@ export function PlaceCard() {
         </span>
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-sm font-semibold leading-tight">{place.name}</h3>
-          {place.sub && <p className="truncate text-xs text-muted-foreground">{place.sub}</p>}
+          {place.sub && <p className="truncate text-xs text-muted-foreground">{place.id === "mansion" ? HOUSE_SUB[house] : place.sub}</p>}
         </div>
         <button type="button" onClick={close} aria-label="Close" className="-m-1 grid size-8 place-items-center rounded-full text-muted-foreground hover:bg-muted">
           <X className="size-4" aria-hidden />
