@@ -32,8 +32,9 @@ import { Kalayaan } from "./Kalayaan";
  *   - New Year's Eve: fireworks over the town from 11:30 PM to 12:30 AM, with a big burst at midnight.
  * Everything static is merged: parols (1 draw call), their halos (1), three bulb colours (3), the tree (1),
  * fireworks (1). Nothing is mounted out of season.
- * Every other holiday (Chinese New Year, Valentine's, Holy Week, the May fiesta, Independence Day, Undas) is
- * drawn by Festive.tsx from lib/holidays.ts. Preview any of them in Settings → Holidays, or with
+ * Every other holiday's ornaments and bunting are drawn by Festive.tsx from lib/holidays.ts, and each one has
+ * its own richer layer on top (its decor.extras): NewYear.tsx, Lunar.tsx, Valentine.tsx, Penitensya.tsx,
+ * Fiesta.tsx, Kalayaan.tsx and Halloween.tsx. Fireworks are heard too (fireworkSound in lib/ambience.ts). Preview any of them in Settings → Holidays, or with
  * ?holiday=<id> (?holiday=xmas still works).
  */
 
