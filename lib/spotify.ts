@@ -339,6 +339,35 @@ function toSong(t: RawSong | null | undefined, key: string, local = false): Spot
 
 /** Spotify allows at most 10 search results per request since February 2026 (it was 50). */
 export const SEARCH_PAGE = 10;
+const PLAYLIST_PAGE = 50;
+
+/**
+ * A page of a playlist's songs. Uses GET /playlists/{id}/items (the February 2026 name), falling back to the
+ * old /tracks path if a server still only knows that one. Each entry's song is in `item` now (`track` before).
+ */
+export async function fetchPlaylistSongs(id: string, offset = 0): Promise<SpotifyPage<SpotifySong>> {
+  type Raw = { items?: ({ item?: RawSong | null; track?: RawSong | null; is_local?: boolean } | null)[]; total?: number; next?: string | null };
+  const q = `?limit=${PLAYLIST_PAGE}&offset=${offset}&additional_types=track,episode&market=from_token`;
+  let r: Raw | null;
+  try {
+    r = await api<Raw>(`/playlists/${encodeURIComponent(id)}/items${q}`);
+  } catch (e) {
+    if (!(e instanceof SpotifyError && e.status === 404)) throw explainPlaylistError(e);
+    r = await api<Raw>(`/playlists/${encodeURIComponent(id)}/tracks${q}`).catch((e2: unknown) => { throw explainPlaylistError(e2); });
+  }
+  const raw = r?.items ?? [];
+  const items = raw
+    .map((it, i): SpotifySong | null => { const s = toSong(it?.item ?? it?.track, `${offset + i}`, !!it?.is_local); return s && { ...s, position: offset + i }; })
+    .filter((s): s is SpotifySong => !!s);
+  return { items, total: r?.total ?? null, nextOffset: r?.next ? offset + raw.length : null };
+}
+function explainPlaylistError(e: unknown): Error {
+  if (e instanceof SpotifyError && (e.status === 403 || e.status === 404)) {
+    return new Error("Spotify only shows this app the songs of playlists you own or collaborate on. You can still play it.");
+  }
+  return e instanceof Error ? e : new Error("Couldn't load the songs.");
+}
+
 export type SpotifySearch = { songs: SpotifyPage<SpotifySong>; playlists: SpotifyPlaylist[] };
 /** Search Spotify for songs (and playlists on the first page). */
 export async function searchSpotify(query: string, offset = 0, signal?: AbortSignal): Promise<SpotifySearch> {

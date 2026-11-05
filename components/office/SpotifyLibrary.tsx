@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2, Music, Play, Search, X } from "lucide-react";
-import { searchSpotify, useSpotify, type SpotifyPlaylist, type SpotifySong } from "@/lib/spotify";
+import { ChevronLeft, ChevronRight, Loader2, Music, Play, Search, X } from "lucide-react";
+import { fetchPlaylistSongs, searchSpotify, useSpotify, type SpotifyPlaylist, type SpotifySong } from "@/lib/spotify";
 import { cn } from "@/lib/utils";
 
 /**
- * The Music panel's Library tab: search Spotify for songs, and your playlists.
- * The list is the tab's only scrolling box, under a search field that stays put.
+ * The Music panel's Library tab: search Spotify for songs, and your playlists. Tap a playlist to see its
+ * songs (and play from any of them), with a back button to return. Each view has one scrolling list.
  */
 
 const fmt = (ms: number) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
@@ -20,16 +20,23 @@ export function playlistMeta(p: SpotifyPlaylist): string {
   return p.mine || !p.owner ? "Playlist" : `Playlist · ${p.owner}`;
 }
 
+type OpenPlaylist = (p: SpotifyPlaylist) => void;
+
 export function Library({ open }: { open: boolean }) {
   const [query, setQuery] = useState("");
+  const [shown, setShown] = useState<SpotifyPlaylist | null>(null);
   const q = query.trim();
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2">
-      <SearchField value={query} onChange={setQuery} />
-      <div className="scroll-thin h-[min(52dvh,24rem)] min-h-0 flex-1 pr-1.5">
-        {q ? <SearchResults query={q} /> : <Playlists open={open} />}
+    <>
+      {shown && <PlaylistView playlist={shown} onBack={() => setShown(null)} />}
+      {/* kept (hidden) while a playlist is open, so going back finds the search and the scroll where they were */}
+      <div className={cn("flex min-h-0 flex-1 flex-col gap-2", shown && "hidden")}>
+        <SearchField value={query} onChange={setQuery} />
+        <div className="scroll-thin h-[min(52dvh,24rem)] min-h-0 flex-1 pr-1.5">
+          {q ? <SearchResults query={q} onOpen={setShown} /> : <Playlists open={open} onOpen={setShown} />}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -59,7 +66,7 @@ function SearchField({ value, onChange }: { value: string; onChange: (v: string)
 type Results = { songs: SpotifySong[]; playlists: SpotifyPlaylist[]; nextOffset: number | null };
 
 /** Songs (and a few playlists) for what you typed: searched 350 ms after you stop typing. */
-function SearchResults({ query }: { query: string }) {
+function SearchResults({ query, onOpen }: { query: string; onOpen: OpenPlaylist }) {
   const [res, setRes] = useState<Results | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -116,7 +123,7 @@ function SearchResults({ query }: { query: string }) {
         <section aria-label="Playlists">
           <p className="px-1.5 pb-1 text-[11px] font-medium text-muted-foreground">Playlists</p>
           <ul className="space-y-0.5">
-            {res.playlists.map((p) => <li key={p.id}><PlaylistRow playlist={p} /></li>)}
+            {res.playlists.map((p) => <li key={p.id}><PlaylistRow playlist={p} onOpen={onOpen} /></li>)}
           </ul>
         </section>
       )}
@@ -125,7 +132,7 @@ function SearchResults({ query }: { query: string }) {
   );
 }
 
-function Playlists({ open }: { open: boolean }) {
+function Playlists({ open, onOpen }: { open: boolean; onOpen: OpenPlaylist }) {
   const playlists = useSpotify((s) => s.playlists);
   const fetchPlaylists = useSpotify((s) => s.fetchPlaylists);
   const [loaded, setLoaded] = useState(false);
@@ -140,28 +147,110 @@ function Playlists({ open }: { open: boolean }) {
           {loaded ? "No playlists yet." : <><Loader2 className="size-3.5 animate-spin" aria-hidden /> Loading your playlists…</>}
         </li>
       )}
-      {playlists.map((p) => <li key={p.id}><PlaylistRow playlist={p} /></li>)}
+      {playlists.map((p) => <li key={p.id}><PlaylistRow playlist={p} onOpen={onOpen} /></li>)}
     </ul>
   );
 }
 
-function Cover({ src }: { src: string | null }) {
+function Cover({ src, big }: { src: string | null; big?: boolean }) {
+  const size = big ? "size-14" : "size-10";
   return src
-    ? <img src={src} alt="" className="size-10 shrink-0 rounded-lg object-cover" />
-    : <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-muted"><Music className="size-4" aria-hidden /></span>;
+    ? <img src={src} alt="" className={cn(size, "shrink-0 rounded-lg object-cover")} />
+    : <span className={cn(size, "grid shrink-0 place-items-center rounded-lg bg-muted")}><Music className="size-4" aria-hidden /></span>;
 }
 
-function PlaylistRow({ playlist: p }: { playlist: SpotifyPlaylist }) {
+/** A playlist: tap it to see its songs; the play button beside it plays it straight away. */
+function PlaylistRow({ playlist: p, onOpen }: { playlist: SpotifyPlaylist; onOpen: OpenPlaylist }) {
   const canControl = useSpotify((s) => s.isPremium !== false);
   return (
-    <button type="button" disabled={!canControl} onClick={() => void useSpotify.getState().playPlaylist(p.uri)} className={row} aria-label={`Play ${p.name}`}>
-      <Cover src={p.image} />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium">{p.name}</span>
-        <span className="block truncate text-[11px] text-muted-foreground">{playlistMeta(p)}</span>
-      </span>
-      <Play className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-    </button>
+    <div className="flex items-center gap-1">
+      <button type="button" onClick={() => onOpen(p)} className={cn(row, "min-w-0 flex-1")} aria-label={`${p.name}: show songs`}>
+        <Cover src={p.image} />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium">{p.name}</span>
+          <span className="block truncate text-[11px] text-muted-foreground">{playlistMeta(p)}</span>
+        </span>
+        <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+      </button>
+      <button
+        type="button" disabled={!canControl} onClick={() => void useSpotify.getState().playPlaylist(p.uri)} aria-label={`Play ${p.name}`}
+        className="grid size-10 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40 max-sm:size-11"
+      >
+        <Play className="size-4" aria-hidden />
+      </button>
+    </div>
+  );
+}
+
+/** A playlist's songs, 50 at a time: tap one to play the playlist from there. */
+function PlaylistView({ playlist: p, onBack }: { playlist: SpotifyPlaylist; onBack: () => void }) {
+  const canControl = useSpotify((s) => s.isPremium !== false);
+  const [songs, setSongs] = useState<SpotifySong[]>([]);
+  const [total, setTotal] = useState<number | null>(p.tracks);
+  const [nextOffset, setNextOffset] = useState<number | null>(0);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const back = useRef<HTMLButtonElement>(null);
+  const alive = useRef(true);
+
+  const load = async (offset: number) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const page = await fetchPlaylistSongs(p.id, offset);
+      if (!alive.current) return;
+      setSongs((s) => (offset === 0 ? page.items : [...s, ...page.items]));
+      setTotal((t) => page.total ?? t);
+      setNextOffset(page.nextOffset);
+    } catch (e) {
+      if (alive.current) { setError(e instanceof Error ? e.message : "Couldn't load the songs."); setNextOffset(null); }
+    } finally {
+      if (alive.current) setBusy(false);
+    }
+  };
+  useEffect(() => {
+    alive.current = true;
+    back.current?.focus();
+    void load(0);
+    return () => { alive.current = false; };
+  }, [p.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const meta = total != null ? `${total} ${total === 1 ? "song" : "songs"}` : playlistMeta(p);
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-2">
+      <div className="mr-1.5 flex shrink-0 items-center gap-2">
+        <button
+          ref={back} type="button" onClick={onBack} aria-label="Back to the library"
+          className="-ml-1 grid size-10 shrink-0 place-items-center rounded-full transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring max-sm:size-11"
+        >
+          <ChevronLeft className="size-5" aria-hidden />
+        </button>
+        <Cover src={p.image} big />
+        <div className="min-w-0 flex-1">
+          <p className="line-clamp-2 text-sm leading-tight font-semibold">{p.name}</p>
+          <p className="truncate text-[11px] text-muted-foreground">{meta}</p>
+        </div>
+      </div>
+      <button
+        type="button" disabled={!canControl} onClick={() => void useSpotify.getState().playPlaylist(p.uri)}
+        className="mr-1.5 flex h-10 shrink-0 items-center justify-center gap-2 rounded-full bg-[#1db954] text-sm font-semibold text-black transition-opacity hover:opacity-90 disabled:opacity-50 max-sm:h-11"
+      >
+        <Play className="size-4 fill-current" aria-hidden /> Play all
+      </button>
+      <div className="scroll-thin h-[min(44dvh,20rem)] min-h-0 flex-1 pr-1.5" aria-busy={busy}>
+        <ul className="space-y-0.5" aria-label={`Songs in ${p.name}`}>
+          {songs.map((s) => <li key={s.key}><SongRow song={s} context={p.uri} index={(s.position ?? 0) + 1} /></li>)}
+        </ul>
+        {busy && <p className="flex items-center gap-2 px-1.5 py-2 text-xs text-muted-foreground"><Loader2 className="size-3.5 animate-spin" aria-hidden /> Loading songs…</p>}
+        {!busy && !error && songs.length === 0 && nextOffset == null && <p className="px-1.5 py-2 text-xs text-muted-foreground">No songs in this playlist.</p>}
+        {error && <p role="alert" className="px-1.5 py-2 text-xs text-muted-foreground">{error}</p>}
+        {!busy && nextOffset != null && songs.length > 0 && (
+          <button type="button" onClick={() => void load(nextOffset)} className={moreBtn}>
+            Load more{total != null ? ` (${songs.length} of ${total})` : ""}
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 
