@@ -148,13 +148,14 @@ alter table hq_messages enable row level security;
 
 -- Realtime: the friends' lobby (who's online). A private channel only signed-in people can join, and
 -- sign-in is invite-only, so that's your circle. Nothing is stored; presence only lives while connected.
--- hq:voice is the voice lounge's signalling (who's in it, and the WebRTC handshakes between them).
+-- hq:voice is the voice lounge's signalling (who's in it, and the WebRTC handshakes between them);
+-- hq:watch keeps movie night in sync (what's playing, play/pause and where).
 do $$ begin
   if to_regclass('realtime.messages') is not null then
     drop policy if exists "hq lobby read" on realtime.messages;
-    create policy "hq lobby read" on realtime.messages for select to authenticated using (realtime.topic() in ('hq:lobby', 'hq:voice'));
+    create policy "hq lobby read" on realtime.messages for select to authenticated using (realtime.topic() in ('hq:lobby', 'hq:voice', 'hq:watch'));
     drop policy if exists "hq lobby write" on realtime.messages;
-    create policy "hq lobby write" on realtime.messages for insert to authenticated with check (realtime.topic() in ('hq:lobby', 'hq:voice'));
+    create policy "hq lobby write" on realtime.messages for insert to authenticated with check (realtime.topic() in ('hq:lobby', 'hq:voice', 'hq:watch'));
   end if;
 end $$;
 

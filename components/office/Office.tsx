@@ -12,6 +12,8 @@ import { Welcome } from "./Welcome";
 import { FriendsPanel } from "./FriendsPanel";
 import { useOnlineCount, usePresenceLink } from "@/lib/presence";
 import { useChat, useUnread } from "@/lib/chat-client";
+import { useWatch } from "@/lib/watch";
+import { MoviePlayer } from "./MovieNight";
 import { useAppIcon, useHandle, usePrefs } from "@/lib/prefs-client";
 import { Glyph, iconGradient } from "@/lib/app-icon";
 import { isEmployeeId, TEAM, teamById, type AiProvider, type OfficeState } from "@/lib/team";
@@ -81,7 +83,14 @@ export default function Office({ initial }: { initial: OfficeState }) {
 
   // a rename redraws everything that shows people's names (it's rare, so a remount is fine)
   const teamVersion = usePrefs((s) => s.teamVersion);
-  usePresenceLink(useOffice((s) => s.data.hq?.id));
+  const myHq = useOffice((s) => s.data.hq?.id);
+  usePresenceLink(myHq);
+  // movie night: hear what's on in the circle
+  useEffect(() => {
+    if (!myHq) return;
+    useWatch.getState().connect(myHq);
+    return () => useWatch.getState().disconnect();
+  }, [myHq]);
   // unread chat dots: what's new since you last looked (and every 2 minutes, in case a ping was missed)
   useEffect(() => {
     void useChat.getState().loadRooms();
@@ -94,6 +103,7 @@ export default function Office({ initial }: { initial: OfficeState }) {
     <>
       {isDesktop ? <DesktopOffice key={key} /> : <PhoneOffice key={key} />}
       <Welcome />
+      <MoviePlayer />
     </>
   );
 }

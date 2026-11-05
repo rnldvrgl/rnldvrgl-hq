@@ -49,6 +49,7 @@ import { useSettings } from "@/lib/settings";
 import { useStyleChoice } from "@/components/ThemePicker";
 import { HQ } from "@/hq.config";
 import { VoiceBar } from "./Voice";
+import { useWatch } from "@/lib/watch";
 
 const { ACTION } = CameraControlsImpl;
 const DEG = Math.PI / 180;
@@ -273,6 +274,7 @@ export default function Scene3D() {
   const lowPower = useOffice((s) => s.lowPower);
   const holidayPreview = useHolidayPreview((s) => s.id);
   const walkers = useSettings((s) => s.walkers);
+  const watching = useWatch((s) => s.watching && !!s.now);
   const loadWeather = useOffice((s) => s.loadWeather);
   const pal = PAL_BY_STYLE[style] ?? PAL;
   const capped = lowPower || minimal;
@@ -301,7 +303,8 @@ export default function Scene3D() {
         orthographic
         shadows={shadows}
         dpr={lowPower ? 1 : isDesktop ? [1, 2] : [1, 1.75]}
-        frameloop={capped ? "demand" : "always"}
+        // while the movie player covers the screen, the office stops drawing (it's hidden anyway)
+        frameloop={watching ? "never" : capped ? "demand" : "always"}
         camera={{ position: defaultEye(centerOf(WHOLE).x, ROOM.H / 2, centerOf(WHOLE).z), zoom: 30, near: 0.1, far: 700 }}
         gl={{ antialias: true, alpha: true }}
         onPointerMissed={(e) => {
@@ -314,7 +317,7 @@ export default function Scene3D() {
         role="img"
       >
         <AdaptiveDpr pixelated={false} />
-        {capped && <FrameCap fps={minimal ? 12 : 30} />}
+        {capped && !watching && <FrameCap fps={minimal ? 12 : 30} />}
         <SlowWatch />
         <Lighting shadows={shadows} />
         <BubbleZoomWatcher />

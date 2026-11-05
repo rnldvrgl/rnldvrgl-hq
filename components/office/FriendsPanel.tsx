@@ -6,6 +6,7 @@ import { unreadRooms, useChat } from "@/lib/chat-client";
 import { dmRoom, LOUNGE } from "@/lib/chat";
 import { ChatView } from "./ChatView";
 import { VoiceCard } from "./Voice";
+import { MovieNightCard } from "./MovieNight";
 import { usePresence, type Friend } from "@/lib/presence";
 import { useOffice } from "@/lib/store";
 import { openSettings } from "@/lib/settings-nav";
@@ -63,6 +64,7 @@ export function FriendsPanel() {
         </p>
       )}
       {me && others.length > 0 && <VoiceCard />}
+      {me && others.length > 0 && <MovieNightCard />}
       {me && others.length > 0 && (
         <button type="button" onClick={() => setRoom(LOUNGE)}
           className="flex items-center gap-3 rounded-2xl border border-border bg-card/60 p-2.5 text-left transition-colors hover:bg-muted/60">

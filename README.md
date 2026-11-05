@@ -419,6 +419,8 @@ Any one AI key is enough for most desks. The desks that read private data (mail,
 
 **Voice lounge:** Friends tab → **Join** (the browser asks for the microphone). Everyone in it is connected straight to everyone else with WebRTC (free; no audio goes through a server); Supabase Realtime only carries who's in and the handshakes (private channel `hq:voice`, policy in `multi-hq.sql`). Mute, deafen and leave from the card or the bar over the office; a green ring shows who's talking. Good for a handful of people. There's no relay server, so on some strict networks (some office or mobile networks) two people can't connect; their tile says "No link".
 
+**Movie night:** Friends tab → paste a YouTube link, or an https link to a video file on your own server (.mp4, .webm), and **Start**. Friends see what's on and **Join**; play, pause and skipping are shared, and anyone more than 1.5 s off jumps to where the others are. Each browser loads the video itself (nothing goes through HQ), and Realtime only carries what's playing and where (private channel `hq:watch`). A file on your own server must be a public https link that allows playing from other sites. The 3D office stops drawing while the player is open.
+
 **The 5-minute tick** calls itself once per HQ, in parallel, so every HQ's work gets its own function and time limit. If you create one of the optional tables later (push notifications, Spotify, names), run `supabase/multi-hq.sql` again afterwards to give it its `hq_id`.
 
 ## Spotify in the office
