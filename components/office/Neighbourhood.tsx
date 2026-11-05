@@ -61,6 +61,7 @@ export const SIGN = {
   hall: { text: "BARANGAY HALL", sub: HQ.town.barangay, bg: "#1e3a8a", ink: "#ffffff", style: "hall" },
   sariHome: { text: "SARI-SARI", sub: "Coke · yelo · load", bg: "#b91c1c", ink: "#ffffff" },
   starbucks: { text: brand("STARBUCKS", "KAPE VERDE"), sub: "COFFEE", bg: "#ffffff", ink: "#00704a", style: "cafe" },
+  bhs: { text: "BARANGAY HEALTH STATION", sub: "libreng konsulta · bakuna · Lun–Biy", bg: "#15803d", ink: "#ffffff" },
   rcc: { text: "REPUBLIC CENTRAL COLLEGES", sub: "Angeles City, Pampanga", bg: "#7f1d1d", ink: "#fde68a", style: "school" },
 } as const satisfies Record<string, SignSpec>;
 type SignId = keyof typeof SIGN;
@@ -717,25 +718,86 @@ function across(t: Town): void {
   S.push({ shape: "cyl", size: [2.1, 0.12, 8], pos: [35.2, 2.45, z0 + 5.3], color: "#7c2d12" });
   t.pools.push([35.2, z0 + 5.3, 5, 5]);
 
-  // the barangay hall: two storeys, the flag out front, its name on both faces of the parapet
-  const hx0 = 44, hx1 = 54, hcx = (hx0 + hx1) / 2, hz0 = z0 + 2.4, hz1 = z0 + 8.4, hcz = (hz0 + hz1) / 2;
-  S.push({ size: [hx1 - hx0 + 2, 0.04, hz1 - z0 + 0.4], pos: [hcx, -0.1, (z0 + hz1) / 2], color: "#c9c6bf" });
-  S.push({ size: [hx1 - hx0, 5.2, hz1 - hz0], pos: [hcx, 2.5, hcz], color: "#f5f0e1" });
-  S.push({ size: [hx1 - hx0 + 0.1, 0.16, hz1 - hz0 + 0.1], pos: [hcx, 2.6, hcz], color: "#1e3a8a" });
-  S.push({ size: [hx1 - hx0 + 0.14, 0.8, hz1 - hz0 + 0.14], pos: [hcx, 5.4, hcz], color: "#1e3a8a" });
-  t.signs.push({ id: "hall", x: hcx, y: 5.4, z: hz1 + 0.09, w: 3.6, h: 0.7 });
-  t.signs.push({ id: "hall", x: hcx, y: 5.4, z: hz0 - 0.09, w: 3.6, h: 0.7, back: true });
-  for (const fy of [1.4, 3.9]) for (let k = 0; k < 4; k++) t.shopWins.push({ x: hx0 + 1.4 + k * 2.4, y: fy, z: hz1 + 0.04, w: 1.4, h: 1.0 });
-  for (const fy of [1.4, 3.9]) t.shopWins.push({ x: hx1 + 0.04, y: fy, z: hcz, w: 3, h: 1, face: "x" });
-  const fx = hcx, fz = z0 + 1.0;
+  barangayHall(t, z0);
+}
+
+
+
+/* ------------------------------------------------------------------ the barangay hall */
+
+/**
+ * The barangay hall: a two-storey civic building in cream and blue under a red hip roof, with a pillared
+ * portico and pediment carrying its name on the road side, a covered balcony upstairs (the session hall),
+ * jalousie windows, a ramp; the Barangay Health Station wing beside it; a waiting shed with benches, the
+ * bulletin board and the flag out front. Its name is on both faces (the camera mostly sees the back).
+ */
+function barangayHall(t: Town, z0: number): void {
+  const S = t.solid;
+  const hx0 = 44, hx1 = 51.6, hz0 = z0 + 2.6, hz1 = z0 + 8.6, hcx = (hx0 + hx1) / 2, hcz = (hz0 + hz1) / 2;
+  const cream = "#f5efe0", blue = "#1e3a8a", sky = "#3b82f6", roof = "#cf6a4f", white = "#fafaf9";
+  const F = 3.0;
+  // the grounds: paving, a lawn strip with ornamental plants
+  S.push({ size: [13.2, 0.04, hz1 - z0 + 0.6], pos: [50.2, -0.1, (z0 + hz1) / 2], color: "#c9c6bf" });
+  S.push({ size: [6, 0.03, 1.2], pos: [hcx, -0.085, hz0 - 1.2], color: "#7fa36a" });
+  // two storeys: blue skirting, cream walls, a white band between floors
+  S.push({ size: [hx1 - hx0, F * 2, hz1 - hz0], pos: [hcx, F - 0.1, hcz], color: cream });
+  S.push({ size: [hx1 - hx0 + 0.04, 0.6, hz1 - hz0 + 0.04], pos: [hcx, 0.2, hcz], color: blue });
+  S.push({ size: [hx1 - hx0 + 0.3, 0.2, hz1 - hz0 + 0.3], pos: [hcx, F - 0.05, hcz], color: white });
+  // windows on every face the camera sees (+z back, +x side) and the road side: jalousies with blue frames
+  const jal = (x: number, y: number, z: number, w: number, face?: "x") => {
+    t.shopWins.push({ x, y, z, w, h: 1.1, face });
+    for (let k = 0; k < 6; k++) S.push(face ? { size: [0.03, 0.025, w], pos: [x + 0.02, y - 0.45 + k * 0.18, z], color: "#cbd5e1" } : { size: [w, 0.025, 0.03], pos: [x, y - 0.45 + k * 0.18, z + 0.02], color: "#cbd5e1" });
+  };
+  for (const fy of [1.5, F + 1.5]) {
+    for (let k = 0; k < 4; k++) { jal(hx0 + 1.2 + k * 1.75, fy, hz1 + 0.04, 1.1); jal(hx0 + 1.2 + k * 1.75, fy, hz0 - 0.04, 1.1); }
+    jal(hx1 + 0.04, fy, hcz - 1.4, 1.4, "x"); jal(hx1 + 0.04, fy, hcz + 1.4, 1.4, "x");
+  }
+  // the hip roof (a gable with its ends clipped by a lower gable across), white fascia
+  S.push({ shape: "gable", size: [hx1 - hx0 + 1.0, 1.6, hz1 - hz0 + 1.0], pos: [hcx, F * 2 - 0.1, hcz], color: roof });
+  S.push({ shape: "gable", size: [hz1 - hz0 + 1.0, 1.2, hx1 - hx0 - 1.0], pos: [hcx, F * 2 - 0.1, hcz], rotY: Math.PI / 2, color: roof });
+  S.push({ size: [hx1 - hx0 + 1.04, 0.14, hz1 - hz0 + 1.04], pos: [hcx, F * 2 - 0.12, hcz], color: white });
+  // the portico on the road side: four columns, a pediment with the name, steps and a ramp
+  const pz = hz0 - 1.6, pw = 4.4;
+  S.push({ size: [pw + 0.6, 0.18, 1.8], pos: [hcx, -0.02, hz0 - 0.9], color: "#d6d3cc" });
+  for (let k = 0; k < 4; k++) S.push({ shape: "cyl", size: [0.16, F - 0.2, 12], pos: [hcx - pw / 2 + 0.3 + k * ((pw - 0.6) / 3), (F - 0.2) / 2, pz + 0.15], color: white });
+  S.push({ size: [pw + 0.4, 0.3, 1.9], pos: [hcx, F - 0.15, hz0 - 0.85], color: white });
+  S.push({ shape: "gable", size: [pw + 0.6, 1.0, 2.0], pos: [hcx, F, hz0 - 0.85], rotY: Math.PI / 2, color: blue });
+  t.signs.push({ id: "hall", x: hcx, y: F + 0.55, z: pz - 0.12, w: 3.4, h: 0.62, back: true });
+  S.push({ size: [1.2, 0.08, 2.6], pos: [hx0 + 0.9, 0.18, hz0 - 1.4], rot: [0.12, 0, 0], color: "#d6d3cc" });
+  // the balcony upstairs on the back (camera) side: slab, blue railing, the name over it
+  S.push({ size: [hx1 - hx0 - 1.0, 0.16, 1.2], pos: [hcx, F + 0.05, hz1 + 0.6], color: white });
+  S.push({ size: [hx1 - hx0 - 1.0, 0.06, 0.06], pos: [hcx, F + 1.0, hz1 + 1.18], color: blue });
+  for (let k = 0; k <= 16; k++) S.push({ size: [0.04, 0.9, 0.04], pos: [hx0 + 0.5 + (k * (hx1 - hx0 - 1.0)) / 16, F + 0.55, hz1 + 1.18], color: sky });
+  t.signs.push({ id: "hall", x: hcx, y: F * 2 - 0.55, z: hz1 + 0.09, w: 3.6, h: 0.66 });
+  t.pools.push([hcx, hz1 + 1.5, 9, 3]);
+
+  // the Barangay Health Station wing: one storey, white with a green band and its own sign
+  const wx0 = hx1 + 0.4, wx1 = 56.6, wz0 = hz0 + 1.0, wz1 = hz1, wcx = (wx0 + wx1) / 2, wcz = (wz0 + wz1) / 2;
+  S.push({ size: [wx1 - wx0, 3.0, wz1 - wz0], pos: [wcx, 1.4, wcz], color: white });
+  S.push({ size: [wx1 - wx0 + 0.04, 0.5, wz1 - wz0 + 0.04], pos: [wcx, 0.15, wcz], color: "#15803d" });
+  S.push({ shape: "gable", size: [wx1 - wx0 + 0.6, 1.0, wz1 - wz0 + 0.8], pos: [wcx, 2.9, wcz], color: "#15803d" });
+  t.signs.push({ id: "bhs", x: wcx, y: 2.3, z: wz1 + 0.05, w: 4.0, h: 0.55 });
+  t.signs.push({ id: "bhs", x: wcx, y: 2.3, z: wz0 - 0.05, w: 4.0, h: 0.55, back: true });
+  t.shopWins.push({ x: wx1 + 0.04, y: 1.4, z: wcz, w: 2.4, h: 1.0, face: "x" });
+  S.push({ size: [1.0, 2.0, 0.06], pos: [wcx, 0.9, wz0 - 0.03], color: "#94a3b8" });
+
+  // out front: the waiting shed with benches, the bulletin board, the flag
+  const sx = 42.3, sz = z0 + 0.9;
+  for (const dx of [-1.3, 1.3]) S.push({ size: [0.1, 2.4, 0.1], pos: [sx + dx, 1.1, sz], color: blue });
+  S.push({ size: [3.0, 0.08, 1.4], pos: [sx, 2.35, sz + 0.2], rot: [-0.1, 0, 0], color: sky });
+  S.push({ size: [2.4, 0.08, 0.4], pos: [sx, 0.42, sz + 0.3], color: "#8a6a4a" });
+  S.push({ size: [2.4, 0.4, 0.06], pos: [sx, 0.7, sz + 0.52], color: "#8a6a4a" });
+  S.push({ size: [0.08, 1.8, 0.08], pos: [53.8, 0.8, z0 + 0.6], color: "#6b4a33" }, { size: [0.08, 1.8, 0.08], pos: [55.6, 0.8, z0 + 0.6], color: "#6b4a33" });
+  S.push({ size: [2.0, 1.1, 0.06], pos: [54.7, 1.35, z0 + 0.6], color: "#7c5a3a" });
+  for (const [x, y, c] of [[54.1, 1.55, "#fef3c7"], [54.6, 1.2, "#dbeafe"], [55.2, 1.5, "#fce7f3"], [54.9, 1.1, "#dcfce7"]] as const) S.push({ size: [0.4, 0.3, 0.02], pos: [x, y, z0 + 0.64], color: c });
+  const fx = hcx - 3.4, fz = z0 + 1.0;
+  S.push({ size: [1.4, 0.3, 1.4], pos: [fx, 0.05, fz], color: "#d6d3cc" });
   S.push({ shape: "cyl", size: [0.05, 6.4, 8], pos: [fx, 3.1, fz], color: "#e5e7eb" });
   S.push({ size: [1.4, 0.35, 0.02], pos: [fx + 0.72, 5.9, fz], color: "#0038a8" });
   S.push({ size: [1.4, 0.35, 0.02], pos: [fx + 0.72, 5.55, fz], color: "#ce1126" });
   S.push({ size: [0.42, 0.7, 0.03], pos: [fx + 0.23, 5.72, fz], color: "#ffffff" });
   S.push({ size: [0.12, 0.12, 0.04], pos: [fx + 0.2, 5.72, fz], color: "#fcd116" });
-  t.pools.push([hcx, hz1 + 1.5, 10, 3]);
 }
-
 
 /* ------------------------------------------------------------------ the school */
 
@@ -776,7 +838,7 @@ function school(t: Town): void {
   }
   for (let k = 0; k <= 6; k++) S.push({ size: [0.24, FL * 3, 0.24], pos: [ax1 + 1.4, (FL * 3) / 2 - 0.1, az0 + (k * ad) / 6], color: wall });
   // roof: GI gable, the name along its parapet facing the courtyard
-  S.push({ shape: "gable", size: [ad + 0.4, 1.3, aw + 2.2], pos: [acx + 0.75, FL * 3 - 0.1, acz], rotY: Math.PI / 2, color: "#a8442f" });
+  S.push({ shape: "gable", size: [ad + 0.4, 1.3, aw + 2.2], pos: [acx + 0.75, FL * 3 - 0.1, acz], rotY: Math.PI / 2, color: "#c9785a" });
   t.signs.push({ id: "rcc", x: ax1 + 1.56, y: FL * 3 - 0.55, z: acz, w: 8.4, h: 0.62, sideX: true });
 
   // wing B across the back, two storeys; windows on its road side (the corridor faces the road)
