@@ -147,6 +147,8 @@ export class Ambience {
     const channel = () => { const g = ctx.createGain(); g.connect(all); return g; };
     this.bus = { all, music: channel(), room: channel(), typing: channel(), weather: channel(), street: channel(), alerts: channel() };
     this.applyMix();
+    // follow the sliders the moment they move (not just on the next update tick)
+    useSettings.subscribe((st, prev) => { if (st.volumes !== prev.volumes) this.applyMix(); });
     this.white = noiseBuffer(ctx, 2, "white");
     this.brown = noiseBuffer(ctx, 4, "brown");
 
@@ -396,7 +398,10 @@ export class Ambience {
     if (key === this.mixed) return;
     this.mixed = key;
     const t = this.ctx.currentTime;
-    for (const k of Object.keys(this.bus) as MixKey[]) this.bus[k].gain.setTargetAtTime(this.level(k), t, 0.05);
+    for (const k of Object.keys(this.bus) as MixKey[]) {
+      this.bus[k].gain.cancelScheduledValues(t);
+      this.bus[k].gain.setTargetAtTime(this.level(k), t, 0.03);
+    }
   }
 
   private set(g: GainNode, v: number) {

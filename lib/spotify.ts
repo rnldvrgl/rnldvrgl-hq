@@ -217,6 +217,13 @@ type PlayerResponse = {
 };
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
+/**
+ * After you move the volume slider, polls ignore Spotify's volume for a few seconds: Spotify takes a moment
+ * to apply it, and reading the old value back made the slider jump back and then forward again.
+ */
+let volumeHeldUntil = 0;
+let volumeTimer: ReturnType<typeof setTimeout> | null = null;
+let volumeSentAt = 0;
 /** When the last poll's progress was read, so the progress bar can run between polls. */
 let polledAt = 0;
 
@@ -230,7 +237,7 @@ async function poll(): Promise<void> {
       error: null,
       activeDevice: r?.device?.name ?? null,
       activeDeviceId: r?.device?.id ?? null,
-      ...(r?.device?.volume_percent != null ? { volume: r.device.volume_percent / 100 } : {}),
+      ...(r?.device?.volume_percent != null && performance.now() > volumeHeldUntil ? { volume: r.device.volume_percent / 100 } : {}),
       track: item ? {
         id: item.id ?? `${item.name}|${item.duration_ms}`,
         title: item.name,
@@ -336,9 +343,22 @@ export const useSpotify = create<SpotifyState>((set, get) => ({
   setVolume: async (v) => {
     const vol = Math.max(0, Math.min(1, v));
     set({ volume: vol });
+    volumeHeldUntil = performance.now() + 4000;
     // this tab is the device: set it locally (instant); otherwise ask Spotify to change the playing device
     if (player && !get().activeDevice) { await player.setVolume(vol).catch(() => {}); return; }
-    await control(() => api(`/me/player/volume?volume_percent=${Math.round(vol * 100)}`, { method: "PUT" }));
+    // while dragging, send at most ~4 changes a second, always ending on where the slider stopped
+    if (volumeTimer) clearTimeout(volumeTimer);
+    const send = () => {
+      volumeTimer = null;
+      volumeSentAt = performance.now();
+      volumeHeldUntil = performance.now() + 4000;
+      const pct = Math.round(get().volume * 100);
+      void api(`/me/player/volume?volume_percent=${pct}`, { method: "PUT" })
+        .then(() => set({ error: null }))
+        .catch((e: unknown) => set({ error: e instanceof Error ? e.message : "Spotify didn't respond." }));
+    };
+    const wait = Math.max(0, 250 - (performance.now() - volumeSentAt));
+    volumeTimer = setTimeout(send, wait);
   },
 
   fetchDevices: async () => {
