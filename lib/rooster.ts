@@ -7,8 +7,8 @@ import { manilaMinutes } from "@/lib/office-clock";
  */
 
 export const ROOSTER_COUNT = 3;
-/** How long one "cock-a-doodle-doo" lasts, seconds. */
-export const CROW_S = 2.0;
+/** How long one "cock-a-doodle-doo" lasts, seconds: the recorded crows (public/sounds/rooster-*.mp3) run 1.7–2.2 s. */
+export const CROW_S = 2.1;
 
 /** Seconds into rooster k's crow at `now`, or null when it isn't crowing. */
 export function crowing(now: Date, k: number): number | null {

@@ -8,15 +8,16 @@ import { useSettings, MUSIC_STYLES, type MixKey, type MusicStyle } from "@/lib/s
 import { spotifyBeat, useSpotify } from "@/lib/spotify";
 
 /**
- * The office's background sound, generated live with Web Audio (no audio files):
- *   room tone (soft brown noise), the AC hum during office hours, keyboard clatter from each working desk
+ * The office's background sound, from real recordings (public/sounds, all CC0, see CREDITS.md there):
+ *   room tone, the aircon during office hours, keyboard clatter from each working desk
  *   (positional: loud when you're zoomed in on that desk, quiet or silent when it's far off or out of view),
- *   birds by day, crickets at night, traffic passing now and then, rain when it rains and thunder in storms.
- *   It reads the scene clock and weather, so previews sound right too.
+ *   birds by day, roosters at dawn, crickets at night, traffic passing now and then, rain when it rains,
+ *   heavy rain and thunder in storms. It reads the scene clock and weather, so previews sound right too.
+ *   The files load in the background once the sound is first turned on; any that fail to load stay silent.
  *
- * Plus the office sound system (Settings → Sound → Office music): a generated loop in one of six styles
- * (lo-fi, café jazz, bossa nova, calm piano, synthwave, 8-bit), played during office hours (8 AM – 7 PM).
- * The 3D subwoofer's cone pumps on each kick or bass note (wooferLevel below).
+ * Plus the office sound system (Settings → Sound → Office music): a loop generated live with Web Audio in one
+ * of six styles (lo-fi, café jazz, bossa nova, calm piano, synthwave, 8-bit), played during office hours
+ * (8 AM – 7 PM). The 3D subwoofer's cone pumps on each kick or bass note (wooferLevel below).
  *
  * And the car and scooters outside: the boss's car starting, idling, stopping and locking, the lunch rider's
  * scooter, and now and then a jeepney's horn.
@@ -87,28 +88,57 @@ export const musicStyleLabel = (id: MusicStyle): string => MUSIC_STYLES.find((m)
  */
 export const typingSources = new Map<string, { gain: number; pan: number }>();
 
-function noiseBuffer(ctx: AudioContext, seconds: number, color: "white" | "pink" | "brown"): AudioBuffer {
+/** White noise for the music's drums (hats, snares, brushes, shakers). */
+function whiteNoise(ctx: AudioContext, seconds: number): AudioBuffer {
   const len = Math.floor(ctx.sampleRate * seconds);
   const buf = ctx.createBuffer(1, len, ctx.sampleRate);
   const d = buf.getChannelData(0);
-  let last = 0, b0 = 0, b1 = 0, b2 = 0;
-  for (let i = 0; i < len; i++) {
-    const w = Math.random() * 2 - 1;
-    if (color === "white") d[i] = w;
-    else if (color === "brown") { last = (last + 0.02 * w) / 1.02; d[i] = last * 3.5; }
-    else { b0 = 0.99765 * b0 + w * 0.099; b1 = 0.963 * b1 + w * 0.2965; b2 = 0.57 * b2 + w * 1.0526; d[i] = (b0 + b1 + b2 + w * 0.1848) * 0.2; }
-  }
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
   return buf;
 }
 
-function loop(ctx: AudioContext, buf: AudioBuffer, out: AudioNode): AudioBufferSourceNode {
-  const src = ctx.createBufferSource();
-  src.buffer = buf;
-  src.loop = true;
-  src.connect(out);
-  src.start();
-  return src;
-}
+/* ------------------------------------------------------------------ the recorded sound effects */
+
+/** Every sound effect file in public/sounds (see CREDITS.md there for where each one comes from). */
+const SFX = [
+  // the beds first, so the room fills in soonest
+  "room-loop", "aircon-loop", "rain-loop", "crickets-loop", "storm-loop", "car-idle-loop",
+  "rooster-1", "rooster-2", "rooster-3", "rooster-4", "rooster-5", "rooster-6",
+  "bird-1", "bird-2", "bird-3", "bird-4",
+  "thunder-1", "thunder-2", "keys", "car-pass", "horn-jeepney", "horn-bulb",
+  "car-start", "car-stop", "car-lock-beep", "car-lock-clunk", "switch-click", "scooter-in", "scooter-out",
+  "fw-boom-1", "fw-boom-2", "fw-boom-3", "fw-boom-4", "fw-whistle-1", "fw-whistle-2", "fw-crackle-1", "fw-crackle-2",
+  "chime",
+] as const;
+type Sfx = (typeof SFX)[number];
+type Loop = Extract<Sfx, `${string}-loop`>;
+
+/**
+ * The loops' period, seconds. Each file is that long plus a copy of its first 0.3 s, so looping any
+ * period-long window that starts in the first 0.3 s is seamless, whatever the MP3 decoder adds at the start.
+ */
+const LOOP_S: Record<Loop, number> = {
+  "crickets-loop": 8, "rain-loop": 8, "storm-loop": 9, "aircon-loop": 8, "room-loop": 7, "car-idle-loop": 6,
+};
+const LOOP_FROM = 0.15;
+/** keys.mp3: single key presses, one every KEY_SLOT seconds. */
+const KEY_SLOT = 0.25, KEY_COUNT = 16;
+/** The two crows each rooster has (rooster k crows ROOSTER_CROWS[k][0] or [1]), its pitch and where it is. */
+const ROOSTER_CROWS: readonly (readonly [Sfx, Sfx])[] = [["rooster-1", "rooster-4"], ["rooster-2", "rooster-5"], ["rooster-3", "rooster-6"]];
+const ROOSTER_PAN = [-0.55, 0.15, 0.65];
+const BIRDS: readonly Sfx[] = ["bird-1", "bird-2", "bird-3", "bird-4"];
+const THUNDER: readonly Sfx[] = ["thunder-1", "thunder-2"];
+const WHISTLES: readonly Sfx[] = ["fw-whistle-1", "fw-whistle-2"];
+const BOOMS: readonly Sfx[] = ["fw-boom-1", "fw-boom-2", "fw-boom-3", "fw-boom-4"];
+const CRACKLES: readonly Sfx[] = ["fw-crackle-1", "fw-crackle-2"];
+/** The boss's car is out front, right of the office. */
+const CAR_PAN = 0.45;
+/** Its idle level. car-start.mp3 and car-stop.mp3 come from the same recording as the idle loop; the start was
+ * turned down to 0.266 of the loop's level when it was cut (to fit), so it plays that much louder to match. */
+const IDLE = 0.15, START = IDLE / 0.266;
+
+const pick = <T>(a: readonly T[]): T => a[Math.floor(Math.random() * a.length)];
+const vary = (amount: number) => 1 + (Math.random() * 2 - 1) * amount;
 
 export class Ambience {
   private ctx: AudioContext;
@@ -116,12 +146,19 @@ export class Ambience {
   /** The mixer: one channel per kind of sound, then the overall volume (see applyMix). */
   private bus: Record<MixKey, GainNode>;
   private mixed = "";
+  /** Decoded sound effects, as they arrive (see loadSounds). */
+  private sounds = new Map<Sfx, AudioBuffer>();
+  private loading = false;
+  /** Loops waiting for their file: started as soon as it has loaded. */
+  private waiting = new Map<Sfx, ((buf: AudioBuffer) => void)[]>();
   private room: GainNode;
   private ac: GainNode;
   private rain: GainNode;
+  private storm: GainNode;
   private crickets: GainNode;
+  /** The boss's car idling, faded in while the engine runs (see engineStart). */
+  private idle: GainNode;
   private white: AudioBuffer;
-  private brown: AudioBuffer;
   private timer: ReturnType<typeof setInterval> | null = null;
   private nextKey = new Map<string, number>();
   private nextBird = 0;
@@ -153,52 +190,22 @@ export class Ambience {
     this.applyMix();
     // follow the sliders the moment they move (not just on the next update tick)
     useSettings.subscribe((st, prev) => { if (st.volumes !== prev.volumes) this.applyMix(); });
-    this.white = noiseBuffer(ctx, 2, "white");
-    this.brown = noiseBuffer(ctx, 4, "brown");
+    this.white = whiteNoise(ctx, 2);
 
-    // room tone
-    this.room = ctx.createGain();
-    this.room.gain.value = 0.05;
+    // the beds: each a recorded loop behind its own fader (set in update), starting once its file is in.
+    // Room tone: a soft fan, rounded off so it reads as the room's hush rather than a machine.
     const roomLp = ctx.createBiquadFilter();
-    roomLp.type = "lowpass"; roomLp.frequency.value = 420;
-    roomLp.connect(this.room).connect(this.bus.room);
-    loop(ctx, this.brown, roomLp);
-
-    // AC hum: two low sines
-    this.ac = ctx.createGain();
-    this.ac.gain.value = 0;
-    this.ac.connect(this.bus.room);
-    for (const f of [58, 117]) {
-      const o = ctx.createOscillator();
-      o.frequency.value = f;
-      const g = ctx.createGain();
-      g.gain.value = f < 100 ? 0.5 : 0.18;
-      o.connect(g).connect(this.ac);
-      o.start();
-    }
-
-    // rain: pink noise through a band
-    this.rain = ctx.createGain();
-    this.rain.gain.value = 0;
-    const rainBp = ctx.createBiquadFilter();
-    rainBp.type = "bandpass"; rainBp.frequency.value = 1800; rainBp.Q.value = 0.4;
-    rainBp.connect(this.rain).connect(this.bus.weather);
-    loop(ctx, noiseBuffer(ctx, 3, "pink"), rainBp);
-
-    // crickets: a high tone pulsed by a low oscillator
-    this.crickets = ctx.createGain();
-    this.crickets.gain.value = 0;
-    const tone = ctx.createOscillator();
-    tone.frequency.value = 4700;
-    const pulse = ctx.createGain();
-    pulse.gain.value = 0;
-    const lfo = ctx.createOscillator();
-    lfo.frequency.value = 22;
-    const lfoGain = ctx.createGain();
-    lfoGain.gain.value = 0.5;
-    lfo.connect(lfoGain).connect(pulse.gain);
-    tone.connect(pulse).connect(this.crickets).connect(this.bus.street);
-    tone.start(); lfo.start();
+    roomLp.type = "lowpass"; roomLp.frequency.value = 900;
+    roomLp.connect(this.bus.room);
+    this.room = this.bed("room-loop", roomLp, 0.05);
+    this.ac = this.bed("aircon-loop", this.bus.room);
+    this.rain = this.bed("rain-loop", this.bus.weather);
+    this.storm = this.bed("storm-loop", this.bus.weather);
+    this.crickets = this.bed("crickets-loop", this.bus.street);
+    const carPan = ctx.createStereoPanner();
+    carPan.pan.value = CAR_PAN;
+    carPan.connect(this.bus.street);
+    this.idle = this.bed("car-idle-loop", carPan);
 
     // the sound system: everything musical goes through a warm low-pass (the lo-fi "dusty" top end)
     this.music = ctx.createGain();
@@ -370,12 +377,14 @@ export class Ambience {
 
   async start(): Promise<void> {
     await this.ctx.resume();
+    this.loadSounds();
     const t = this.ctx.currentTime;
     this.master.gain.cancelScheduledValues(t);
     this.master.gain.setTargetAtTime(0.9, t, 0.6);
     // the car was started while the sound was off: it's idling when you turn the sound on
-    const idle = carRunning ? this.ensureIdle() : this.idle;
-    if (idle) idle.gain.gain.setTargetAtTime(carRunning ? 0.06 : 0, t, 0.3);
+    this.carOn = carRunning;
+    this.idle.gain.cancelScheduledValues(t);
+    this.idle.gain.setTargetAtTime(carRunning ? IDLE : 0, t, 0.3);
     if (!this.timer) this.timer = setInterval(() => this.update(), 120);
   }
 
@@ -412,11 +421,11 @@ export class Ambience {
     g.gain.setTargetAtTime(v, this.ctx.currentTime, 0.8);
   }
 
-  /** A short filtered noise burst: a key press, a raindrop on glass, a car passing… */
-  private burst(opts: { dur: number; gain: number; type: BiquadFilterType; freq: number; q?: number; attack?: number; pan?: number; buf?: AudioBuffer; out?: AudioNode; at?: number }) {
-    const ctx = this.ctx, t = opts.at ?? ctx.currentTime;
+  /** A short filtered noise burst, for the music's drums. */
+  private burst(opts: { dur: number; gain: number; type: BiquadFilterType; freq: number; q?: number; attack?: number; out: AudioNode; at: number }) {
+    const ctx = this.ctx, t = opts.at;
     const src = ctx.createBufferSource();
-    src.buffer = opts.buf ?? this.white;
+    src.buffer = this.white;
     const f = ctx.createBiquadFilter();
     f.type = opts.type; f.frequency.value = opts.freq; f.Q.value = opts.q ?? 0.7;
     const g = ctx.createGain();
@@ -424,30 +433,82 @@ export class Ambience {
     g.gain.setValueAtTime(0, t);
     g.gain.linearRampToValueAtTime(opts.gain, t + a);
     g.gain.exponentialRampToValueAtTime(0.0001, t + opts.dur);
-    const p = ctx.createStereoPanner();
-    p.pan.value = opts.pan ?? 0;
-    src.connect(f).connect(g).connect(p).connect(opts.out ?? this.bus.street);
+    src.connect(f).connect(g).connect(opts.out);
     src.start(t, Math.random());
     src.stop(t + opts.dur + 0.05);
   }
 
-  /** "Pot-pot!" on the rubber bulb horn, then "Pandesal! Mainit pa!" (the browser's voice, in Filipino if it has one). */
-  private vendorCall() {
-    const ctx = this.ctx, t0 = ctx.currentTime + 0.02;
-    for (const at of [0, 0.22]) {
-      const o = ctx.createOscillator(), g = ctx.createGain(), f = ctx.createBiquadFilter();
-      o.type = "square";
-      o.frequency.setValueAtTime(520, t0 + at);
-      o.frequency.exponentialRampToValueAtTime(430, t0 + at + 0.14);
-      f.type = "lowpass"; f.frequency.value = 1400;
-      g.gain.setValueAtTime(0.0001, t0 + at);
-      g.gain.exponentialRampToValueAtTime(0.035, t0 + at + 0.015);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + 0.16);
-      const p = ctx.createStereoPanner();
-      p.pan.value = 0.5;
-      o.connect(f).connect(g).connect(p).connect(this.bus.street);
-      o.start(t0 + at); o.stop(t0 + at + 0.2);
+  /* -------------------------------------------------------------- playing the recordings */
+
+  /** Fetch and decode every effect in the background, a few at a time (once). A file that fails stays silent. */
+  private loadSounds() {
+    if (this.loading) return;
+    this.loading = true;
+    const todo = [...SFX];
+    const next = async (): Promise<void> => {
+      const name = todo.shift();
+      if (!name) return;
+      try {
+        const res = await fetch(`/sounds/${name}.mp3`);
+        if (!res.ok) throw new Error(`${res.status}`);
+        const buf = await this.ctx.decodeAudioData(await res.arrayBuffer());
+        this.sounds.set(name, buf);
+        const waiting = this.waiting.get(name);
+        this.waiting.delete(name);
+        waiting?.forEach((go) => go(buf));
+      } catch { /* missing or undecodable: that effect just stays silent */ }
+      return next();
+    };
+    for (let i = 0; i < 4; i++) void next();
+  }
+
+  /**
+   * Play a recording once (nothing if its file hasn't loaded, or failed to). `at` is the audio time, `rate` the
+   * speed (and pitch), `pan` −1…1 or [from, to] to sweep across while it plays, `offset`/`dur` a slice of the file.
+   */
+  private play(name: Sfx, o: { out: AudioNode; gain: number; at?: number; rate?: number; pan?: number | readonly [number, number]; offset?: number; dur?: number }): { src: AudioBufferSourceNode; gain: GainNode } | null {
+    const buf = this.sounds.get(name);
+    if (!buf) return null;
+    const ctx = this.ctx, t = Math.max(o.at ?? 0, ctx.currentTime), rate = o.rate ?? 1, offset = o.offset ?? 0;
+    const src = ctx.createBufferSource(), gain = ctx.createGain(), p = ctx.createStereoPanner();
+    src.buffer = buf;
+    src.playbackRate.value = rate;
+    gain.gain.value = o.gain;
+    if (typeof o.pan === "number" || o.pan === undefined) p.pan.value = Math.max(-1, Math.min(1, o.pan ?? 0));
+    else {
+      p.pan.setValueAtTime(o.pan[0], t);
+      p.pan.linearRampToValueAtTime(o.pan[1], t + (o.dur ?? buf.duration - offset) / rate);
     }
+    src.connect(gain).connect(p).connect(o.out);
+    if (o.dur === undefined) src.start(t, offset);
+    else src.start(t, offset, o.dur);
+    return { src, gain };
+  }
+
+  /** A looping recording behind its own fader, silent until `level` is set; the loop joins in once its file is in. */
+  private bed(name: Loop, out: AudioNode, level = 0): GainNode {
+    const g = this.ctx.createGain();
+    g.gain.value = level;
+    g.connect(out);
+    const go = (buf: AudioBuffer) => {
+      const src = this.ctx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      src.loopStart = LOOP_FROM;
+      src.loopEnd = LOOP_FROM + LOOP_S[name];
+      src.connect(g);
+      src.start(0, LOOP_FROM + Math.random() * LOOP_S[name]);
+    };
+    const buf = this.sounds.get(name);
+    if (buf) go(buf);
+    else this.waiting.set(name, [...(this.waiting.get(name) ?? []), go]);
+    return g;
+  }
+
+  /** Two honks of the rubber bulb horn, then "Pandesal! Mainit pa!" (the browser's voice, in Filipino if it has one). */
+  private vendorCall() {
+    const t0 = this.ctx.currentTime + 0.02, rate = vary(0.05);
+    for (const at of [0, 0.42]) this.play("horn-bulb", { out: this.bus.street, gain: 0.08, at: t0 + at, pan: 0.5, rate });
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
     try {
       const u = new SpeechSynthesisUtterance("Pandesal! Mainit pa!");
@@ -455,138 +516,55 @@ export class Ambience {
       if (voice) u.voice = voice;
       u.lang = voice?.lang ?? "fil-PH";
       u.rate = 0.95; u.pitch = 1.15; u.volume = Math.min(1, 0.35 * this.level("street"));
-      setTimeout(() => window.speechSynthesis.speak(u), 700);
+      setTimeout(() => window.speechSynthesis.speak(u), 900);
     } catch { /* no voice: the horn is enough */ }
   }
 
-  /** A soft bell motif (semitones above A4, one note every 0.16 s), on the Alerts channel so music settings don't mute it. */
+  /**
+   * A three-note motif on a music-box note (semitones above A4, one every 0.16 s), on the Alerts channel so music
+   * settings don't mute it. The recording is a C, so each note is that C sped up or slowed down.
+   */
   chime(notes: readonly number[]) {
-    const ctx = this.ctx, t0 = ctx.currentTime + 0.02;
-    notes.forEach((n, i) => {
-      const t = t0 + i * 0.16, f = 440 * 2 ** (n / 12);
-      for (const [mul, gain] of [[1, 0.07], [2, 0.02], [3.01, 0.008]] as const) {
-        const o = ctx.createOscillator(), g = ctx.createGain();
-        o.type = "sine";
-        o.frequency.setValueAtTime(f * mul, t);
-        g.gain.setValueAtTime(0.0001, t);
-        g.gain.exponentialRampToValueAtTime(gain, t + 0.01);
-        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9 / mul);
-        o.connect(g).connect(this.bus.alerts);
-        o.start(t); o.stop(t + 1);
-      }
-    });
+    const t0 = this.ctx.currentTime + 0.02;
+    notes.forEach((n, i) => this.play("chime", { out: this.bus.alerts, gain: 0.2, at: t0 + i * 0.16, rate: 2 ** ((n - 3) / 12) }));
   }
 
   /* -------------------------------------------------------------- the car and scooters outside */
 
-  /** The boss's car's idle: a low, lumpy exhaust note, faded in while the engine runs (see setCarEngine). */
-  private idle: { gain: GainNode; osc: OscillatorNode[] } | null = null;
+  /** Whether the boss's car is running, as far as this engine has heard (so "lock" on a parked car is silent). */
+  private carOn = false;
 
-  private ensureIdle() {
-    if (this.idle) return this.idle;
-    const ctx = this.ctx;
-    const gain = ctx.createGain();
-    gain.gain.value = 0;
-    const lp = ctx.createBiquadFilter();
-    lp.type = "lowpass"; lp.frequency.value = 240; lp.Q.value = 1.2;
-    const pan = ctx.createStereoPanner();
-    pan.pan.value = 0.45; // the car is out front, right of the office
-    lp.connect(gain).connect(pan).connect(this.bus.street);
-    // two detuned saws an octave apart, their level wobbling at the firing rate: a 4-cylinder burble
-    const osc = [ctx.createOscillator(), ctx.createOscillator()];
-    osc[0].type = "sawtooth"; osc[0].frequency.value = 44;
-    osc[1].type = "square"; osc[1].frequency.value = 22.3;
-    const wob = ctx.createGain();
-    wob.gain.value = 0.7;
-    const lfo = ctx.createOscillator(), lfoDepth = ctx.createGain();
-    lfo.frequency.value = 11; lfoDepth.gain.value = 0.3;
-    lfo.connect(lfoDepth).connect(wob.gain);
-    for (const o of osc) { o.connect(wob); o.start(); }
-    wob.connect(lp);
-    lfo.start();
-    this.idle = { gain, osc: [...osc, lfo] };
-    return this.idle;
-  }
-
-  /** Key turned: the starter cranks three times, the engine catches with a rev, then settles to idle. */
+  /** Key turned: the starter cranks, the engine catches and settles, and the idle loop takes over. */
   engineStart() {
-    const ctx = this.ctx, t0 = ctx.currentTime + 0.05;
-    // starter motor: a whirring saw, pulsing with each compression
-    const st = ctx.createOscillator(), sg = ctx.createGain(), sf = ctx.createBiquadFilter(), sp = ctx.createStereoPanner();
-    st.type = "sawtooth";
-    st.frequency.setValueAtTime(62, t0);
-    st.frequency.linearRampToValueAtTime(78, t0 + 0.8);
-    sf.type = "bandpass"; sf.frequency.value = 520; sf.Q.value = 0.9;
-    sp.pan.value = 0.45;
-    sg.gain.setValueAtTime(0.0001, t0);
-    for (let i = 0; i < 4; i++) {
-      const c = t0 + i * 0.21;
-      sg.gain.exponentialRampToValueAtTime(0.09, c + 0.05);
-      sg.gain.exponentialRampToValueAtTime(0.025, c + 0.18);
-    }
-    sg.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.95);
-    st.connect(sf).connect(sg).connect(sp).connect(this.bus.street);
-    st.start(t0); st.stop(t0 + 1);
-    // it catches: a rev up and back down
-    const tc = t0 + 0.85;
-    const rev = ctx.createOscillator(), rg = ctx.createGain(), rf = ctx.createBiquadFilter(), rp = ctx.createStereoPanner();
-    rev.type = "sawtooth";
-    rev.frequency.setValueAtTime(40, tc);
-    rev.frequency.exponentialRampToValueAtTime(120, tc + 0.35);
-    rev.frequency.exponentialRampToValueAtTime(46, tc + 1.3);
-    rf.type = "lowpass"; rf.frequency.setValueAtTime(400, tc); rf.frequency.linearRampToValueAtTime(900, tc + 0.35); rf.frequency.linearRampToValueAtTime(260, tc + 1.3);
-    rp.pan.value = 0.45;
-    rg.gain.setValueAtTime(0.0001, tc);
-    rg.gain.exponentialRampToValueAtTime(0.16, tc + 0.08);
-    rg.gain.exponentialRampToValueAtTime(0.05, tc + 1.3);
-    rg.gain.exponentialRampToValueAtTime(0.0001, tc + 1.6);
-    rev.connect(rf).connect(rg).connect(rp).connect(this.bus.street);
-    rev.start(tc); rev.stop(tc + 1.7);
-    this.burst({ dur: 0.5, gain: 0.08, type: "lowpass", freq: 260, attack: 0.02, pan: 0.45, buf: this.brown, at: tc });
-    // then the idle takes over
-    const idle = this.ensureIdle();
-    idle.gain.gain.cancelScheduledValues(tc);
-    idle.gain.gain.setValueAtTime(0, tc);
-    idle.gain.gain.setTargetAtTime(0.06, tc + 0.9, 0.3);
+    const t0 = this.ctx.currentTime + 0.05;
+    this.carOn = true;
+    this.play("car-start", { out: this.bus.street, gain: START, at: t0, pan: CAR_PAN });
+    // car-start.mp3 has settled to idle by ~3 s and fades out over its last 0.8 s, under the loop fading in
+    this.idle.gain.cancelScheduledValues(t0);
+    this.idle.gain.setValueAtTime(0, t0);
+    this.idle.gain.setTargetAtTime(IDLE, t0 + 3.0, 0.25);
   }
 
-  /** Engine off: the idle drops in pitch and dies, with a last shudder. */
+  /** Engine off: the idle hands over to the recording of that same engine being switched off. */
   engineStop() {
-    const ctx = this.ctx, t = ctx.currentTime;
-    const idle = this.idle;
-    if (!idle) return;
-    idle.gain.gain.cancelScheduledValues(t);
-    idle.gain.gain.setTargetAtTime(0, t, 0.18);
-    for (const o of idle.osc.slice(0, 2)) {
-      const f = o.frequency.value;
-      o.frequency.cancelScheduledValues(t);
-      o.frequency.setValueAtTime(f, t);
-      o.frequency.exponentialRampToValueAtTime(f * 0.45, t + 0.6);
-      o.frequency.setValueAtTime(f, t + 1.2);
-    }
-    this.burst({ dur: 0.4, gain: 0.05, type: "lowpass", freq: 180, attack: 0.01, pan: 0.45, buf: this.brown, at: t + 0.15 });
+    if (!this.carOn) return;
+    this.carOn = false;
+    const t = this.ctx.currentTime;
+    this.idle.gain.cancelScheduledValues(t);
+    this.idle.gain.setTargetAtTime(0, t + 0.02, 0.05);
+    this.play("car-stop", { out: this.bus.street, gain: IDLE, at: t, pan: CAR_PAN });
   }
 
-  /** Remote lock: two chirps and the doors' clunk. */
+  /** Remote lock: the doors' clunk and the beep. */
   carLock() {
-    const ctx = this.ctx, t0 = ctx.currentTime + 0.02;
-    this.burst({ dur: 0.12, gain: 0.06, type: "lowpass", freq: 600, pan: 0.45, at: t0 });
-    for (const at of [0.12, 0.34]) {
-      const o = ctx.createOscillator(), g = ctx.createGain(), p = ctx.createStereoPanner();
-      o.type = "square";
-      o.frequency.setValueAtTime(2350, t0 + at);
-      g.gain.setValueAtTime(0.0001, t0 + at);
-      g.gain.exponentialRampToValueAtTime(0.018, t0 + at + 0.01);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + 0.09);
-      p.pan.value = 0.45;
-      o.connect(g).connect(p).connect(this.bus.street);
-      o.start(t0 + at); o.stop(t0 + at + 0.1);
-    }
+    const t0 = this.ctx.currentTime + 0.02;
+    this.play("car-lock-clunk", { out: this.bus.street, gain: 0.12, at: t0, pan: CAR_PAN });
+    this.play("car-lock-beep", { out: this.bus.street, gain: 0.1, at: t0 + 0.12, pan: CAR_PAN });
   }
 
   /** A switch click (headlights). */
   click() {
-    this.burst({ dur: 0.025, gain: 0.05, type: "highpass", freq: 3000, pan: 0.45 });
+    this.play("switch-click", { out: this.bus.street, gain: 0.1, pan: CAR_PAN });
   }
 
   /** Fireworks voices still sounding (audio-clock end times), so a barrage never piles up past a few at once. */
@@ -600,10 +578,9 @@ export class Ambience {
   }
 
   /**
-   * One firework. "launch": the rocket's rising whistle and a soft whoosh, `len` seconds long. "burst": a
-   * boom (a low thump and a rumble of brown noise, arriving a beat after the flash when it's far off) and,
-   * when `crackle`, a sparkle of tiny pops while the stars fall. `pan` −1…1 is where it is on screen and
-   * `gain` 0…1 how near it is.
+   * One firework. "launch": a rocket's whistle, fitted to the climb (`len` seconds) and cut at the burst.
+   * "burst": a boom (a beat after the flash when it's far off; bigger shells deeper) and, when `crackle`, the
+   * crackle of the falling stars. `pan` −1…1 is where it is on screen and `gain` 0…1 how near it is.
    */
   firework(kind: "launch" | "burst", o: { pan: number; gain: number; len?: number; crackle?: boolean; big?: boolean }) {
     const ctx = this.ctx, v = Math.max(0, Math.min(1, o.gain));
@@ -613,167 +590,40 @@ export class Ambience {
     if (kind === "launch") {
       const len = o.len ?? 0.9;
       if (!this.fwVoice(len, 6)) return;
+      const name = pick(WHISTLES);
+      const full = this.sounds.get(name)?.duration ?? 1.25;
       const t0 = ctx.currentTime + 0.01;
-      const osc = ctx.createOscillator(), g = ctx.createGain(), p = ctx.createStereoPanner();
-      osc.type = "sine";
-      const f0 = 700 + Math.random() * 300;
-      osc.frequency.setValueAtTime(f0, t0);
-      osc.frequency.exponentialRampToValueAtTime(f0 * (2.2 + Math.random() * 0.6), t0 + len);
-      g.gain.setValueAtTime(0.0001, t0);
-      g.gain.exponentialRampToValueAtTime(0.012 * v, t0 + len * 0.3);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + len);
-      p.pan.setValueAtTime(pan, t0);
-      osc.connect(g).connect(p).connect(out);
-      osc.start(t0); osc.stop(t0 + len + 0.05);
-      this.burst({ dur: len, gain: 0.035 * v, type: "bandpass", freq: 1800, q: 0.8, attack: len * 0.6, pan, out, at: t0 });
+      const s = this.play(name, { out, gain: 0.06 * v, at: t0, pan, rate: Math.min(1.3, Math.max(0.8, full / len)) * vary(0.04) });
+      if (s) { s.gain.gain.setTargetAtTime(0, t0 + len - 0.06, 0.03); s.src.stop(t0 + len + 0.2); }
       return;
     }
     // the boom, a little behind the flash when it's far off (sound trails light)
     if (!this.fwVoice(o.crackle ? 1.8 : 1.4, o.big ? 10 : 8)) return;
     const t0 = ctx.currentTime + 0.02 + (1 - v) * 0.25;
-    const thump = ctx.createOscillator(), tg = ctx.createGain(), p = ctx.createStereoPanner();
-    thump.type = "sine";
-    thump.frequency.setValueAtTime(95 + Math.random() * 25, t0);
-    thump.frequency.exponentialRampToValueAtTime(38, t0 + 0.35);
-    const loud = (o.big ? 0.22 : 0.16) * v;
-    tg.gain.setValueAtTime(0.0001, t0);
-    tg.gain.exponentialRampToValueAtTime(loud, t0 + 0.008);
-    tg.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.5);
-    p.pan.value = pan;
-    thump.connect(tg).connect(p).connect(out);
-    thump.start(t0); thump.stop(t0 + 0.55);
-    // the crack of the charge, then the rumble rolling off the houses
-    this.burst({ dur: 0.18, gain: loud * 0.5, type: "lowpass", freq: 2400, pan, out, at: t0 });
-    this.burst({ dur: 1.3 + Math.random() * 0.4, gain: loud * 1.4, type: "lowpass", freq: 110 + v * 70, attack: 0.01, buf: this.brown, pan, out, at: t0 });
+    this.play(pick(BOOMS), { out, gain: (o.big ? 0.45 : 0.32) * v, at: t0, pan, rate: (o.big ? 0.85 : 0.97) * vary(0.06) });
     if (o.crackle) {
-      const n = 14 + Math.floor(Math.random() * 10);
-      for (let i = 0; i < n; i++) {
-        const at = t0 + 0.35 + Math.random() * 1.2;
-        this.burst({ dur: 0.012 + Math.random() * 0.01, gain: (0.02 + Math.random() * 0.03) * v, type: "highpass", freq: 2500 + Math.random() * 3000, pan: pan + (Math.random() - 0.5) * 0.3, out, at });
-      }
+      this.play(pick(CRACKLES), { out, gain: 0.22 * v, at: t0 + 0.3 + Math.random() * 0.25, pan: pan + (Math.random() - 0.5) * 0.3, rate: vary(0.08) });
     }
   }
 
   /** A scooter: "in" rides up and stops at the kerb, "out" pulls away and fades down the street. */
   scooter(dir: "in" | "out") {
-    const ctx = this.ctx, t0 = ctx.currentTime + 0.02, len = dir === "in" ? 6 : 7;
-    const o = ctx.createOscillator(), g = ctx.createGain(), f = ctx.createBiquadFilter(), p = ctx.createStereoPanner();
-    o.type = "sawtooth";
-    f.type = "bandpass"; f.Q.value = 1.4;
-    if (dir === "in") {
-      o.frequency.setValueAtTime(105, t0);
-      o.frequency.linearRampToValueAtTime(95, t0 + len * 0.7);
-      o.frequency.exponentialRampToValueAtTime(48, t0 + len);
-      f.frequency.setValueAtTime(700, t0); f.frequency.linearRampToValueAtTime(380, t0 + len);
-      g.gain.setValueAtTime(0.0001, t0);
-      g.gain.exponentialRampToValueAtTime(0.05, t0 + len * 0.75);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + len);
-      p.pan.setValueAtTime(-0.9, t0); p.pan.linearRampToValueAtTime(0.35, t0 + len * 0.8);
-    } else {
-      o.frequency.setValueAtTime(50, t0);
-      o.frequency.exponentialRampToValueAtTime(115, t0 + 1.4);
-      o.frequency.linearRampToValueAtTime(100, t0 + len);
-      f.frequency.setValueAtTime(380, t0); f.frequency.linearRampToValueAtTime(800, t0 + 1.4);
-      g.gain.setValueAtTime(0.0001, t0);
-      g.gain.exponentialRampToValueAtTime(0.055, t0 + 0.5);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + len);
-      p.pan.setValueAtTime(0.35, t0); p.pan.linearRampToValueAtTime(0.95, t0 + len);
-    }
-    o.connect(f).connect(g).connect(p).connect(this.bus.street);
-    o.start(t0); o.stop(t0 + len + 0.1);
+    if (dir === "in") this.play("scooter-in", { out: this.bus.street, gain: 0.1, pan: [-0.9, 0.35] });
+    else this.play("scooter-out", { out: this.bus.street, gain: 0.1, pan: [0.35, 0.95] });
   }
 
   /** "Beep-beep!": a jeepney asking for passengers, somewhere down the street. */
   private jeepneyHorn() {
-    const ctx = this.ctx, t0 = ctx.currentTime + 0.02, pan = Math.random() < 0.5 ? -0.6 : 0.6;
-    for (const at of [0, 0.3]) {
-      for (const freq of [392, 494]) {
-        const o = ctx.createOscillator(), g = ctx.createGain(), f = ctx.createBiquadFilter(), p = ctx.createStereoPanner();
-        o.type = "square";
-        o.frequency.value = freq;
-        f.type = "lowpass"; f.frequency.value = 1500;
-        g.gain.setValueAtTime(0.0001, t0 + at);
-        g.gain.exponentialRampToValueAtTime(0.012, t0 + at + 0.015);
-        g.gain.setValueAtTime(0.012, t0 + at + 0.17);
-        g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + 0.22);
-        p.pan.value = pan;
-        o.connect(f).connect(g).connect(p).connect(this.bus.street);
-        o.start(t0 + at); o.stop(t0 + at + 0.25);
-      }
-    }
+    this.play("horn-jeepney", { out: this.bus.street, gain: 0.06 * vary(0.15), rate: vary(0.06), pan: Math.random() < 0.5 ? -0.6 : 0.6 });
   }
 
-  /**
-   * A rooster's crow (the tilaok), "ku-kuk-ka-rooo": three short barks rising and a long last note that climbs
-   * then falls, harsh and nasal: two detuned sawtooths, roughened by a fast tremolo, through two broad
-   * formants. `k` picks the bird (pitch, and where it is left to right).
-   */
+  /** A rooster's crow (the tilaok). `k` picks the bird: its own two recorded crows, its loudness and where it is. */
   crow(k: number) {
-    const ctx = this.ctx, t0 = ctx.currentTime + 0.02;
-    const base = [620, 700, 560][k % 3];
-    const pan = [-0.55, 0.15, 0.65][k % 3];
-    // start, length, pitch at start / peak / end (× base)
-    const syll: readonly (readonly [number, number, number, number, number])[] = [
-      [0, 0.12, 0.95, 1.05, 1.0], [0.17, 0.13, 1.05, 1.2, 1.12], [0.36, 0.17, 1.2, 1.35, 1.3], [0.6, 1.05, 1.3, 1.55, 0.95],
-    ];
-    const out = ctx.createGain();
-    out.gain.value = 0.1;
-    const p = ctx.createStereoPanner();
-    p.pan.value = pan;
-    const f1 = ctx.createBiquadFilter(), f2 = ctx.createBiquadFilter(), hp = ctx.createBiquadFilter();
-    f1.type = "peaking"; f1.frequency.value = 1100; f1.Q.value = 1.1; f1.gain.value = 12;
-    f2.type = "peaking"; f2.frequency.value = 2400; f2.Q.value = 1.4; f2.gain.value = 9;
-    hp.type = "highpass"; hp.frequency.value = 380;
-    hp.connect(f1).connect(f2).connect(out).connect(p).connect(this.bus.street);
-    for (const [at, len, a, peak, b] of syll) {
-      const s0 = t0 + at, s1 = s0 + len;
-      const g = ctx.createGain();
-      // the rasp: a fast tremolo on the voice
-      const rasp = ctx.createGain(), lfo = ctx.createOscillator(), depth = ctx.createGain();
-      lfo.frequency.value = 55 + k * 6; depth.gain.value = 0.35; rasp.gain.value = 0.65;
-      lfo.connect(depth).connect(rasp.gain);
-      // a wobble on the long last note
-      const vib = len > 0.5 ? ctx.createOscillator() : null, vd = ctx.createGain();
-      if (vib) { vib.frequency.value = 7; vd.gain.value = base * 0.03; vib.connect(vd); vib.start(s0); vib.stop(s1 + 0.05); }
-      for (const detune of [-14, 11]) {
-        const o = ctx.createOscillator();
-        if (vib) vd.connect(o.frequency);
-        o.type = "sawtooth";
-        o.detune.value = detune;
-        o.frequency.setValueAtTime(base * a, s0);
-        o.frequency.linearRampToValueAtTime(base * peak, s0 + len * (len > 0.5 ? 0.35 : 0.5));
-        o.frequency.linearRampToValueAtTime(base * b, s1);
-        o.connect(rasp);
-        o.start(s0); o.stop(s1 + 0.05);
-      }
-      rasp.connect(g).connect(hp);
-      g.gain.setValueAtTime(0.0001, s0);
-      g.gain.exponentialRampToValueAtTime(1, s0 + 0.025);
-      g.gain.setValueAtTime(1, s0 + len * 0.75);
-      g.gain.exponentialRampToValueAtTime(0.0001, s1);
-      lfo.start(s0); lfo.stop(s1 + 0.05);
-    }
+    const crows = ROOSTER_CROWS[k % ROOSTER_CROWS.length];
+    this.play(crows[Math.random() < 0.6 ? 0 : 1], { out: this.bus.street, gain: 0.22 * [1, 0.85, 0.75][k % 3] * vary(0.1), pan: ROOSTER_PAN[k % 3], rate: vary(0.025) });
   }
 
   private crowed: boolean[] = [];
-
-  private chirp(base: number, gain: number) {
-    const ctx = this.ctx, t = ctx.currentTime;
-    for (let i = 0; i < 3; i++) {
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      const s = t + i * 0.11;
-      o.frequency.setValueAtTime(base, s);
-      o.frequency.exponentialRampToValueAtTime(base * 1.45, s + 0.07);
-      g.gain.setValueAtTime(0, s);
-      g.gain.linearRampToValueAtTime(gain, s + 0.01);
-      g.gain.exponentialRampToValueAtTime(0.0001, s + 0.09);
-      const p = ctx.createStereoPanner();
-      p.pan.value = Math.random() * 1.6 - 0.8;
-      o.connect(g).connect(p).connect(this.bus.street);
-      o.start(s); o.stop(s + 0.1);
-    }
-  }
 
   private update() {
     this.applyMix();
@@ -783,9 +633,10 @@ export class Ambience {
     const weather = sceneWeather();
     const raining = weather === "rain" || weather === "storm";
 
-    this.set(this.ac, min >= 480 && min < 1140 ? 0.012 : 0);
-    this.set(this.rain, raining ? (weather === "storm" ? 0.16 : 0.1) : 0);
-    this.set(this.crickets, night && !raining ? 0.0045 : 0);
+    this.set(this.ac, min >= 480 && min < 1140 ? 0.05 : 0);
+    this.set(this.rain, raining ? 0.08 : 0);
+    this.set(this.storm, weather === "storm" ? 0.1 : 0);
+    this.set(this.crickets, night && !raining ? 0.03 : 0);
     this.set(this.room, night ? 0.03 : 0.05);
 
     // the sound system plays during office hours
@@ -803,13 +654,14 @@ export class Ambience {
       if (src.gain < 0.03) continue;
       const due = this.nextKey.get(id) ?? 0;
       if (now < due) continue;
-      this.burst({ dur: 0.03, gain: (0.02 + Math.random() * 0.03) * src.gain, type: "highpass", freq: 2400 + Math.random() * 1500, pan: src.pan, out: this.bus.typing });
+      const key = Math.floor(Math.random() * KEY_COUNT);
+      this.play("keys", { out: this.bus.typing, gain: (0.05 + Math.random() * 0.05) * src.gain, pan: src.pan, rate: vary(0.06), offset: key * KEY_SLOT, dur: KEY_SLOT });
       const pause = Math.random() < 0.08 ? 0.6 + Math.random() * 1.2 : 0.07 + Math.random() * 0.15;
       this.nextKey.set(id, now + pause);
     }
     // birds by day (not in the rain)
     if (!night && !raining && now >= this.nextBird) {
-      if (this.nextBird) this.chirp(2600 + Math.random() * 1800, 0.012);
+      if (this.nextBird) this.play(pick(BIRDS), { out: this.bus.street, gain: 0.07 * vary(0.3), pan: Math.random() * 1.6 - 0.8, rate: vary(0.06) });
       this.nextBird = now + 5 + Math.random() * 12;
     }
     // the roosters in the yards behind the office, in step with the birds in the scene
@@ -818,11 +670,12 @@ export class Ambience {
       if (c !== null && c < 0.4 && !this.crowed[k] && !raining) this.crow(k);
       this.crowed[k] = c !== null;
     }
-    // a car or jeepney going by
+    // a car or jeepney going by, one way or the other
     if (now >= this.nextCar) {
       if (this.nextCar) {
-        this.burst({ dur: 3.2, gain: 0.05, type: "lowpass", freq: 380, attack: 1.4, pan: Math.random() < 0.5 ? -0.7 : 0.7, buf: this.brown });
-        if (!night && useSettings.getState().show.traffic && Math.random() < 0.25) setTimeout(() => this.jeepneyHorn(), 1200);
+        const dir = Math.random() < 0.5 ? 1 : -1;
+        this.play("car-pass", { out: this.bus.street, gain: 0.12 * vary(0.2), rate: vary(0.08), pan: [-0.8 * dir, 0.8 * dir] });
+        if (!night && useSettings.getState().show.traffic && Math.random() < 0.25) setTimeout(() => this.jeepneyHorn(), 3000);
       }
       this.nextCar = now + 14 + Math.random() * 26;
     }
@@ -833,7 +686,7 @@ export class Ambience {
     }
     // thunder in storms
     if (weather === "storm" && now >= this.nextThunder) {
-      if (this.nextThunder) this.burst({ dur: 3.5, gain: 0.35, type: "lowpass", freq: 140, attack: 0.08, buf: this.brown, out: this.bus.weather });
+      if (this.nextThunder) this.play(pick(THUNDER), { out: this.bus.weather, gain: 0.35 * vary(0.25), rate: vary(0.1), pan: Math.random() * 0.8 - 0.4 });
       this.nextThunder = now + 9 + Math.random() * 10;
     }
   }
