@@ -6,7 +6,7 @@ import {
   SlidersHorizontal, Smartphone, Speaker, Tablet, Tv, Unplug, Volume1, type LucideIcon,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { liveProgressMs, resumeSpotify, spotifyConfigured, useSpotify, type SpotifyDevice, type SpotifyTrack } from "@/lib/spotify";
+import { liveProgressMs, resumeSpotify, spotifyConfigured, useSpotify, type SpotifyDevice, type SpotifyPlaylist, type SpotifyTrack } from "@/lib/spotify";
 import { useIsPhone } from "@/hooks/use-media";
 import { cn } from "@/lib/utils";
 import { MUSIC_STYLES, useSettings } from "@/lib/settings";
@@ -217,7 +217,7 @@ function Library({ open }: { open: boolean }) {
               : <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-muted"><Music className="size-4" aria-hidden /></span>}
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-medium">{p.name}</span>
-              <span className="block text-[11px] text-muted-foreground">{p.tracks} tracks</span>
+              <span className="block truncate text-[11px] text-muted-foreground">{playlistMeta(p)}</span>
             </span>
             <Play className="size-4 shrink-0 text-muted-foreground" aria-hidden />
           </button>
@@ -225,6 +225,12 @@ function Library({ open }: { open: boolean }) {
       ))}
     </ul>
   );
+}
+
+/** "24 songs", or who made it when Spotify doesn't say how many songs (it only counts your own playlists now). */
+function playlistMeta(p: SpotifyPlaylist): string {
+  if (p.tracks != null) return `${p.tracks} ${p.tracks === 1 ? "song" : "songs"}`;
+  return p.mine || !p.owner ? "Playlist" : `Playlist · ${p.owner}`;
 }
 
 function NowPlaying({ track }: { track: SpotifyTrack | null }) {

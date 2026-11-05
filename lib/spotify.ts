@@ -30,7 +30,8 @@ const POLL_MS = 5000;
 export type SpotifyTrack = { id: string; title: string; artist: string; album: string; art: string | null; durationMs: number; progressMs: number; playing: boolean };
 /** A Spotify Connect device you can play on: a phone, speaker, TV, computer, or an HQ tab. */
 export type SpotifyDevice = { id: string; name: string; type: string; active: boolean; restricted: boolean; volume: number | null };
-export type SpotifyPlaylist = { id: string; uri: string; name: string; image: string | null; tracks: number };
+/** `tracks` is the song count, or null when Spotify didn't send one (it only does for some playlists now). */
+export type SpotifyPlaylist = { id: string; uri: string; name: string; image: string | null; tracks: number | null; owner: string | null; mine: boolean };
 
 type SpotifyState = {
   status: "off" | "connecting" | "ready" | "error";
@@ -160,6 +161,8 @@ type SpotifyWindow = Window & {
 };
 
 let player: SdkPlayer | null = null;
+/** The signed-in Spotify user's id (to tell your own playlists from ones you follow). */
+let meId: string | null = null;
 
 /** "iPhone", "iPad", "Mac", "Windows PC"…: each device's office tab shows up in Spotify Connect under its own name. */
 function deviceName(): string {
@@ -304,7 +307,8 @@ export const useSpotify = create<SpotifyState>((set, get) => ({
       // already connected (from this or any other device)? then no Spotify sign-in is needed here
       const shared = await tokenCall();
       if (!shared.connected && !(await adoptLocalTokens())) { await beginLogin(); return; }
-      const me = await api<{ product?: string }>("/me");
+      const me = await api<{ product?: string; id?: string }>("/me");
+      meId = me?.id ?? null;
       const premium = me?.product === "premium";
       set({ isPremium: premium, status: "ready" });
       startPolling();
@@ -319,6 +323,7 @@ export const useSpotify = create<SpotifyState>((set, get) => ({
     player?.disconnect();
     player = null;
     cached = null;
+    meId = null;
     void fetch("/api/spotify", { method: "DELETE" }).catch(() => {});
     set({ status: "off", track: null, deviceId: null, activeDevice: null, activeDeviceId: null, devices: [], isPremium: null, playlists: [], error: null });
   },
@@ -387,9 +392,25 @@ export const useSpotify = create<SpotifyState>((set, get) => ({
 
   fetchPlaylists: async () => {
     try {
-      const r = await api<{ items: { id: string; uri: string; name: string; images?: { url: string }[] | null; tracks?: { total: number } }[] }>("/me/playlists?limit=50");
+      // Spotify's Feb 2026 Web API changes renamed the playlist's `tracks` ({ href, total }) to `items`, and only
+      // send it for playlists you own; older responses still use `tracks`. Read both, and keep "unknown" as null.
+      type Raw = {
+        id: string; uri: string; name: string; images?: { url: string }[] | null;
+        items?: { total?: number } | null; tracks?: { total?: number } | null;
+        owner?: { id?: string; display_name?: string | null } | null;
+      };
+      const [r, me] = await Promise.all([
+        api<{ items: (Raw | null)[] }>("/me/playlists?limit=50"),
+        meId ? Promise.resolve({ id: meId }) : api<{ id?: string }>("/me").catch(() => null),
+      ]);
+      meId = me?.id ?? meId;
       set({
-        playlists: (r?.items ?? []).filter(Boolean).map((p) => ({ id: p.id, uri: p.uri, name: p.name, image: p.images?.[0]?.url ?? null, tracks: p.tracks?.total ?? 0 })),
+        playlists: (r?.items ?? []).filter((p): p is Raw => !!p).map((p) => ({
+          id: p.id, uri: p.uri, name: p.name, image: p.images?.[0]?.url ?? null,
+          tracks: p.items?.total ?? p.tracks?.total ?? null,
+          owner: p.owner?.display_name ?? p.owner?.id ?? null,
+          mine: !!meId && p.owner?.id === meId,
+        })),
       });
     } catch (e) {
       set({ error: e instanceof Error ? e.message : "Couldn't load your playlists." });
