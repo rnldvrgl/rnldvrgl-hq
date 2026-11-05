@@ -69,11 +69,11 @@ const near = (p: ReturnType<typeof manilaParts>, md: [number, number] | undefine
 export const HOLIDAYS: readonly Holiday[] = [
   {
     id: "newyear", name: "New Year", when: "Dec 31 – Jan 1",
-    looks: "Gold and silver bunting, fireworks over the town, a big burst at midnight",
+    looks: "A big Happy New Year banner across the street, gold and silver bunting and globe lanterns, the media noche table out front with twelve round fruits and torotot, a fruit stand at the sari-sari, confetti and fireworks over the town, a big barrage at midnight",
     swatch: ["#facc15", "#e5e7eb", "#f97316"], previewAt: "23:58",
     on: (p) => (p.month === 11 && p.day === 31) || (p.month === 0 && p.day === 1),
     first: () => [11, 31],
-    decor: { ornament: null, bunting: ["#facc15", "#e5e7eb", "#f59e0b"], acrossStreet: true, fireworks: null /* Holidays.tsx runs the midnight show */ },
+    decor: { ornament: null, bunting: ["#facc15", "#e5e7eb", "#f59e0b"], acrossStreet: true, fireworks: null /* Holidays.tsx runs the midnight show */, extras: "newyear" },
   },
   {
     id: "lunar", name: "Chinese New Year", when: "Lunar New Year (Jan–Feb)",

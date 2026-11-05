@@ -19,6 +19,7 @@ import { Festive } from "./Festive";
 import { Valentine } from "./Valentine";
 import { Penitensya } from "./Penitensya";
 import { Halloween } from "./Halloween";
+import { NewYear } from "./NewYear";
 
 /**
  * Pasko and Bagong Taon in the town.
@@ -361,7 +362,7 @@ export function Holidays() {
   // New Year's Eve is still the Christmas season, so its preview keeps the parols up
   const season = list.some((h) => h.id === "christmas") || previewId === "newyear";
   const ny = newYearMinutes(now);
-  const hour = manilaParts(now).hour;
+  const nowParts = manilaParts(now), hour = nowParts.hour;
   const festive = list.filter((h) => h.decor);
   const otherShow = festive.some((h) => {
     const fw = h.decor!.fireworks;
@@ -379,6 +380,9 @@ export function Holidays() {
       {festive.map((h) => <Festive key={h.id} decor={h.decor!} />)}
       {festive.some((h) => h.decor!.extras === "valentine") && <Valentine frozen={minimal} />}
       {festive.some((h) => h.decor!.extras === "penitensya") && <Penitensya frozen={minimal} />}
+      {festive.some((h) => h.decor!.extras === "newyear") && (
+        <NewYear year={nowParts.month === 0 ? nowParts.year : nowParts.year + 1} party={previewId === "newyear" || ny !== null} frozen={minimal} lowPower={lowPower} />
+      )}
       {festive.some((h) => h.decor!.extras === "halloween") && <Halloween frozen={minimal} lowPower={lowPower} />}
       {fireworks && <Fireworks lowPower={lowPower} peak={() => peakRef.current} preview={previewId === "newyear"} />}
     </group>
