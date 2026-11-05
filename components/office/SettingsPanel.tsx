@@ -1,7 +1,10 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { BatteryLow, Gauge, Sparkles } from "lucide-react";
+import { useState } from "react";
+import { BatteryLow, Check, Eye, Gauge, LogOut, Loader2, Sparkles, Square } from "lucide-react";
+import { browserClient } from "@/lib/supabase/browser";
+import { HOLIDAYS, nextLabel, useHolidayPreview, type Holiday } from "@/lib/holidays";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useOffice } from "@/lib/store";
 import {
@@ -25,13 +28,13 @@ export function SettingsPanel({ open, onOpenChange }: { open: boolean; onOpenCha
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side={isDesktop ? "right" : "bottom"}
-        className={cn("gap-0 overflow-y-auto overflow-x-hidden overscroll-contain", isDesktop ? "w-[400px] sm:max-w-[400px]" : "max-h-[88dvh] rounded-t-3xl pb-[max(16px,env(safe-area-inset-bottom,0px))]")}
+        className={cn("scroll-thin gap-0 overflow-x-hidden", isDesktop ? "w-[420px] sm:max-w-[420px]" : "max-h-[88dvh] rounded-t-3xl pb-[max(16px,env(safe-area-inset-bottom,0px))]")}
       >
-        <SheetHeader className="pb-2">
+        <SheetHeader className="sticky top-0 z-10 border-b border-border bg-popover/90 pb-3 backdrop-blur-md">
           <SheetTitle>Office settings</SheetTitle>
           <SheetDescription>Saved on this device only. Lower-end phones: try Battery saver.</SheetDescription>
         </SheetHeader>
-        <div className="grid gap-6 px-4 pb-6">
+        <div className="grid gap-4 px-4 pt-4 pb-6">
           <Appearance />
           <Performance />
           <Section title="Show in the office" hint="Turn layers off to draw less.">
@@ -42,8 +45,10 @@ export function SettingsPanel({ open, onOpenChange }: { open: boolean; onOpenCha
           </Section>
           <Boss />
           <Sound />
-          <Section title="Account" hint="Sign in without a password or an email code.">
+          <Holidays onPreview={() => onOpenChange(false)} />
+          <Section title="Account" hint="Passkeys sign you in without a password or an email code.">
             <Passkeys />
+            <SignOut />
           </Section>
           <ResetAll />
         </div>
@@ -52,10 +57,11 @@ export function SettingsPanel({ open, onOpenChange }: { open: boolean; onOpenCha
   );
 }
 
+/** One card of settings: a heading, a line on what it does, then its controls. */
 function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
   return (
-    <section className="grid gap-2.5">
-      <div>
+    <section className="grid gap-3 rounded-2xl border border-border bg-card/50 p-3.5">
+      <div className="px-0.5">
         <h3 className="text-sm font-semibold">{title}</h3>
         {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
       </div>
@@ -111,31 +117,37 @@ function Segmented<T extends string>({ value, options, onChange, label }: { valu
 function Appearance() {
   const [style, setStyle] = useStyleChoice();
   return (
-    <Section title="Appearance" hint="Colour style and light or dark.">
+    <Section title="Appearance" hint="Colour style, and light or dark.">
       <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Colour style">
-        {STYLES.map((s) => (
-          <button
-            key={s.id}
-            type="button"
-            role="radio"
-            aria-checked={style === s.id}
-            onClick={() => setStyle(s.id)}
-            className={cn(
-              "flex items-center gap-2.5 rounded-xl border p-2.5 text-left transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring",
-              style === s.id ? "border-ring bg-accent" : "border-border",
-            )}
-          >
-            <span className="flex -space-x-1.5" aria-hidden>
-              {s.swatch.map((c) => <span key={c} className="size-5 rounded-full border border-white/70 shadow-sm" style={{ background: c }} />)}
-            </span>
-            <span className="grid leading-tight">
-              <span className="text-sm font-semibold">{s.label}</span>
-              <span className="text-[11px] text-muted-foreground">{s.hint}</span>
-            </span>
-          </button>
-        ))}
+        {STYLES.map((s) => {
+          const on = style === s.id;
+          return (
+            <button
+              key={s.id}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              onClick={() => setStyle(s.id)}
+              className={cn(
+                "relative grid gap-2 rounded-xl border p-2 text-left transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring",
+                on ? "border-ring bg-accent ring-1 ring-ring" : "border-border",
+              )}
+            >
+              {/* a tiny preview of the style: its background, a button in its colour, an accent dot */}
+              <span className="flex h-9 items-end gap-1 rounded-lg p-1.5 shadow-inner" style={{ background: s.swatch[0] }} aria-hidden>
+                <span className="h-2.5 w-7 rounded-full" style={{ background: s.swatch[1] }} />
+                <span className="size-2.5 rounded-full" style={{ background: s.swatch[2] }} />
+              </span>
+              <span className="grid min-w-0 leading-tight">
+                <span className="truncate text-[13px] font-semibold">{s.label}</span>
+                <span className="truncate text-[10.5px] text-muted-foreground">{s.hint}</span>
+              </span>
+              {on && <Check className="absolute top-1 right-1 size-3.5 rounded-full bg-ring p-0.5 text-white" aria-hidden />}
+            </button>
+          );
+        })}
       </div>
-      <div className="flex items-center justify-between gap-3 rounded-xl px-2.5">
+      <div className="flex items-center justify-between gap-3 rounded-xl bg-muted/50 px-3 py-2">
         <span className="text-sm font-medium">Light / Dark</span>
         <ThemePicker />
       </div>
@@ -166,27 +178,32 @@ function Performance() {
     : lowPower && motion === "minimal" && same(show, LIGHT_SHOW) ? "saver"
     : lowPower && motion === "full" && !show.traffic && !show.smoke ? "balanced" : null;
 
-  const PRESETS: { id: Preset; label: string; hint: string; icon: typeof Gauge }[] = [
-    { id: "full", label: "Full", hint: "Everything, shadows, 60 fps", icon: Sparkles },
-    { id: "balanced", label: "Balanced", hint: "No shadows or traffic, 30 fps", icon: Gauge },
-    { id: "saver", label: "Battery saver", hint: "Office only, minimal motion", icon: BatteryLow },
+  // each preset has its own colour: green for full, blue for balanced, amber for saving battery
+  const PRESETS: { id: Preset; label: string; hint: string; icon: typeof Gauge; tone: { on: string; icon: string } }[] = [
+    { id: "full", label: "Full", hint: "Everything, shadows, 60 fps", icon: Sparkles,
+      tone: { on: "border-emerald-500 bg-emerald-500/12 ring-1 ring-emerald-500", icon: "text-emerald-600 dark:text-emerald-400" } },
+    { id: "balanced", label: "Balanced", hint: "No shadows or traffic, 30 fps", icon: Gauge,
+      tone: { on: "border-sky-500 bg-sky-500/12 ring-1 ring-sky-500", icon: "text-sky-600 dark:text-sky-400" } },
+    { id: "saver", label: "Battery saver", hint: "Office only, minimal motion", icon: BatteryLow,
+      tone: { on: "border-amber-500 bg-amber-500/14 ring-1 ring-amber-500", icon: "text-amber-600 dark:text-amber-400" } },
   ];
 
   return (
     <Section title="Performance" hint="Pick a preset, or fine-tune below.">
       <div className="grid grid-cols-3 gap-2">
-        {PRESETS.map(({ id, label, hint, icon: Icon }) => (
+        {PRESETS.map(({ id, label, hint, icon: Icon, tone }) => (
           <button
             key={id}
             type="button"
             aria-pressed={current === id}
             onClick={() => apply(id)}
             className={cn(
-              "grid gap-1 rounded-xl border p-2.5 text-left transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring",
-              current === id ? "border-ring bg-accent" : "border-border",
+              "relative grid content-start gap-1 rounded-xl border p-2.5 text-left transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring",
+              current === id ? tone.on : "border-border",
             )}
           >
-            <Icon className="size-4 text-muted-foreground" aria-hidden />
+            <Icon className={cn("size-4", tone.icon, current !== id && "opacity-70")} aria-hidden />
+            {current === id && <span className={cn("absolute top-2.5 right-2.5 size-2 rounded-full bg-current", tone.icon)} aria-hidden />}
             <span className="text-sm font-semibold leading-tight">{label}</span>
             <span className="text-[11px] leading-snug text-muted-foreground">{hint}</span>
           </button>
@@ -309,6 +326,70 @@ function Sound() {
         <SoundMixer />
       </div>
     </Section>
+  );
+}
+
+/** Every holiday the town dresses up for, when it is, and a button to see its look right now. */
+function Holidays({ onPreview }: { onPreview: () => void }) {
+  const previewing = useHolidayPreview((s) => s.id);
+  const previewTime = useOffice((s) => s.previewTime);
+  const now = new Date();
+  const start = (h: Holiday) => {
+    useHolidayPreview.setState({ id: h.id });
+    previewTime(h.previewAt, `${h.name} preview`);
+    onPreview();
+  };
+  const stop = () => { useHolidayPreview.setState({ id: null }); previewTime(null); };
+  return (
+    <Section title="Holidays" hint="The town decorates by itself on these dates (Manila time). Preview shows a look now, at its best hour.">
+      <ul className="grid gap-1.5">
+        {HOLIDAYS.map((h) => {
+          const on = previewing === h.id;
+          const next = nextLabel(h, now);
+          return (
+            <li key={h.id} className={cn("flex items-center gap-3 rounded-xl border px-2.5 py-2", on ? "border-ring bg-accent" : "border-border")}>
+              <span className="flex shrink-0 -space-x-1" aria-hidden>
+                {h.swatch.map((c) => <span key={c} className="size-3.5 rounded-full border border-white/70" style={{ background: c }} />)}
+              </span>
+              <span className="grid min-w-0 flex-1 leading-tight">
+                <span className="flex items-baseline gap-1.5">
+                  <span className="truncate text-sm font-medium">{h.name}</span>
+                  {next && <span className={cn("shrink-0 text-[10px] font-medium", next === "On now" ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")}>{next}</span>}
+                </span>
+                <span className="text-[11px] text-muted-foreground">{h.when}</span>
+                <span className="text-[11px] text-muted-foreground/80">{h.looks}</span>
+              </span>
+              <button
+                type="button" onClick={() => (on ? stop() : start(h))} aria-pressed={on}
+                className="flex h-8 shrink-0 items-center gap-1 rounded-full border border-border px-2.5 text-xs font-medium transition-colors hover:bg-muted"
+              >
+                {on ? <><Square className="size-3" aria-hidden /> Stop</> : <><Eye className="size-3.5" aria-hidden /> Preview</>}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </Section>
+  );
+}
+
+/** Sign out on this device (other devices stay signed in). */
+function SignOut() {
+  const [busy, setBusy] = useState(false);
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={async () => {
+        setBusy(true);
+        try { window.sessionStorage.removeItem("hq:unlocked"); } catch { /* fine */ }
+        await browserClient().auth.signOut({ scope: "local" }).catch(() => {});
+        window.location.assign("/login");
+      }}
+      className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-destructive/40 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-60"
+    >
+      {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <LogOut className="size-4" aria-hidden />} Sign out
+    </button>
   );
 }
 
