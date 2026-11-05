@@ -24,6 +24,8 @@ import { typingSources } from "@/lib/ambience";
 import { chairOf, OWNER_CHAIR } from "./routes";
 import { SceneControls } from "./SceneControls";
 import { useHolidayPreview } from "@/lib/holidays";
+import { TrafficLights } from "./TrafficLights";
+import { Walkers } from "./Walkers";
 import { PAL, PAL_BY_STYLE, DESK, ROOM, SCENE, OFFICE } from "./palette";
 import { Neighbourhood } from "./Neighbourhood";
 import { Traffic } from "./Traffic";
@@ -262,6 +264,7 @@ export default function Scene3D() {
   const pressAt = useRef<{ x: number; y: number } | null>(null);
   const lowPower = useOffice((s) => s.lowPower);
   const holidayPreview = useHolidayPreview((s) => s.id);
+  const walkers = useSettings((s) => s.walkers);
   const loadWeather = useOffice((s) => s.loadWeather);
   const pal = PAL_BY_STYLE[style] ?? PAL;
   const capped = lowPower || minimal;
@@ -315,7 +318,9 @@ export default function Scene3D() {
         <Grounds pal={pal} shadows={shadows} />
         {show.neighbourhood && <Neighbourhood />}
         {show.neighbourhood && <PlaceHits />}
+        {show.neighbourhood && <TrafficLights />}
         {show.traffic && !minimal && <Traffic />}
+        {walkers > 0 && !minimal && <Walkers count={lowPower ? Math.min(walkers, 10) : walkers} />}
         {show.vendors && <Vendors shadows={shadows} frozen={minimal} />}
         <Rider shadows={shadows} frozen={minimal} />
         <Celebration shadows={shadows} />

@@ -34,7 +34,10 @@ export type Settings = {
   chimes: boolean;
   /** Switch to Battery saver by itself when the 3D view keeps running slow. */
   autoSaver: boolean;
+  /** At most this many people walking outside at the busiest hour (0 = none). Fewer is lighter on slow phones. */
+  walkers: number;
 };
+export const WALKERS_MAX = 40;
 
 /** The office sound system's music styles (see lib/ambience.ts for how each one is played). */
 export type MusicStyle = "lofi" | "jazz" | "bossa" | "piano" | "synthwave" | "chiptune";
@@ -112,6 +115,7 @@ export const DEFAULT_SETTINGS: Settings = {
   volumes: DEFAULT_VOLUMES,
   chimes: true,
   autoSaver: true,
+  walkers: 16,
 };
 
 /** Light settings for weak phones: what "Battery saver" switches to in one tap. */
@@ -137,6 +141,7 @@ function read(): Settings {
       ) as Record<MixKey, number>,
       chimes: v.chimes ?? DEFAULT_SETTINGS.chimes,
       autoSaver: v.autoSaver ?? DEFAULT_SETTINGS.autoSaver,
+      walkers: typeof v.walkers === "number" && Number.isFinite(v.walkers) ? Math.max(0, Math.min(WALKERS_MAX, Math.round(v.walkers))) : DEFAULT_SETTINGS.walkers,
     };
   } catch {
     return DEFAULT_SETTINGS;
@@ -159,14 +164,15 @@ type SettingsStore = Settings & {
   resetVolumes: () => void;
   setChimes: (on: boolean) => void;
   setAutoSaver: (on: boolean) => void;
+  setWalkers: (n: number) => void;
   reset: () => void;
 };
 
 export const useSettings = create<SettingsStore>()((set, get) => {
   const commit = (patch: Partial<Settings>) => {
     set(patch);
-    const { show, motion, routine, boss, music, musicStyle, volumes, chimes, autoSaver } = get();
-    save({ show, motion, routine, boss, music, musicStyle, volumes, chimes, autoSaver });
+    const { show, motion, routine, boss, music, musicStyle, volumes, chimes, autoSaver, walkers } = get();
+    save({ show, motion, routine, boss, music, musicStyle, volumes, chimes, autoSaver, walkers });
   };
   return {
     ...(typeof window === "undefined" ? DEFAULT_SETTINGS : read()),
@@ -181,6 +187,7 @@ export const useSettings = create<SettingsStore>()((set, get) => {
     resetVolumes: () => commit({ volumes: DEFAULT_VOLUMES }),
     setChimes: (chimes) => commit({ chimes }),
     setAutoSaver: (autoSaver) => commit({ autoSaver }),
+    setWalkers: (n) => commit({ walkers: Math.max(0, Math.min(WALKERS_MAX, Math.round(n))) }),
     reset: () => commit(DEFAULT_SETTINGS),
   };
 });

@@ -8,7 +8,7 @@ import { HOLIDAYS, nextLabel, useHolidayPreview, type Holiday } from "@/lib/holi
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useOffice } from "@/lib/store";
 import {
-  DEFAULT_SETTINGS, LIGHT_SHOW, MUSIC_STYLES, OFFICE_STYLES, ROUTINE_LABELS, SHOW_LABELS, useSettings, type Motion,
+  DEFAULT_SETTINGS, LIGHT_SHOW, MUSIC_STYLES, WALKERS_MAX, OFFICE_STYLES, ROUTINE_LABELS, SHOW_LABELS, useSettings, type Motion,
 } from "@/lib/settings";
 import { STYLES } from "@/lib/theme";
 import { Passkeys } from "./Passkeys";
@@ -166,11 +166,13 @@ function Performance() {
   const setAllShow = useSettings((s) => s.setAllShow);
   const autoSaver = useSettings((s) => s.autoSaver);
   const setAutoSaver = useSettings((s) => s.setAutoSaver);
+  const walkers = useSettings((s) => s.walkers);
+  const setWalkers = useSettings((s) => s.setWalkers);
 
   const apply = (p: Preset) => {
-    if (p === "full") { setLowPower(false); setMotion("full"); setAllShow(DEFAULT_SETTINGS.show); }
-    if (p === "balanced") { setLowPower(true); setMotion("full"); setAllShow({ ...DEFAULT_SETTINGS.show, neighbourhood: true, traffic: false, vendors: false, trees: true, smoke: false }); }
-    if (p === "saver") { setLowPower(true); setMotion("minimal"); setAllShow(LIGHT_SHOW); }
+    if (p === "full") { setLowPower(false); setMotion("full"); setAllShow(DEFAULT_SETTINGS.show); setWalkers(DEFAULT_SETTINGS.walkers); }
+    if (p === "balanced") { setLowPower(true); setMotion("full"); setAllShow({ ...DEFAULT_SETTINGS.show, neighbourhood: true, traffic: false, vendors: false, trees: true, smoke: false }); setWalkers(6); }
+    if (p === "saver") { setLowPower(true); setMotion("minimal"); setAllShow(LIGHT_SHOW); setWalkers(0); }
   };
   const same = (a: typeof show, b: typeof show) => (Object.keys(a) as (keyof typeof show)[]).every((k) => a[k] === b[k]);
   const current: Preset | null =
@@ -211,6 +213,18 @@ function Performance() {
       </div>
       <SwitchRow label="Low-power rendering" hint="No shadows, 1× resolution, 30 fps" checked={lowPower} onChange={setLowPower} />
       <SwitchRow label="Auto battery saver" hint="Turn on low-power rendering by itself when the office keeps running slow" checked={autoSaver} onChange={setAutoSaver} />
+      <div className="grid gap-1.5 px-2.5">
+        <label htmlFor="walkers" className="flex items-baseline justify-between gap-2">
+          <span className="text-sm font-medium">People walking outside</span>
+          <span className="font-mono text-xs tabular-nums text-muted-foreground">{walkers === 0 ? "None" : `up to ${walkers}`}</span>
+        </label>
+        <input
+          id="walkers" type="range" min={0} max={WALKERS_MAX} step={1} value={walkers}
+          onChange={(e) => setWalkers(Number(e.target.value))}
+          className="h-1.5 w-full cursor-pointer accent-primary"
+        />
+        <p className="text-xs text-muted-foreground">Students, office workers, joggers… at the busiest hour; fewer at night. Lower it on slow phones (0 turns them off).</p>
+      </div>
       <div className="grid gap-1.5 px-2.5">
         <span className="text-sm font-medium">Animation</span>
         <Segmented<Motion>
