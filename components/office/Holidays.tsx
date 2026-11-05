@@ -20,6 +20,7 @@ import { Valentine } from "./Valentine";
 import { Penitensya } from "./Penitensya";
 import { Halloween } from "./Halloween";
 import { NewYear } from "./NewYear";
+import { Lunar } from "./Lunar";
 
 /**
  * Pasko and Bagong Taon in the town.
@@ -383,6 +384,7 @@ export function Holidays() {
       {festive.some((h) => h.decor!.extras === "newyear") && (
         <NewYear year={nowParts.month === 0 ? nowParts.year : nowParts.year + 1} party={previewId === "newyear" || ny !== null} frozen={minimal} lowPower={lowPower} />
       )}
+      {festive.some((h) => h.decor!.extras === "lunar") && <Lunar frozen={minimal} lowPower={lowPower} />}
       {festive.some((h) => h.decor!.extras === "halloween") && <Halloween frozen={minimal} lowPower={lowPower} />}
       {fireworks && <Fireworks lowPower={lowPower} peak={() => peakRef.current} preview={previewId === "newyear"} />}
     </group>

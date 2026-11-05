@@ -77,11 +77,11 @@ export const HOLIDAYS: readonly Holiday[] = [
   },
   {
     id: "lunar", name: "Chinese New Year", when: "Lunar New Year (Jan–Feb)",
-    looks: "Red lanterns at every shop and gate, red and gold bunting, fireworks at night",
+    looks: "Strings of big red lanterns across the street, red lanterns and gold 福 diamonds at every shop and gate, red and gold bunting, a dragon dance winding down the street with its drum and cymbals, fireworks at night",
     swatch: ["#dc2626", "#facc15", "#991b1b"], previewAt: "19:30",
     on: (p) => near(p, LUNAR[p.year], 1, 1),
     first: (y) => LUNAR[y] ?? null,
-    decor: { ornament: "lantern", bunting: ["#dc2626", "#facc15"], acrossStreet: true, fireworks: [19, 22] },
+    decor: { ornament: "lantern", bunting: ["#dc2626", "#facc15"], acrossStreet: false /* Lunar.tsx strings lanterns there */, fireworks: [19, 22], extras: "lunar" },
   },
   {
     id: "valentines", name: "Valentine's Day", when: "Feb 14",
