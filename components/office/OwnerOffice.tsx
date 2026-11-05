@@ -12,7 +12,6 @@ import { OfficeChair, Plant, TallPlant, type Vec3 } from "./Furniture";
 import { AirCon, officeAcOn } from "./Amenities";
 import { light } from "./Lighting";
 import { useGameScreen } from "./GameScreen";
-import { HQ } from "@/hq.config";
 import { mergeParts, type Part } from "./batch";
 import { useOfficeStyle, type OfficeStyle } from "@/lib/settings";
 

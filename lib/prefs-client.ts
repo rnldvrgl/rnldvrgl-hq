@@ -32,7 +32,8 @@ export const usePrefs = create<PrefsStore>()((set, get) => ({
     const before = get().prefs.team?.join();
     set({ prefs: { ...get().prefs, ...patch } });
     if (patch.team && patch.team.join() !== before) set({ teamVersion: get().teamVersion + 1 });
-    queue(patch);
+    // a field set to undefined is removed on the server too (back to its default)
+    queue(Object.fromEntries(Object.entries(patch).map(([k, v]) => [k, v === undefined ? null : v])));
   },
 }));
 

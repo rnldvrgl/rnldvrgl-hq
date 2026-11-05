@@ -1,5 +1,6 @@
-import { handleNow } from "@/lib/prefs-client";
 "use client";
+
+import { handleNow } from "@/lib/prefs-client";
 
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
