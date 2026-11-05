@@ -137,17 +137,20 @@ export function syncHead(): void {
   const name = appNameOf(s.prefs.handle ?? s.baseHandle);
   if (document.title !== name) document.title = name;
   const key = iconKey(s.prefs.icon ?? DEFAULT_ICON);
+  // Next renders these links (React owns them): change their href in place, never remove them, or React
+  // later fails to unmount nodes that are gone ("deletedFiber.parentNode is null")
   const set = (rel: string, href: string, type?: string) => {
-    let el = document.head.querySelector<HTMLLinkElement>(`link[rel="${rel}"][data-hq]`);
-    if (!el) {
-      document.head.querySelectorAll(`link[rel="${rel}"]`).forEach((n) => n.remove());
-      el = document.createElement("link");
+    const links = [...document.head.querySelectorAll<HTMLLinkElement>(`link[rel="${rel}"]`)];
+    if (!links.length) {
+      const el = document.createElement("link");
       el.rel = rel;
-      el.dataset.hq = "";
       document.head.appendChild(el);
+      links.push(el);
     }
-    if (type) el.type = type;
-    if (el.getAttribute("href") !== href) el.href = href;
+    for (const el of links) {
+      if (type) el.type = type; else el.removeAttribute("type");
+      if (el.getAttribute("href") !== href) el.setAttribute("href", href);
+    }
   };
   set("icon", `/hq-icon/${key}/64`, "image/png");
   set("apple-touch-icon", `/hq-icon/${key}/180`);
