@@ -1,7 +1,7 @@
 "use client";
 
 import { applyNames } from "@/lib/names";
-import { applyServerPrefs, isOnTeam } from "@/lib/prefs-client";
+import { applyServerPrefs, isOnTeam, usePrefs } from "@/lib/prefs-client";
 import { create } from "zustand";
 import type { EmployeeId, EmployeeView, OfficeState } from "@/lib/team";
 import type { JobStatus, ReminderRepeat } from "@/lib/supabase/database.types";
@@ -80,6 +80,14 @@ async function call<T = { ok: true }>(url: string, init: RequestInit = {}): Prom
   return body as T;
 }
 
+/** The last state from the server, with everyone (the office shows only the team: see onTeamOnly). */
+let everyone: OfficeState["employees"] = [];
+/** The office's view of the state: only the employees on this HQ's team (Settings → Team). */
+function onTeamOnly(data: OfficeState): OfficeState {
+  everyone = data.employees;
+  return { ...data, employees: data.employees.filter((e) => isOnTeam(e.id)) };
+}
+
 /**
  * One browser-only store for the whole office. The office is rendered client-side only
  * (see OfficeLoader), so this module-level store never leaks between server requests.
@@ -98,7 +106,7 @@ export const useOffice = create<OfficeStore>()((set, get) => ({
   hydrate: (data) => {
     if (applyNames(data.names)) set({ namesVersion: get().namesVersion + 1 });
     applyServerPrefs(data.prefs, data.hq?.handle);
-    set({ data });
+    set({ data: onTeamOnly(data) });
   },
   select: (id) => set({ selected: id }),
   hover: (id) => set({ hovered: id }),
@@ -130,7 +138,7 @@ export const useOffice = create<OfficeStore>()((set, get) => ({
       // renamed someone (here or on another device): the office redraws with the new names
       if (applyNames(data.names)) set({ namesVersion: get().namesVersion + 1 });
       applyServerPrefs(data.prefs, data.hq?.handle);
-      set({ data, offline: false });
+      set({ data: onTeamOnly(data), offline: false });
     } catch {
       set({ offline: true });
     }
@@ -222,3 +230,10 @@ export function sceneWeather(): WeatherKind {
   const s = useOffice.getState();
   return s.weatherOverride ?? s.weather?.kind ?? "clear";
 }
+
+// the team changed (here or on another device): show the right employees straight away
+usePrefs.subscribe((s, before) => {
+  if (s.teamVersion === before.teamVersion) return;
+  const data = useOffice.getState().data;
+  useOffice.setState({ data: { ...data, employees: everyone.filter((e) => isOnTeam(e.id)) } });
+});
