@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { BriefcaseBusiness, Copy, ExternalLink, Loader2, PenLine, X } from "lucide-react";
+import { BriefcaseBusiness, Copy, ExternalLink, Loader2, PenLine, Search, X } from "lucide-react";
+import { jobHref } from "@/lib/job-links";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useOffice } from "@/lib/store";
@@ -39,16 +40,22 @@ function FitBar({ score }: { score: number }) {
 function JobCard({ job, onLetter, drafting }: { job: JobView; onLetter: () => void; drafting: boolean }) {
   const { setJobStatus } = useOffice.getState();
   const initial = job.company.trim().charAt(0).toUpperCase() || "?";
+  const link = jobHref(job);
   return (
     <li className="grid gap-2.5 rounded-xl border bg-card p-3 shadow-xs">
       <div className="flex gap-3">
         <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent font-semibold text-accent-foreground" aria-hidden>{initial}</span>
         <div className="grid min-w-0 flex-1 gap-0.5">
-          {job.link ? (
-            <a href={job.link} target="_blank" rel="noopener noreferrer" className="font-semibold leading-snug hover:text-primary hover:underline [overflow-wrap:anywhere]">
-              {job.role} <ExternalLink className="inline size-3 align-baseline opacity-60" aria-hidden />
-            </a>
-          ) : <span className="font-semibold leading-snug [overflow-wrap:anywhere]">{job.role}</span>}
+          {/* a made-up link (".../job/???") opens a search for this job instead of a 404 */}
+          <a
+            href={link.href} target="_blank" rel="noopener noreferrer"
+            title={link.real ? undefined : "The posting's exact link wasn't found, so this searches for it"}
+            className="font-semibold leading-snug hover:text-primary hover:underline [overflow-wrap:anywhere]"
+          >
+            {job.role} {link.real
+              ? <ExternalLink className="inline size-3 align-baseline opacity-60" aria-hidden />
+              : <Search className="inline size-3 align-baseline opacity-60" aria-label="(search)" />}
+          </a>
           <span className="truncate text-xs text-muted-foreground">{job.company} · {job.salary_text || "Pay not listed"}</span>
         </div>
       </div>

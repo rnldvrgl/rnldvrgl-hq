@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
-import { ask, extractJson, UNTRUSTED_NOTE } from "@/lib/ai";
+import { askWithSources, extractJson, UNTRUSTED_NOTE } from "@/lib/ai";
+import { jobSearchUrl, verifyJobLink } from "@/lib/job-links";
 import { db } from "@/lib/supabase/admin";
 import { emailMe } from "@/lib/email";
 import profile from "@/data/master-profile.json";
@@ -29,7 +30,7 @@ export async function jobHunter(): Promise<WorkResult> {
   const { data: known } = await db().from("jobs").select("link, company, role");
   const skip = (known ?? []).map((j) => `${j.company} — ${j.role}`).slice(-150);
 
-  const reply = await ask({
+  const { text: reply, sources } = await askWithSources({
     maxTokens: 4000,
     webSearch: { maxUses: 10, allowedDomains: JOB_BOARDS },
     system: `You are a job researcher for one Filipino developer. ${UNTRUSTED_NOTE}`,
@@ -43,13 +44,16 @@ export async function jobHunter(): Promise<WorkResult> {
       `Skip anything already tracked: ${skip.join("; ") || "none yet"}`,
       `Score each 0-100 against this profile: ${JSON.stringify({ skills: profile.skills, experience_years: profile.experience_years, projects: profile.projects.map((p) => p.name + ": " + p.stack.join(", ")) })}`,
       "Return ONLY a JSON array (max 8, best first) of objects with keys:",
-      "role, company, link (the posting URL), source (board name), salary_text (as listed or null), salary_min_php (number or null), fit_score, fit_reason (one sentence).",
+      "role, company, link (the posting's exact URL, copied from a search result; never guess, shorten or mask an id), source (board name), salary_text (as listed or null), salary_min_php (number or null), fit_score, fit_reason (one sentence).",
     ].join("\n"),
   });
 
   const parsed = z.array(Job).safeParse(extractJson(reply));
   if (!parsed.success) throw new Error("Job list came back in the wrong shape: " + parsed.error.issues[0]?.message);
-  const jobs = parsed.data.filter((j) => j.salary_min_php === null || j.salary_min_php >= profile.target.min_salary_php_month);
+  const jobs = parsed.data
+    .filter((j) => j.salary_min_php === null || j.salary_min_php >= profile.target.min_salary_php_month)
+    // only links the searches really returned; a made-up one ("…/job/???") becomes a search for that job
+    .map((j) => ({ ...j, link: verifyJobLink(j, sources) ?? jobSearchUrl(j) }));
 
   const { data: inserted, error } = await db()
     .from("jobs")

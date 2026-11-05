@@ -81,7 +81,19 @@ export function activeProvider(): AiProvider {
   return "none";
 }
 
+/** A reply plus the web pages the model's searches actually returned (Claude only; empty for the backups). */
+export type AskResult = { text: string; sources: string[] };
+
 export async function ask(opts: AskOptions): Promise<string> {
+  return (await askWithSources(opts)).text;
+}
+
+/**
+ * Like ask(), and also hands back every URL the web searches returned, so a caller can check that links in
+ * the reply are real pages (models sometimes invent or mask URLs, e.g. ".../job/???").
+ */
+export async function askWithSources(opts: AskOptions): Promise<AskResult> {
+  const viaBackups = async (): Promise<AskResult> => ({ text: await askBackups(opts), sources: [] });
   if (hasClaude()) {
     try {
       return await askClaude(opts);
@@ -89,7 +101,7 @@ export async function ask(opts: AskOptions): Promise<string> {
       // Bad key or no credit yet: use the backup for this call if allowed, otherwise surface the error.
       if ((err instanceof ClaudeAccountError || err instanceof RateLimitError) && backups().length && (!opts.private || backupAllowsPrivate())) {
         console.warn(`[ai] Claude unavailable (${err.message}); using the free backup for this call.`);
-        return askBackups(opts);
+        return viaBackups();
       }
       throw err;
     }
@@ -100,7 +112,7 @@ export async function ask(opts: AskOptions): Promise<string> {
         "Waiting for Claude: this desk reads private data, which isn't sent to the free backups. Add ANTHROPIC_API_KEY (or set BACKUP_ALLOW_PRIVATE=true).",
       );
     }
-    return askBackups(opts);
+    return viaBackups();
   }
   throw new AiUnavailableError("No AI key yet. Add ANTHROPIC_API_KEY, or GROQ_API_KEY / GEMINI_API_KEY as a free backup.");
 }
@@ -112,7 +124,19 @@ class ClaudeAccountError extends Error {}
 type Block = { type: string; text?: string; [k: string]: unknown };
 type Message = { role: "user" | "assistant"; content: string | Block[] };
 
-async function askClaude(opts: AskOptions): Promise<string> {
+/** The URLs in a web search result block, and in a text block's citations. */
+function blockUrls(b: Block): string[] {
+  const out: string[] = [];
+  if (b.type === "web_search_tool_result" && Array.isArray(b.content)) {
+    for (const r of b.content as { url?: unknown }[]) if (typeof r?.url === "string") out.push(r.url);
+  }
+  if (Array.isArray(b.citations)) {
+    for (const c of b.citations as { url?: unknown }[]) if (typeof c?.url === "string") out.push(c.url);
+  }
+  return out;
+}
+
+async function askClaude(opts: AskOptions): Promise<AskResult> {
   const tools = opts.webSearch
     ? [{
         type: "web_search_20250305",
@@ -125,6 +149,7 @@ async function askClaude(opts: AskOptions): Promise<string> {
 
   const messages: Message[] = [{ role: "user", content: opts.prompt }];
   const texts: string[] = [];
+  const sources = new Set<string>();
 
   // `pause_turn` can come back on long web-search turns; continuing the turn finishes it.
   for (let turn = 0; turn < 4; turn++) {
@@ -151,11 +176,14 @@ async function askClaude(opts: AskOptions): Promise<string> {
       throw accountProblem ? new ClaudeAccountError(msg) : new Error(msg);
     }
     const data = (await res.json()) as { content: Block[]; stop_reason: string };
-    for (const b of data.content) if (b.type === "text" && b.text) texts.push(b.text);
+    for (const b of data.content) {
+      if (b.type === "text" && b.text) texts.push(b.text);
+      for (const u of blockUrls(b)) sources.add(u);
+    }
     if (data.stop_reason !== "pause_turn") break;
     messages.push({ role: "assistant", content: data.content });
   }
-  return texts.join("").trim();
+  return { text: texts.join("").trim(), sources: [...sources] };
 }
 
 /* ------------------------------------------------------------------ Gemini */
