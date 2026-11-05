@@ -13,6 +13,8 @@ import { getGlowTexture } from "./Lighting";
 import { streetLightLevel } from "./StreetLamp";
 import { joinGeometries, mergeParts, mergePlaced, placed, type Part } from "./batch";
 import { useSceneNow } from "./scene-clock-ui";
+import { activeHolidays, useHolidayPreview, type HolidayId } from "@/lib/holidays";
+import { Festive } from "./Festive";
 
 /**
  * Pasko and Bagong Taon in the town.
@@ -21,16 +23,19 @@ import { useSceneNow } from "./scene-clock-ui";
  *     and shop awnings, and a small tree in the lounge corner.
  *   - New Year's Eve: fireworks over the town from 11:30 PM to 12:30 AM, with a big burst at midnight.
  * Everything static is merged: parols (1 draw call), their halos (1), three bulb colours (3), the tree (1),
- * fireworks (1). Nothing is mounted out of season. Preview with ?holiday=xmas or ?holiday=newyear.
+ * fireworks (1). Nothing is mounted out of season.
+ * Every other holiday (Chinese New Year, Valentine's, Holy Week, the May fiesta, Independence Day, Undas) is
+ * drawn by Festive.tsx from lib/holidays.ts. Preview any of them in Settings → Holidays, or with
+ * ?holiday=<id> (?holiday=xmas still works).
  */
 
-type Override = "xmas" | "newyear" | null;
-let override: Override | undefined;
-function holidayOverride(): Override {
+let override: HolidayId | null | undefined;
+function holidayOverride(): HolidayId | null {
   if (override !== undefined) return override;
   if (typeof window === "undefined") return null;
   const v = new URLSearchParams(window.location.search).get("holiday");
-  override = v === "xmas" || v === "newyear" ? v : null;
+  const ids: HolidayId[] = ["newyear", "lunar", "valentines", "holyweek", "fiesta", "flags", "undas", "christmas"];
+  override = v === "xmas" ? "christmas" : ids.find((id) => id === v) ?? null;
   return override;
 }
 
@@ -51,7 +56,7 @@ function newYearMinutes(d: Date): number | null {
 /* ------------------------------------------------------------------ geometry */
 
 /** A plain geometry, placed and painted one colour, ready to join with mergeParts output. */
-function tinted(geo: THREE.BufferGeometry, color: string, m: THREE.Matrix4): THREE.BufferGeometry {
+export function tinted(geo: THREE.BufferGeometry, color: string, m: THREE.Matrix4): THREE.BufferGeometry {
   const g = geo.index ? geo.toNonIndexed() : geo;
   if (g !== geo) geo.dispose();
   g.deleteAttribute("uv");
@@ -65,7 +70,7 @@ function tinted(geo: THREE.BufferGeometry, color: string, m: THREE.Matrix4): THR
   return g;
 }
 
-const at = (x: number, y: number, z: number, rotY = 0, s = 1) =>
+export const at = (x: number, y: number, z: number, rotY = 0, s = 1) =>
   new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rotY), new THREE.Vector3(s, s, s));
 
 function starShape(R: number, r: number): THREE.Shape {
@@ -116,11 +121,11 @@ function rnd(seed: number): () => number {
   return () => ((s = (s * 16807) % 2147483647) / 2147483647);
 }
 
-type Spot = { x: number; y: number; z: number; R: number };
-type Strand = { x0: number; x1: number; y: number; z: number; sag: number };
+export type Spot = { x: number; y: number; z: number; R: number };
+export type Strand = { x0: number; x1: number; y: number; z: number; sag: number };
 
 /** The houses' gates (mirrors houses() in Neighbourhood.tsx: x, width and gate line). */
-function houseSpots(): { parols: Spot[]; strands: Strand[] } {
+export function houseSpots(): { parols: Spot[]; strands: Strand[] } {
   const parols: Spot[] = [], strands: Strand[] = [];
   let i = 0;
   BACK_STREETS.forEach((b, row) => {
@@ -137,7 +142,7 @@ function houseSpots(): { parols: Spot[]; strands: Strand[] } {
   return { parols, strands };
 }
 
-function shopSpots(): { parols: Spot[]; strands: Strand[] } {
+export function shopSpots(): { parols: Spot[]; strands: Strand[] } {
   const parols: Spot[] = [], strands: Strand[] = [];
   for (const e of EST) {
     const z = ROOM.D + 0.2;
@@ -319,19 +324,28 @@ export function Holidays() {
   const now = useSceneNow(30_000);
   const lowPower = useOffice((s) => s.lowPower);
   const minimal = useSettings((s) => s.motion === "minimal");
-  const forced = holidayOverride();
-  const season = forced !== null || isChristmasSeason(now);
+  const previewId = useHolidayPreview((s) => s.id) ?? holidayOverride();
+  const list = activeHolidays(now, previewId);
+  // New Year's Eve is still the Christmas season, so its preview keeps the parols up
+  const season = list.some((h) => h.id === "christmas") || previewId === "newyear";
   const ny = newYearMinutes(now);
-  const fireworks = !minimal && (forced === "newyear" || ny !== null);
+  const hour = manilaParts(now).hour;
+  const festive = list.filter((h) => h.decor);
+  const otherShow = festive.some((h) => {
+    const fw = h.decor!.fireworks;
+    return !!fw && (previewId === h.id || (hour >= fw[0] && hour < fw[1]));
+  });
+  const fireworks = !minimal && (previewId === "newyear" || (!previewId && ny !== null) || otherShow);
   // the big burst: the last two minutes of the year and the first five of the new one
   const peakRef = useRef(false);
   peakRef.current = ny !== null && ny >= -2 && ny < 5;
 
-  if (!season && !fireworks) return null;
+  if (!season && !festive.length && !fireworks) return null;
   return (
     <group>
       {season && <Season />}
-      {fireworks && <Fireworks lowPower={lowPower} peak={() => peakRef.current} preview={forced === "newyear"} />}
+      {festive.map((h) => <Festive key={h.id} decor={h.decor!} />)}
+      {fireworks && <Fireworks lowPower={lowPower} peak={() => peakRef.current} preview={previewId === "newyear"} />}
     </group>
   );
 }

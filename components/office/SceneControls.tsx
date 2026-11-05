@@ -3,7 +3,7 @@
 import { useState } from "react";
 import {
   BatteryLow, Check, ChevronDown, Cloud, CloudLightning, CloudRain, CloudSun, Coffee, Crown, Footprints, LocateFixed, Minus, Plus,
-  Radio, RotateCw, Settings2, ShoppingBag, Sun, Wind, Zap, Armchair, type LucideIcon,
+  PartyPopper, Radio, RotateCw, Settings2, X, ShoppingBag, Sun, Wind, Zap, Armchair, type LucideIcon,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useOffice, WEATHER_KINDS, type BossErrandKind, type WeatherKind } from "@/lib/store";
@@ -14,6 +14,7 @@ import { PREVIEWS, hm, phaseAt } from "@/lib/office-clock";
 import { cn } from "@/lib/utils";
 import { PHASE_ICON, PHASE_LABEL, phaseOf, useSceneNow } from "./scene-clock-ui";
 import { HQ } from "@/hq.config";
+import { holidayById, useHolidayPreview } from "@/lib/holidays";
 
 const CLOCK = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit", hour12: true });
 
@@ -35,6 +36,7 @@ export function SceneControls({ onReset, onZoom, onTurn }: { onReset: () => void
       <div className="pointer-events-none absolute top-3 right-[4.25rem] left-3 z-30 flex flex-wrap gap-2 sm:right-16">
         <TimeControl />
         <WeatherControl />
+        <HolidayChip />
       </div>
       <div className={cn("absolute top-3 right-3 z-30 flex flex-col overflow-hidden rounded-full", pill)} role="group" aria-label="Office">
         <SoundToggle bare className={iconButton} />
@@ -61,6 +63,25 @@ export function SceneControls({ onReset, onZoom, onTurn }: { onReset: () => void
   );
 }
 
+/** While a holiday is previewed (Settings → Holidays): which one, and a tap to end it. */
+function HolidayChip() {
+  const id = useHolidayPreview((s) => s.id);
+  const previewTime = useOffice((s) => s.previewTime);
+  if (!id) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => { useHolidayPreview.setState({ id: null }); previewTime(null); }}
+      aria-label={`Previewing ${holidayById(id).name}. End the preview`}
+      className={cn("pointer-events-auto flex h-11 items-center gap-2 rounded-full border-ring/60 bg-accent px-3 text-sm font-semibold text-accent-foreground transition-colors hover:bg-muted sm:h-9", pill)}
+    >
+      <PartyPopper className="size-4 shrink-0" aria-hidden />
+      <span className="max-w-[9rem] truncate">{holidayById(id).name}</span>
+      <X className="size-3.5 opacity-70" aria-hidden />
+    </button>
+  );
+}
+
 function ControlButton({ icon: Icon, label, onClick }: { icon: LucideIcon; label: string; onClick: () => void }) {
   return (
     <button type="button" onClick={onClick} aria-label={label} title={label} className={iconButton}>
@@ -79,6 +100,7 @@ function TimeControl() {
   const live = !timeTravel;
 
   const choose = (at: string | null, label?: string) => {
+    if (at === null) useHolidayPreview.setState({ id: null }); // back to live ends a holiday preview too
     previewTime(at, label);
     setOpen(false);
   };

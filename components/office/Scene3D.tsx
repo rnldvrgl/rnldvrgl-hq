@@ -23,7 +23,8 @@ import { LabelLayer, LabelProjector } from "./Labels";
 import { typingSources } from "@/lib/ambience";
 import { chairOf, OWNER_CHAIR } from "./routes";
 import { SceneControls } from "./SceneControls";
-import { PAL, PAL_BLUSH, PAL_MANGO, DESK, ROOM, SCENE, OFFICE } from "./palette";
+import { useHolidayPreview } from "@/lib/holidays";
+import { PAL, PAL_BY_STYLE, DESK, ROOM, SCENE, OFFICE } from "./palette";
 import { Neighbourhood } from "./Neighbourhood";
 import { Traffic } from "./Traffic";
 import { Vendors } from "./Vendors";
@@ -260,8 +261,9 @@ export default function Scene3D() {
   const rig = useRef<CameraRigHandle | null>(null);
   const pressAt = useRef<{ x: number; y: number } | null>(null);
   const lowPower = useOffice((s) => s.lowPower);
+  const holidayPreview = useHolidayPreview((s) => s.id);
   const loadWeather = useOffice((s) => s.loadWeather);
-  const pal = style === "blush" ? PAL_BLUSH : style === "mango" ? PAL_MANGO : PAL;
+  const pal = PAL_BY_STYLE[style] ?? PAL;
   const capped = lowPower || minimal;
   const shadows = isDesktop && !lowPower;
 
@@ -317,7 +319,7 @@ export default function Scene3D() {
         {show.vendors && <Vendors shadows={shadows} frozen={minimal} />}
         <Rider shadows={shadows} frozen={minimal} />
         <Celebration shadows={shadows} />
-        {show.holidays && <Holidays />}
+        {(show.holidays || holidayPreview) && <Holidays />}
         {show.pets && <Pets frozen={minimal} />}
         <Amenities pal={pal} shadows={shadows} assignee={duty} />
         {TEAM.map((meta, i) => (
