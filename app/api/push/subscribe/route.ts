@@ -21,7 +21,7 @@ export const POST = hqRoute(async (req: Request) => {
     p256dh: body.data.keys.p256dh,
     auth: body.data.keys.auth,
     user_agent: req.headers.get("user-agent")?.slice(0, 300) ?? null,
-  });
+  }, { onConflict: "hq_id,endpoint" });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 });

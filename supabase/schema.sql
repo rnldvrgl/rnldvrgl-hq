@@ -90,10 +90,15 @@ alter table interviews enable row level security;
 alter table reminders enable row level security;
 alter table inbox_items enable row level security;
 
-insert into employees (id) values
-  ('chief-of-staff'), ('inbox-triage'), ('job-hunter'), ('reminder-bot'),
-  ('scheduler'), ('researcher'), ('dev-assistant'), ('weekly-reviewer')
-on conflict (id) do nothing;
+-- The eight desks (a fresh database, before multi-hq.sql). After multi-hq.sql the app adds missing desks for
+-- every HQ itself, so this is skipped then.
+do $$ begin
+  insert into employees (id) values
+    ('chief-of-staff'), ('inbox-triage'), ('job-hunter'), ('reminder-bot'),
+    ('scheduler'), ('researcher'), ('dev-assistant'), ('weekly-reviewer')
+  on conflict (id) do nothing;
+exception when others then null;
+end $$;
 
 -- ---------------------------------------------------------------------------
 -- The office clock: Supabase pings /api/tick every 5 minutes.

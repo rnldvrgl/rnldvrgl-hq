@@ -44,7 +44,7 @@ export async function pushToOwner(payload: PushPayload): Promise<number> {
         return true;
       } catch (err) {
         if (err instanceof WebPushError && (err.statusCode === 404 || err.statusCode === 410)) {
-          await db().from("push_subscriptions").delete().eq("endpoint", s.endpoint);
+          await db().from("push_subscriptions").delete().eq("endpoint", s.endpoint).eq("hq_id", hqId());
         } else {
           console.warn("Push failed:", err instanceof Error ? err.message : err);
         }

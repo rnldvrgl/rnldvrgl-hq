@@ -268,7 +268,9 @@ export type Database = {
       };
     };
     Views: { [_ in never]: never };
-    Functions: { [_ in never]: never };
+    Functions: {
+      create_friend_hq: { Args: { p_email: string; p_invited_by: string; p_desks: string[] }; Returns: string };
+    };
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };
   };

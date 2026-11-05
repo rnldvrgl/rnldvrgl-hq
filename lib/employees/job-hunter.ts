@@ -5,7 +5,7 @@ import { askWithSources, extractJson, UNTRUSTED_NOTE } from "@/lib/ai";
 import { jobSearchUrl, verifyJobLink } from "@/lib/job-links";
 import { db } from "@/lib/supabase/admin";
 import { emailMe } from "@/lib/email";
-import profile from "@/data/master-profile.json";
+import { needProfile } from "@/lib/profile";
 import type { WorkResult } from "./types";
 
 /** Boards beyond Indeed and LinkedIn: PH boards first, then remote-first boards. */
@@ -28,6 +28,7 @@ const Job = z.object({
 });
 
 export async function jobHunter(): Promise<WorkResult> {
+  const profile = needProfile(); // this HQ's own CV (a friend's "About you", never yours)
   const { data: known } = await db().from("jobs").select("link, company, role").eq("hq_id", hqId());
   const skip = (known ?? []).map((j) => `${j.company} — ${j.role}`).slice(-150);
 

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { acceptInvite } from "@/lib/invites";
+import { acceptInvite, INVITE_FAILED } from "@/lib/invites";
 
 export const dynamic = "force-dynamic";
 
@@ -10,9 +10,11 @@ export async function POST(req: Request) {
   const email = typeof body === "object" && body && "email" in body && typeof body.email === "string" ? body.email : "";
   if (!code || !email) return NextResponse.json({ error: "Missing the invite code or your email." }, { status: 400 });
   try {
-    const r = await acceptInvite(code, email);
-    return NextResponse.json({ ok: true, existing: r.existing });
+    await acceptInvite(code, email);
+    return NextResponse.json({ ok: true });
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : "Couldn't use the invite." }, { status: 400 });
+    // only the email-format message is specific; everything else is the same generic answer
+    const msg = e instanceof Error && /email address/.test(e.message) ? e.message : INVITE_FAILED;
+    return NextResponse.json({ error: msg }, { status: 400 });
   }
 }

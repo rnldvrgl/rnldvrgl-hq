@@ -6,12 +6,15 @@ import { Check, ExternalLink, KeyRound, Loader2, Trash2 } from "lucide-react";
 import { useOffice } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
+type ProfileForm = { name: string; roles: string; level: string; minSalary: number; years: number; skills: string; projects: string; summary?: string };
 type Info = {
   founder: boolean;
   email: string;
-  have: { ai: boolean; google: boolean; github: boolean };
+  have: { ai: boolean; privateAi: boolean; google: boolean; github: boolean; profile: boolean };
   keys: Record<string, string | null>;
-  google: { connected: boolean; available: boolean };
+  allowPrivate: boolean;
+  profile: ({ fromFile: true; name: string | null }) | ({ fromFile: false } & ProfileForm) | null;
+  google: { connected: boolean; source: "saved" | "env" | null; available: boolean };
   canSave: boolean;
 };
 
@@ -56,10 +59,20 @@ export function Connections() {
       )}
       <Group title="AI" done={info.have.ai} hint="Any one is enough. Gemini and Groq are free.">
         {AI_KEYS.map((k) => <KeyRow key={k.key} k={k.key} label={k.label} hint={k.hint} href={k.href} saved={info.keys[k.key]} disabled={!info.canSave} onDone={after} />)}
+        <label className="flex items-start gap-2.5 rounded-lg px-1.5 py-1 text-xs">
+          <input type="checkbox" className="mt-0.5 size-4 accent-primary" checked={info.allowPrivate} disabled={!info.canSave}
+            onChange={async (e) => { try { await save("BACKUP_ALLOW_PRIVATE", e.target.checked ? "true" : ""); await after(); } catch (er) { toast.error(er instanceof Error ? er.message : "Couldn't save it."); } }} />
+          <span className="grid gap-0.5">
+            <span className="font-medium">Let the free AI read my mail, calendar and private repos</span>
+            <span className="text-muted-foreground">Without Claude, the Chief of Staff, Inbox Triage and Dev Assistant only start with this on. Gemini and Groq may use what they read to improve their models.</span>
+          </span>
+        </label>
       </Group>
       <Group title="Google" done={info.have.google} hint="Gmail and Calendar, for the brief, the inbox and the schedule.">
         <div className="flex flex-wrap items-center gap-2 px-1.5">
-          {info.google.connected ? (
+          {info.google.source === "env" ? (
+            <span className="flex items-center gap-1.5 text-sm"><Check className="size-4 text-emerald-600" aria-hidden /> Connected (from the app&rsquo;s environment, GOOGLE_REFRESH_TOKEN)</span>
+          ) : info.google.connected ? (
             <>
               <span className="flex items-center gap-1.5 text-sm"><Check className="size-4 text-emerald-600" aria-hidden /> Connected</span>
               <button type="button" disabled={!info.canSave} onClick={async () => { try { await save("GOOGLE_REFRESH_TOKEN", ""); toast.success("Google disconnected."); await after(); } catch (e) { toast.error(e instanceof Error ? e.message : "Couldn't disconnect."); } }}
@@ -73,6 +86,13 @@ export function Connections() {
           )}
         </div>
         {!info.founder && <p className="px-1.5 text-[11px] text-muted-foreground">While HQ&rsquo;s Google app is in testing, the HQ owner who invited you has to add your Google account as a test user first.</p>}
+      </Group>
+      <Group title="About you" done={info.have.profile} hint="Your CV: the Job Hunter searches and scores jobs with it, and cover letters are written from it.">
+        {info.founder ? (
+          <p className="px-1.5 text-xs text-muted-foreground">Yours is <code className="font-mono">data/master-profile.json</code>{info.profile && "name" in info.profile && info.profile.name ? ` (${info.profile.name})` : ""}. Edit that file to change it.</p>
+        ) : (
+          <ProfileEditor initial={info.profile && !info.profile.fromFile ? info.profile : null} disabled={!info.canSave} onDone={after} />
+        )}
       </Group>
       <Group title="GitHub" done={info.have.github} hint="Your pull requests and issues, for the Dev Assistant.">
         <KeyRow k="GITHUB_USERNAME" label="Username" hint="Your GitHub login" saved={info.keys.GITHUB_USERNAME} plain disabled={!info.canSave} onDone={after} />
@@ -130,5 +150,44 @@ function KeyRow({ k, label, hint, href, saved, plain, disabled, onDone }: { k: s
         )}
       </div>
     </div>
+  );
+}
+
+/** A friend's "About you": enough for the Job Hunter to search and score, and for cover letters. */
+function ProfileEditor({ initial, disabled, onDone }: { initial: ProfileForm | null; disabled: boolean; onDone: () => Promise<void> }) {
+  const [f, setF] = useState<ProfileForm>(initial ?? { name: "", roles: "", level: "mid-level", minSalary: 0, years: 0, skills: "", projects: "", summary: "" });
+  const [busy, setBusy] = useState(false);
+  const set = (patch: Partial<ProfileForm>) => setF({ ...f, ...patch });
+  const field = "h-10 w-full min-w-0 rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40";
+  return (
+    <form
+      className="grid gap-2 px-1.5"
+      onSubmit={async (e) => {
+        e.preventDefault(); setBusy(true);
+        try {
+          const res = await fetch("/api/connections", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: f }) });
+          const body = (await res.json().catch(() => null)) as { error?: string } | null;
+          if (!res.ok) throw new Error(body?.error ?? "Couldn't save it.");
+          toast.success("About you saved.");
+          await onDone();
+        } catch (er) { toast.error(er instanceof Error ? er.message : "Couldn't save it."); } finally { setBusy(false); }
+      }}
+    >
+      <label className="grid gap-1 text-xs font-medium">Name<input className={field} value={f.name} onChange={(e) => set({ name: e.target.value })} required maxLength={60} /></label>
+      <label className="grid gap-1 text-xs font-medium">Roles you want <span className="font-normal text-muted-foreground">comma-separated</span>
+        <input className={field} value={f.roles} onChange={(e) => set({ roles: e.target.value })} placeholder="Frontend Developer, React Developer" required /></label>
+      <div className="grid grid-cols-3 gap-2">
+        <label className="grid gap-1 text-xs font-medium">Level<input className={field} value={f.level} onChange={(e) => set({ level: e.target.value })} /></label>
+        <label className="grid gap-1 text-xs font-medium">Min ₱/month<input className={field} type="number" min={0} step={1000} value={f.minSalary || ""} onChange={(e) => set({ minSalary: Number(e.target.value) })} /></label>
+        <label className="grid gap-1 text-xs font-medium">Years<input className={field} type="number" min={0} max={50} value={f.years || ""} onChange={(e) => set({ years: Number(e.target.value) })} /></label>
+      </div>
+      <label className="grid gap-1 text-xs font-medium">Skills <span className="font-normal text-muted-foreground">comma-separated</span>
+        <textarea className={cn(field, "h-16 py-2")} value={f.skills} onChange={(e) => set({ skills: e.target.value })} placeholder="React, Next.js, TypeScript, Tailwind" /></label>
+      <label className="grid gap-1 text-xs font-medium">Projects <span className="font-normal text-muted-foreground">one per line, "Name: stack"</span>
+        <textarea className={cn(field, "h-20 py-2")} value={f.projects} onChange={(e) => set({ projects: e.target.value })} placeholder={"Portfolio: Next.js, GSAP\nShop app: React, Supabase"} /></label>
+      <button type="submit" disabled={disabled || busy} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-primary px-3 text-sm font-semibold text-primary-foreground disabled:opacity-50">
+        {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Check className="size-4" aria-hidden />} Save About you
+      </button>
+    </form>
   );
 }

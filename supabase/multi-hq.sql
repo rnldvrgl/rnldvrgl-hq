@@ -1,5 +1,7 @@
 -- rnldvrgl HQ · Phase 1: one database, many HQs (yours, and one per invited friend).
 -- Run once in Supabase → SQL Editor AFTER schema.sql. Safe to re-run. Back up first (Database → Backups).
+-- Re-run it whenever you create one of the optional tables later (push_subscriptions, spotify_auth,
+-- office_names from schema.sql): it gives them their hq_id too.
 --
 -- What it does:
 --   hqs          one row per HQ. Yours is the fixed "founder" row (its owner is OWNER_EMAIL from the env).
@@ -18,7 +20,7 @@ create table if not exists hqs (
   invited_by uuid references hqs(id) on delete set null,
   created_at timestamptz not null default now()
 );
-insert into hqs (id, name) values ('00000000-0000-4000-8000-000000000001', 'Founder HQ') on conflict (id) do nothing;
+insert into hqs (id) values ('00000000-0000-4000-8000-000000000001') on conflict (id) do nothing;
 
 create table if not exists hq_invites (
   code text primary key,
@@ -72,9 +74,24 @@ do $$ begin alter table jobs add constraint jobs_hq_link_key unique (hq_id, link
 alter table inbox_items drop constraint if exists inbox_items_pkey;
 do $$ begin alter table inbox_items add primary key (hq_id, message_id); exception when invalid_table_definition then null; end $$;
 
-alter table spotify_auth drop constraint if exists spotify_auth_id_check;
-alter table spotify_auth drop constraint if exists spotify_auth_pkey;
-do $$ begin alter table spotify_auth add primary key (hq_id); exception when invalid_table_definition then null; end $$;
+do $$ begin
+  if to_regclass('spotify_auth') is not null then
+    alter table spotify_auth drop constraint if exists spotify_auth_id_check;
+    alter table spotify_auth drop constraint if exists spotify_auth_pkey;
+    begin alter table spotify_auth add primary key (hq_id); exception when invalid_table_definition then null; end;
+  end if;
+end $$;
+
+-- a phone subscribed to push belongs to an HQ; the same phone can follow two HQs (yours and a friend's)
+do $$ begin
+  if to_regclass('push_subscriptions') is not null and not exists (
+    select 1 from pg_index i join pg_attribute a on a.attrelid = i.indrelid and a.attnum = any (i.indkey)
+    where i.indrelid = 'push_subscriptions'::regclass and i.indisprimary and a.attname = 'hq_id'
+  ) then
+    alter table push_subscriptions drop constraint if exists push_subscriptions_pkey;
+    alter table push_subscriptions add primary key (hq_id, endpoint);
+  end if;
+end $$;
 
 do $$ begin
   if to_regclass('office_names') is not null then
@@ -85,6 +102,23 @@ end $$;
 
 create index if not exists reminders_hq_due on reminders (hq_id, due_at) where sent_at is null;
 create index if not exists jobs_hq_found on jobs (hq_id, date_found desc);
+
+-- A friend's new HQ and its desks in one go (one transaction): if anything fails, nothing is left half-made.
+-- Returns the HQ's id; an email that already has an HQ just gets that one back.
+create or replace function create_friend_hq(p_email text, p_invited_by uuid, p_desks text[])
+returns uuid language plpgsql security definer set search_path = public as $$
+declare v uuid;
+begin
+  insert into hqs (owner_email, invited_by) values (lower(p_email), p_invited_by)
+    on conflict (owner_email) do nothing returning id into v;
+  if v is null then
+    select id into v from hqs where owner_email = lower(p_email);
+    return v;
+  end if;
+  insert into employees (hq_id, id) select v, d from unnest(p_desks) as d on conflict do nothing;
+  return v;
+end $$;
+revoke all on function create_friend_hq(text, uuid, text[]) from public, anon, authenticated;
 
 alter table hqs enable row level security;
 alter table hq_invites enable row level security;

@@ -12,7 +12,7 @@ export const GET = hqRoute(async (req: Request) => {
   const back = (q: string) => NextResponse.redirect(new URL(`/?connections=${q}`, url.origin));
   const jar = await cookies();
   const state = jar.get("hq_google_state")?.value;
-  jar.delete("hq_google_state");
+  jar.delete({ name: "hq_google_state", path: "/api/connect/google" });
   if (url.searchParams.get("error")) return back("google-cancelled");
   if (!state || state !== url.searchParams.get("state")) return back("google-failed");
   const res = await fetch("https://oauth2.googleapis.com/token", {

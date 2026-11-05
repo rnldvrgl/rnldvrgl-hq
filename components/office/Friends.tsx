@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { Copy, Link2, Loader2, UserRound, X } from "lucide-react";
 
 type Invite = { code: string; email: string | null; created_at: string; expires_at: string; used_at: string | null };
@@ -16,12 +17,14 @@ export function Friends() {
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [canInvite, setCanInvite] = useState(false);
   const link = (code: string) => `${window.location.origin}/invite/${code}`;
 
   const load = useCallback(async () => {
     const res = await fetch("/api/invites", { cache: "no-store" });
-    const body = (await res.json().catch(() => null)) as { invites?: Invite[]; friends?: Friend[]; error?: string } | null;
+    const body = (await res.json().catch(() => null)) as { invites?: Invite[]; friends?: Friend[]; canInvite?: boolean; error?: string } | null;
     if (!res.ok) return setErr(body?.error ?? "Couldn't load invites.");
+    setCanInvite(!!body?.canInvite);
     setInvites(body?.invites ?? []); setFriends(body?.friends ?? []); setErr("");
   }, []);
   useEffect(() => { void load(); }, [load]);
@@ -47,7 +50,8 @@ export function Friends() {
   return (
     <div className="grid gap-3">
       {err && <p className="px-1.5 text-sm text-destructive">{err}</p>}
-      <div className="grid gap-1.5 px-1.5">
+      {!canInvite && <p className="px-1.5 text-xs text-muted-foreground">Only the HQ that invited you can make invite links for now.</p>}
+      <div className={cn("grid gap-1.5 px-1.5", !canInvite && "hidden")}>
         <label htmlFor="inv-for" className="text-xs font-medium">Invite a friend <span className="font-normal text-muted-foreground">· the link works once, for 7 days</span></label>
         <div className="flex min-w-0 gap-1.5">
           <input id="inv-for" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Their email (optional)"

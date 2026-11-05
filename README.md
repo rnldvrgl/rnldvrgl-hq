@@ -396,18 +396,22 @@ One deployment hosts many HQs: yours (the founder HQ) and one per friend you inv
 3. In Google Cloud (the OAuth client from the Google steps above), add `https://YOUR-APP.vercel.app/api/connect/google/callback` (and `http://localhost:3000/api/connect/google/callback`) under **Authorized redirect URIs**. While the app is in Testing, add each friend's Google account under **Audience → Test users** (up to 100).
 4. Email: Resend only delivers to addresses other than yours once you've verified a domain (Resend → Domains) and set `EMAIL_FROM` to it. Until then, friends' reminder and brief emails won't arrive (everything in the office still works).
 
-**Inviting:** Settings → Friends → **Make link** (optionally for one email). The link works once, for 7 days. Your friend opens it, enters their email, gets their HQ, and signs in with a 6-digit code sent to that email. Public sign-up stays off: accounts only come from invites.
+**Inviting:** Settings → Friends → **Make link** (optionally for one email). Only your HQ can make invite links for now. The link works once, for 7 days. Your friend opens it, enters their email, gets their HQ, and signs in with a 6-digit code sent to that email. Public sign-up stays off: accounts only come from invites.
 
 **Hiring in a friend's HQ:** employees start work once their HQ has connected what they need (Settings → Connections). Until then their desk shows **Not hired yet**, with what's missing.
 
 | Employee | Needs |
 |---|---|
-| Chief of Staff, Inbox Triage, Scheduler | an AI key + Google |
-| Dev Assistant | an AI key + GitHub |
-| Job Hunter, Researcher, Weekly Reviewer | an AI key |
+| Chief of Staff, Inbox Triage | Claude (or the free AI allowed to read private data) + Google |
+| Scheduler | an AI key + Google |
+| Dev Assistant | Claude (or the free AI allowed to read private data) + GitHub |
+| Job Hunter | an AI key + **About you** (their CV) |
+| Researcher, Weekly Reviewer | an AI key |
 | Reminder Bot | nothing |
 
-Any one AI key is enough. Gemini (Google AI Studio) and Groq have free tiers, so a friend's HQ costs you nothing. Keys are stored encrypted; Settings only ever shows their last 4 characters. Your HQ keeps using your environment variables, and anything you save in Connections takes precedence over them.
+Any one AI key is enough for most desks. The desks that read private data (mail, calendar, private repos) need Claude, or the HQ's own permission for the free AI to read it (a switch in Connections). **About you** is each friend's CV, filled in under Connections: the Job Hunter and cover letters use it, never yours (yours stays `data/master-profile.json`). Gemini (Google AI Studio) and Groq have free tiers, so a friend's HQ costs you nothing. Keys are stored encrypted; Settings only ever shows their last 4 characters. Your HQ keeps using your environment variables, and anything you save in Connections takes precedence over them.
+
+**The 5-minute tick** calls itself once per HQ, in parallel, so every HQ's work gets its own function and time limit. If you create one of the optional tables later (push notifications, Spotify, names), run `supabase/multi-hq.sql` again afterwards to give it its `hq_id`.
 
 ## Spotify in the office
 

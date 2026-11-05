@@ -4,7 +4,7 @@ import { z } from "zod";
 import { ask, extractJson, UNTRUSTED_NOTE } from "@/lib/ai";
 import { db } from "@/lib/supabase/admin";
 import { listMail, createReplyDraft, createTentativeEvent } from "@/lib/google";
-import profile from "@/data/master-profile.json";
+import { currentProfile } from "@/lib/profile";
 import { INBOX_CATEGORIES } from "@/lib/supabase/database.types";
 import type { WorkResult } from "./types";
 import { ownerName, ownersName } from "@/lib/names";
@@ -37,7 +37,7 @@ export async function inboxTriage(): Promise<WorkResult> {
   const reply = await ask({
     private: true,
     maxTokens: 4000,
-    system: `You triage email for ${profile.name}, a developer in Manila (UTC+8). ${UNTRUSTED_NOTE} Never promise anything on his behalf; drafts are short, polite, and leave decisions to him.`,
+    system: `You triage email for ${currentProfile()?.name ?? ownerName()}${currentProfile() ? ", a developer in Manila (UTC+8)" : ""}. ${UNTRUSTED_NOTE} Never promise anything on his behalf; drafts are short, polite, and leave decisions to him.`,
     prompt: [
       "Classify each email:",
       `- reply: a real person expects an answer → write reply_draft (under 120 words, sign as ${ownerName()})`,

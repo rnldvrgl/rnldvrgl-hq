@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { hqRoute } from "@/lib/hq";
 import { db } from "@/lib/supabase/admin";
 import { ask, UNTRUSTED_NOTE } from "@/lib/ai";
-import profile from "@/data/master-profile.json";
+import { currentProfile } from "@/lib/profile";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -13,6 +13,8 @@ export const POST = hqRoute(async (_req: Request, { params }: { params: Promise<
   const { id } = await params;
   const { data: job } = await db().from("jobs").select("role, company, link, fit_reason").eq("id", id).eq("hq_id", hqId()).maybeSingle();
   if (!job) return NextResponse.json({ error: "Job not found." }, { status: 404 });
+  const profile = currentProfile();
+  if (!profile) return NextResponse.json({ error: "Fill in About you in Settings → Connections first." }, { status: 400 });
 
   const letter = await ask({
     maxTokens: 900,

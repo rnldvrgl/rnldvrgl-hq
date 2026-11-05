@@ -18,7 +18,7 @@ export function optionalEnv(name: string): string | undefined {
  */
 export const HQ_KEYS = [
   "ANTHROPIC_API_KEY", "GEMINI_API_KEY", "GROQ_API_KEY", "BACKUP_ALLOW_PRIVATE",
-  "GOOGLE_REFRESH_TOKEN", "GITHUB_TOKEN", "GITHUB_USERNAME", "EMAIL_TO",
+  "GOOGLE_REFRESH_TOKEN", "GITHUB_TOKEN", "GITHUB_USERNAME", "EMAIL_TO", "PROFILE",
 ] as const;
 export type HqKey = (typeof HQ_KEYS)[number];
 

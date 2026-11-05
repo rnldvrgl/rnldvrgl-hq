@@ -1,4 +1,5 @@
 import "server-only";
+import { ensureDesks } from "@/lib/hq";
 import { hqId } from "@/lib/hq-context";
 import { syncNames } from "@/lib/names-server";
 import { have } from "@/lib/connections";
@@ -28,6 +29,7 @@ async function releaseStuckDesks(): Promise<void> {
 
 export async function loadOfficeState(): Promise<OfficeState> {
   const names = await syncNames();
+  await ensureDesks(hqCtx().id).catch(() => { /* before multi-hq.sql: nothing to add */ });
   await releaseStuckDesks().catch((e: unknown) => console.warn("[state] couldn't release stuck desks:", e instanceof Error ? e.message : e));
   const weekFrom = new Date(Date.now() - 7 * 86_400_000).toISOString();
   const [employees, runs, jobs, reminders, inbox, recent] = await Promise.all([

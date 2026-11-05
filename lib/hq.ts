@@ -60,28 +60,23 @@ export function hqRoute<A extends unknown[]>(handler: (...args: A) => Promise<Re
   };
 }
 
-/** Run `fn` inside every HQ in turn (the 5-minute tick), the founder first. One HQ failing doesn't stop the rest. */
-export async function forEachHq(fn: (hq: HqCtx) => Promise<void>): Promise<void> {
-  const { data, error } = await db().from("hqs").select("id, owner_email");
-  const list = error || !data?.length ? [{ id: FOUNDER_HQ, owner_email: null }] : data;
-  list.sort((a, b) => (a.id === FOUNDER_HQ ? -1 : b.id === FOUNDER_HQ ? 1 : 0));
-  for (const row of list) {
-    try {
-      const ctx = await ctxFor(row.id, row.owner_email ?? founderEmail());
-      await inHq(ctx, () => fn(ctx));
-    } catch (e) {
-      console.warn(`[hq] ${row.id} failed:`, e instanceof Error ? e.message : e);
-    }
-  }
+/** Every HQ's id, the founder first (just yours before multi-hq.sql has run). */
+export async function listHqIds(): Promise<string[]> {
+  const { data, error } = await db().from("hqs").select("id");
+  const ids = error || !data?.length ? [FOUNDER_HQ] : data.map((r) => r.id);
+  return ids.sort((a, b) => (a === FOUNDER_HQ ? -1 : b === FOUNDER_HQ ? 1 : 0));
 }
 
-/** A new HQ for a friend who used an invite: the HQ row and its eight (empty) desks. */
-export async function createHq(email: string, invitedBy: string): Promise<string> {
-  const { data, error } = await db().from("hqs").insert({ owner_email: email.toLowerCase(), invited_by: invitedBy }).select("id").single();
-  if (error) throw new Error(error.message);
-  const { error: e2 } = await db().from("employees").insert(TEAM.map((m) => ({ hq_id: data.id, id: m.id })));
-  if (e2) throw new Error(e2.message);
-  return data.id;
+/** One HQ's context by id (for the tick), with its desks made sure of. Null if there's no such HQ. */
+export async function hqById(id: string): Promise<HqCtx | null> {
+  if (id === FOUNDER_HQ) return ctxFor(FOUNDER_HQ, founderEmail());
+  const { data } = await db().from("hqs").select("id, owner_email").eq("id", id).maybeSingle();
+  return data?.owner_email ? ctxFor(data.id, data.owner_email) : null;
+}
+
+/** Make sure the current HQ has a desk row for every team member (new employees added to TEAM later included). */
+export async function ensureDesks(id: string): Promise<void> {
+  await db().from("employees").upsert(TEAM.map((m) => ({ hq_id: id, id: m.id })), { onConflict: "hq_id,id", ignoreDuplicates: true });
 }
 
 /** Save (or with an empty value, remove) one of the current HQ's keys, encrypted. */
