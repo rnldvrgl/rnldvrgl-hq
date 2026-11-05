@@ -14,6 +14,7 @@ import { Employee3D } from "./Employee3D";
 import { OwnerOffice } from "./OwnerOffice";
 import { Owner, Janitor, ownerIsHome } from "./Staff";
 import { HomeBadges } from "./HomeBadges";
+import { Roosters } from "./Roosters";
 import { Amenities } from "./Amenities";
 import { Grounds } from "./Grounds";
 import { Pets } from "./Pets";
@@ -328,6 +329,7 @@ export default function Scene3D() {
         <Celebration shadows={shadows} />
         {(show.holidays || holidayPreview) && <Holidays />}
         {show.pets && <Pets frozen={minimal} />}
+        {show.pets && show.neighbourhood && <Roosters />}
         <Amenities pal={pal} shadows={shadows} assignee={duty} />
         {TEAM.map((meta, i) => (
           <Desk3D key={meta.id} meta={meta} index={i} pal={pal} shadows={shadows} reducedMotion={reducedMotion} />

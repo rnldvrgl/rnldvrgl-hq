@@ -82,7 +82,7 @@ export const MIX_CHANNELS: readonly { key: MixKey; label: string; hint: string }
   { key: "room", label: "Office hum", hint: "Room tone and the aircon" },
   { key: "typing", label: "Keyboards", hint: "Typing at the desks you zoom in on" },
   { key: "weather", label: "Rain & thunder", hint: "Rain on the roof, storms" },
-  { key: "street", label: "Street & nature", hint: "Birds, crickets, traffic, vendors, the car" },
+  { key: "street", label: "Street & nature", hint: "Birds, roosters, crickets, traffic, vendors, the car" },
   { key: "alerts", label: "Alerts", hint: "The chime when someone needs you" },
 ];
 export const MIX_MAX = 150;
@@ -107,7 +107,7 @@ export const SHOW_LABELS: readonly { key: ShowKey; label: string; hint: string }
   { key: "vendors", label: "Street vendors", hint: "Pandesal vendors on the sidewalks, 5 AM – 7 PM" },
   { key: "holidays", label: "Holidays", hint: "Parols and Christmas lights Sept 16 – Jan 6, fireworks at New Year" },
   { key: "trees", label: "Trees", hint: "Trees and hedges" },
-  { key: "pets", label: "Pets", hint: "The dog and the cat" },
+  { key: "pets", label: "Pets", hint: "The dog, the cat, and the roosters and hens next door" },
   { key: "weather", label: "Weather effects", hint: "Rain, splashes and cloud shadows" },
   { key: "streetLights", label: "Street lights", hint: "Lamp posts and their glow at night" },
   { key: "smoke", label: "Vape smoke", hint: "Smoke clouds on breaks" },

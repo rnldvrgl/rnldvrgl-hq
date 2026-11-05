@@ -2,6 +2,7 @@
 
 import { sceneNow, sceneWeather } from "@/lib/store";
 import { manilaMinutes } from "@/lib/office-clock";
+import { crowing, ROOSTER_COUNT } from "@/lib/rooster";
 import { create } from "zustand";
 import { useSettings, MUSIC_STYLES, type MixKey, type MusicStyle } from "@/lib/settings";
 import { spotifyBeat, useSpotify } from "@/lib/spotify";
@@ -634,6 +635,52 @@ export class Ambience {
     }
   }
 
+  /**
+   * A rooster's crow, "ko-ko-ro-ko-ooo": four rising syllables and a long falling one, a buzzy sawtooth through
+   * two formant filters, with a little vibrato on the last note. `k` picks the bird (pitch and where it is).
+   */
+  crow(k: number) {
+    const ctx = this.ctx, t0 = ctx.currentTime + 0.02;
+    const base = [560, 640, 500][k % 3];
+    const pan = [-0.55, 0.15, 0.65][k % 3];
+    const syll: readonly (readonly [number, number, number, number])[] = [
+      // start, length, from pitch, to pitch (× base)
+      [0, 0.16, 1.0, 1.15], [0.2, 0.15, 1.2, 1.3], [0.39, 0.2, 1.35, 1.5], [0.64, 1.0, 1.55, 1.05],
+    ];
+    const out = ctx.createGain();
+    out.gain.value = 0.05;
+    const p = ctx.createStereoPanner();
+    p.pan.value = pan;
+    const f1 = ctx.createBiquadFilter(), f2 = ctx.createBiquadFilter();
+    f1.type = "bandpass"; f1.frequency.value = 1300; f1.Q.value = 2.5;
+    f2.type = "bandpass"; f2.frequency.value = 2700; f2.Q.value = 3;
+    f1.connect(out); f2.connect(out);
+    out.connect(p).connect(this.bus.street);
+    for (const [at, len, a, b] of syll) {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = "sawtooth";
+      const s0 = t0 + at;
+      o.frequency.setValueAtTime(base * a, s0);
+      o.frequency.linearRampToValueAtTime(base * b, s0 + len);
+      if (len > 0.5) {
+        // the vibrato on the long last note
+        const lfo = ctx.createOscillator(), depth = ctx.createGain();
+        lfo.frequency.value = 9; depth.gain.value = base * 0.04;
+        lfo.connect(depth).connect(o.frequency);
+        lfo.start(s0); lfo.stop(s0 + len + 0.05);
+      }
+      g.gain.setValueAtTime(0.0001, s0);
+      g.gain.exponentialRampToValueAtTime(1, s0 + 0.03);
+      g.gain.setValueAtTime(1, s0 + len * 0.7);
+      g.gain.exponentialRampToValueAtTime(0.0001, s0 + len);
+      o.connect(g);
+      g.connect(f1); g.connect(f2);
+      o.start(s0); o.stop(s0 + len + 0.05);
+    }
+  }
+
+  private crowed: boolean[] = [];
+
   private chirp(base: number, gain: number) {
     const ctx = this.ctx, t = ctx.currentTime;
     for (let i = 0; i < 3; i++) {
@@ -688,6 +735,12 @@ export class Ambience {
     if (!night && !raining && now >= this.nextBird) {
       if (this.nextBird) this.chirp(2600 + Math.random() * 1800, 0.012);
       this.nextBird = now + 5 + Math.random() * 12;
+    }
+    // the roosters in the yards behind the office, in step with the birds in the scene
+    for (let k = 0; k < ROOSTER_COUNT; k++) {
+      const c = crowing(sceneNow(), k);
+      if (c !== null && c < 0.4 && !this.crowed[k] && !raining) this.crow(k);
+      this.crowed[k] = c !== null;
     }
     // a car or jeepney going by
     if (now >= this.nextCar) {
