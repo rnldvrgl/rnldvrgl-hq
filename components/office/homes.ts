@@ -60,7 +60,9 @@ const homeAt = (slot: HouseSlot, who: Who, name: string, color: string): Home =>
 
 /** Lot x (left edge) of each person's house on the first street, nearest the office first. The boss's is right behind it. */
 const OWNER_LOT = 7.2;
-const TEAM_LOTS = [-0.4, 14.8, 22.4, 30, 37.6, -23.2, -30.8, -38.4];
+/** The boss's big house takes two lots side by side (Mansion in Neighbourhood.tsx). */
+export const OWNER_LOTS = [7.2, 14.8] as const;
+const TEAM_LOTS = [-0.4, -15.6, 22.4, 30, 37.6, -23.2, -30.8, -38.4];
 
 const slotAt = (x: number) => HOUSE_SLOTS.find((s) => s.row === 0 && Math.abs(s.x - x) < 0.01)!;
 
@@ -72,5 +74,23 @@ export const HOMES: readonly Home[] = [
 ];
 
 export const homeOf = (who: Who): Home => HOMES.find((h) => h.who === who)!;
+
+/**
+ * The boss's house: a modern two-storey on the double lot behind the office, with a garage on its right.
+ * x0..x1 along the street, the wall and gates on gateZ; the car parks in the garage facing −z.
+ */
+export const MANSION = (() => {
+  const x0 = OWNER_LOTS[0] - 0.2, x1 = OWNER_LOTS[1] + 7.2, gateZ = slotAt(OWNER_LOTS[0]).gateZ;
+  const garage = { x0: x1 - 4.6, x1: x1 - 0.6 };
+  return {
+    x0, x1, gateZ,
+    /** The house's front wall, its back wall. */
+    front: gateZ - 3.0, back: gateZ - 8.0,
+    garage,
+    /** Middle of the driveway gate, and where the car stands in the garage. */
+    driveX: (garage.x0 + garage.x1) / 2,
+    park: { x: (garage.x0 + garage.x1) / 2, z: gateZ - 5.4 },
+  };
+})();
 /** The home on this lot, if someone from the office lives there. */
 export const homeBySlot = (i: number): Home | undefined => HOMES.find((h) => h.slot.i === i);

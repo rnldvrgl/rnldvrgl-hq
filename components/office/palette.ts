@@ -109,6 +109,8 @@ export const CARPORT = { x0: ROOM.W, x1: ROOM.W + 5.75, z0: 5.95, z1: ROOM.D, yW
 export const VAPE = { x: ROOM.W + 7.0, z: 3.15, r: 0.8 } as const;
 /** The gazebo's deck, centred on VAPE. */
 export const VAPE_DECK = { w: 2.3, d: 3.3 } as const;
+/** Where the boss's car parks under the carport: along the pavement, nose toward the building's side (−z). */
+export const PARKING = { x: OUTSIDE.x0 + 1.95, z: OUTSIDE.z1 - 2.45 } as const;
 export const DUMPSTER = { x: ROOM.W + 1.75, z: 4.25 } as const;
 /** The big bin inside, by the entrance: everyone empties their desk bin into it at 5:30 PM. */
 export const MAIN_BIN = { x: ROOM.W - 0.38, z: 8.05 } as const;

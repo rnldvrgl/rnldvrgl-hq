@@ -11,8 +11,9 @@ import { TEAM } from "@/lib/team";
 import { DESK, PAL, ROOM, type Palette } from "./palette";
 import { Person, applyPose, REST, type Look, type Pose, type PersonRig } from "./Person";
 import { Bubble } from "./Bubble";
-import { OWNER_CHAIR, WET_SIGN, bossErrandRoute, janitorAt, ownerCommuteAt, ownerStandupAt, ownerTourAt, sample, type Route } from "./routes";
+import { OWNER_CHAIR, WET_SIGN, bossErrandRoute, janitorAt, ownerStandupAt, ownerTourAt, sample, type Route } from "./routes";
 import { VaporPuffs, vapePose } from "./Employee3D";
+import { bossDay } from "./bossCommute";
 import { useSceneNow } from "./scene-clock-ui";
 import { HQ, type BossLook } from "@/hq.config";
 
@@ -44,20 +45,21 @@ function errandAt(e: BossErrandState | null): Outing | null {
  * stand-up, on a walk, or (null) at the desk.
  */
 function ownerOuting(now: Date): Outing | "home" | null {
-  const errand = errandAt(useOffice.getState().bossErrand);
-  if (errand) return errand;
   const { routine, boss } = useSettings.getState();
   const min = manilaMinutes(now);
-  const c = routine.commute ? ownerCommuteAt(min, workHours("boss")) : null;
-  if (c && "home" in c) return "home";
-  if (c) return { route: c.route, t: c.t, coffee: false, standup: false, errand: null, commute: c.reverse ? "arriving" : "leaving" };
+  // the commute by car: walking to or from it, in it (not drawn: Car.tsx drives), or home for the night
+  const day = routine.commute ? bossDay(min, workHours("boss")) : null;
+  if (day && (day.kind === "home" || day.kind === "car")) return "home";
+  if (day?.kind === "walk") return { route: day.route, t: day.t, coffee: false, standup: false, errand: null, commute: day.reverse ? "arriving" : "leaving" };
+  const errand = errandAt(useOffice.getState().bossErrand);
+  if (errand) return errand;
   const lead = routine.standup ? ownerStandupAt(isWeekday(now), min) : null;
   if (lead) return { ...lead, coffee: false, standup: true, errand: null };
   const tour = boss.wanders ? ownerTourAt(manilaDay(now), min) : null;
   return tour ? { ...tour, standup: false, errand: null } : null;
 }
 
-/** Is the boss at home right now (gone for the night)? */
+/** Is the boss away from the office right now (driving, or at home for the night)? */
 export const ownerIsHome = (now: Date): boolean => ownerOuting(now) === "home";
 
 /** The boss's two looks (Settings → Boss, default in hq.config.ts). */
@@ -74,7 +76,7 @@ export function bossLook(look: BossLook): Look {
  * (hands clasped behind the back, stopping behind people to look at their screens with an approving nod),
  * sometimes via the pantry for a coffee. The Boss menu sends them on errands: a vape break on the patio,
  * a walk down the street, a snack run to the sari-sari store, a coffee, a round of the office. At the end of
- * the day (Settings → Office hours) they walk home to the house behind the office, and back in the morning.
+ * the day (Settings → Office hours) they walk out to the car and drive home (bossCommute.ts), and back in the morning.
  */
 export function Owner({ shadows, reducedMotion }: { pal: Palette; shadows: boolean; reducedMotion: boolean }) {
   const group = useRef<THREE.Group>(null);
@@ -148,7 +150,7 @@ export function Owner({ shadows, reducedMotion }: { pal: Palette; shadows: boole
   const { hours } = useSettings.getState();
   let status = "Boss", detail = "Main office", Icon: LucideIcon = Crown;
   if (tour?.commute) {
-    if (tour.commute === "leaving") { status = "Heading home"; detail = `Back ${clockLabel(hours.bossIn)}`; Icon = LogOut; }
+    if (tour.commute === "leaving") { status = "Heading home"; detail = `To the car · back ${clockLabel(hours.bossIn)}`; Icon = LogOut; }
     else { status = "Clocking in"; detail = "Good morning, team"; Icon = LogIn; }
   } else if (tour) {
     const s = sample(tour.route, tour.t);

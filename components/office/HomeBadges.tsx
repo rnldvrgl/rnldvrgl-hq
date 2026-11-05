@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { House, Pause, Footprints, Briefcase, Crown } from "lucide-react";
+import { House, Pause, Footprints, Briefcase } from "lucide-react";
 import { useOffice } from "@/lib/store";
 import { isWeekday, manilaMinutes } from "@/lib/office-clock";
 import { TEAM } from "@/lib/team";
@@ -10,12 +10,11 @@ import { cn } from "@/lib/utils";
 import { Label } from "./Labels";
 import { useBubbleMode } from "./Bubble";
 import { activityOf } from "./Employee3D";
-import { ownerIsHome } from "./Staff";
 import { HOMES, type Home } from "./homes";
 import { useSceneNow } from "./scene-clock-ui";
 
 /**
- * A name badge floating over each office person's house on the street behind the office ("Maya's house"),
+ * A name badge floating over each employee's house on the street behind the office ("Maya's house"),
  * in their colour, saying whether they're home, on the way, or at work. Settings → Show → House name badges.
  */
 
@@ -37,11 +36,9 @@ export function HomeBadges() {
   const weekday = isWeekday(now);
   return (
     <>
-      {HOMES.map((h) => {
+      {HOMES.filter((h) => h.who !== "owner").map((h) => {
         let where: Where;
-        if (h.who === "owner") {
-          where = ownerIsHome(now) ? "home" : "work";
-        } else {
+        {
           const index = TEAM.findIndex((m) => m.id === h.who);
           const e = employees.find((x) => x.id === h.who);
           const a = activityOf(min, weekday, TEAM[index], index, e?.status ?? "idle", e?.enabled ?? true, null);
@@ -61,7 +58,7 @@ function Badge({ home, where }: { home: Home; where: Where }) {
 function BadgeCard({ home, where }: { home: Home; where: Where }) {
   const mode = useBubbleMode((s) => s.mode);
   const { label, icon: Icon } = WHERE[where];
-  const Mark = home.who === "owner" ? Crown : House;
+  const Mark = House;
   const lit = where === "home";
   if (mode === "dot") {
     return (

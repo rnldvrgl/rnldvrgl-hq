@@ -23,7 +23,7 @@ export type Settings = {
   show: Record<ShowKey, boolean>;
   motion: Motion;
   routine: Record<RoutineKey, boolean>;
-  boss: { look: BossLook; wanders: boolean; office: OfficeStyle };
+  boss: { look: BossLook; wanders: boolean; office: OfficeStyle; car: CarChoice };
   /** The office sound system's music, during office hours (only heard when sound is on). */
   music: boolean;
   /** Which music the sound system plays (all generated live, no audio files). */
@@ -89,6 +89,22 @@ export const MIX_MAX = 150;
 const DEFAULT_VOLUMES: Record<MixKey, number> = { all: 100, music: 100, room: 100, typing: 100, weather: 100, street: 100, alerts: 100 };
 const clampVol = (v: unknown, d: number): number => (typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.min(MIX_MAX, Math.round(v))) : d);
 
+/** The boss's car (components/office/Car.tsx). "auto" follows the boss's look. */
+export type CarModel = "typer" | "mini" | "suv" | "pickup" | "sports" | "ev";
+export type CarChoice = "auto" | CarModel;
+export const CAR_MODELS: readonly { id: CarChoice; label: string; hint: string }[] = [
+  { id: "auto", label: "Match the boss", hint: "Type R for him, the pink mini for her" },
+  { id: "typer", label: "Hot hatch", hint: "White, big wing, red trim (Civic Type R style)" },
+  { id: "mini", label: "Pink mini", hint: "Rosé two-tone retro hatch, white roof" },
+  { id: "suv", label: "Big SUV", hint: "Black seven-seater, roof rails" },
+  { id: "pickup", label: "Pickup", hint: "Grey double-cab with the bed out back" },
+  { id: "sports", label: "Sports coupé", hint: "Red, low and wide" },
+  { id: "ev", label: "Electric", hint: "Pearl white, glass roof, light bar" },
+];
+const isCarChoice = (v: unknown): v is CarChoice => CAR_MODELS.some((c) => c.id === v);
+/** The car actually shown. */
+export const carModelOf = (boss: Settings["boss"]): CarModel => boss.car === "auto" ? (boss.look === "her" ? "mini" : "typer") : boss.car;
+
 /** The corner office's interior. "auto" follows the boss's look: executive for him, cozy for her. */
 export type OfficeStyle = BossOffice;
 export const OFFICE_STYLES: readonly { id: OfficeStyle; label: string; hint: string }[] = [
@@ -133,7 +149,7 @@ export const DEFAULT_SETTINGS: Settings = {
   show: { neighbourhood: true, traffic: true, vendors: true, pets: true, weather: true, streetLights: true, smoke: true, bubbles: true, trees: true, holidays: true, homeNames: true },
   motion: "full",
   routine: { standup: true, meeting: true, lunch: true, trashDrop: true, trashRun: true, commute: true, janitor: true, idleBreaks: true, errorHelp: true },
-  boss: { look: HQ.owner.look, wanders: true, office: HQ.owner.office },
+  boss: { look: HQ.owner.look, wanders: true, office: HQ.owner.office, car: "auto" },
   music: true,
   musicStyle: "lofi",
   volumes: DEFAULT_VOLUMES,
@@ -158,7 +174,7 @@ function read(): Settings {
       show: { ...DEFAULT_SETTINGS.show, ...v.show },
       motion: v.motion === "minimal" ? "minimal" : "full",
       routine: { ...DEFAULT_SETTINGS.routine, ...v.routine },
-      boss: { ...DEFAULT_SETTINGS.boss, ...v.boss },
+      boss: { ...DEFAULT_SETTINGS.boss, ...v.boss, car: isCarChoice(v.boss?.car) ? v.boss.car : DEFAULT_SETTINGS.boss.car },
       music: v.music ?? DEFAULT_SETTINGS.music,
       musicStyle: isMusicStyle(v.musicStyle) ? v.musicStyle : DEFAULT_SETTINGS.musicStyle,
       volumes: Object.fromEntries(

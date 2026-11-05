@@ -8,7 +8,7 @@ import { HOLIDAYS, nextLabel, useHolidayPreview, type Holiday } from "@/lib/holi
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useOffice } from "@/lib/store";
 import {
-  ARRIVE_TIMES, DEFAULT_SETTINGS, LEAVE_TIMES, LIGHT_SHOW, MUSIC_STYLES, WALKERS_MAX, OFFICE_STYLES, ROUTINE_LABELS, SHOW_LABELS, clockLabel, useSettings, type Motion,
+  ARRIVE_TIMES, CAR_MODELS, DEFAULT_SETTINGS, LEAVE_TIMES, LIGHT_SHOW, MUSIC_STYLES, WALKERS_MAX, OFFICE_STYLES, ROUTINE_LABELS, SHOW_LABELS, clockLabel, useSettings, type Motion,
 } from "@/lib/settings";
 import { STYLES } from "@/lib/theme";
 import { Passkeys } from "./Passkeys";
@@ -264,7 +264,7 @@ function OfficeHours() {
     <div className="grid gap-2 rounded-xl border border-border bg-muted/30 p-2.5">
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-sm font-medium">Office hours</span>
-        <span className="text-[11px] text-muted-foreground">They walk home to their houses</span>
+        <span className="text-[11px] text-muted-foreground">The team walks home, {HQ.owner.name} drives</span>
       </div>
       <div className="grid grid-cols-[auto_1fr_1fr] items-center gap-x-2 gap-y-1.5 text-xs">
         <span />
@@ -335,6 +335,29 @@ function Boss() {
                 "grid min-h-11 rounded-xl border px-2.5 py-1.5 text-left leading-tight transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring",
                 o.id === "auto" && "col-span-2",
                 boss.office === o.id ? "border-ring bg-accent" : "border-border",
+              )}
+            >
+              <span className="text-sm font-semibold">{o.label}</span>
+              <span className="text-[11px] text-muted-foreground">{o.hint}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="grid gap-1.5 px-2.5">
+        <span className="text-sm font-medium">Car</span>
+        <span className="-mt-1 text-[11px] text-muted-foreground">Parked in the carport; drives {HQ.owner.name} home at the end of the day.</span>
+        <div role="radiogroup" aria-label="Boss's car" className="grid grid-cols-2 gap-1.5">
+          {CAR_MODELS.map((o) => (
+            <button
+              key={o.id}
+              type="button"
+              role="radio"
+              aria-checked={boss.car === o.id}
+              onClick={() => setBoss({ car: o.id })}
+              className={cn(
+                "grid min-h-11 rounded-xl border px-2.5 py-1.5 text-left leading-tight transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring",
+                o.id === "auto" && "col-span-2",
+                boss.car === o.id ? "border-ring bg-accent" : "border-border",
               )}
             >
               <span className="text-sm font-semibold">{o.label}</span>

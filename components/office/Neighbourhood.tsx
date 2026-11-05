@@ -11,7 +11,7 @@ import { light, getGlowTexture } from "./Lighting";
 import { streetLightLevel } from "./StreetLamp";
 import { canvasTexture, joinGeometries, mergeParts, mergePlaced, partsAt, placed, type Part } from "./batch";
 import { vehicle, type Kind as VehicleKind } from "./Traffic";
-import { HOUSE_SLOTS, homeBySlot, rnd, type Home } from "./homes";
+import { HOUSE_SLOTS, MANSION, OWNER_LOTS, homeBySlot, rnd, type Home } from "./homes";
 import { BACK_STREETS, FAR_WALK, SCHOOL, SIDE_STREETS, SIDEWALK, YARD_X1 } from "./world";
 
 /**
@@ -519,8 +519,88 @@ function house(t: Town, x: number, gateZ: number, i: number, sari: boolean, own?
   }
 }
 
+/**
+ * The boss's house: a modern tropical two-storey across two lots. A white rendered block with a timber-slat
+ * upper floor that cantilevers over the porch, floor-to-ceiling glass, a glass-railed balcony, a flat roof
+ * with a deep overhang; a garage on the right (its door opens when the car comes and goes, see Car.tsx) with a
+ * roof terrace; a lawn, garden lights and palms behind a long wall with a sliding gate for the driveway.
+ */
+function mansion(t: Town): void {
+  const S = t.solid;
+  const M = MANSION;
+  const white = "#f4f2ee", wood = "#8a5a3b", dark = "#2b2f33", glassRail = "#cbd5e1";
+  const hx0 = M.x0 + 0.6, hx1 = M.garage.x0 - 0.2, hcx = (hx0 + hx1) / 2, hw = hx1 - hx0;
+  const d = M.front - M.back, cz = (M.front + M.back) / 2;
+  // grounds: lawn, the driveway and the path to the door
+  S.push({ size: [M.x1 - M.x0, 0.03, M.gateZ - M.back + 0.6], pos: [(M.x0 + M.x1) / 2, -0.11, (M.gateZ + M.back) / 2], color: "#7fa36a" });
+  S.push({ size: [M.garage.x1 - M.garage.x0 + 0.4, 0.04, M.gateZ - M.front + 0.1], pos: [M.driveX, -0.09, (M.gateZ + M.front) / 2], color: "#c9c6bf" });
+  S.push({ size: [1.0, 0.04, M.gateZ - M.front], pos: [hx0 + 2.2, -0.09, (M.gateZ + M.front) / 2], color: "#d6d3cc" });
+  // ground floor: white, a wide glass front with a dark frame, the timber front door
+  const G = 3.0;
+  S.push({ size: [hw, G, d], pos: [hcx, G / 2 - 0.1, cz], color: white });
+  t.homeWins.push({ x: hcx + 1.1, y: 1.3, z: M.front + 0.04, w: hw - 3.6, h: 2.1 });
+  for (let k = 0; k <= 4; k++) S.push({ size: [0.06, 2.2, 0.07], pos: [hx0 + 2.9 + (k * (hw - 3.6)) / 4, 1.3, M.front + 0.05], color: dark });
+  S.push({ size: [1.1, 2.4, 0.08], pos: [hx0 + 2.2, 1.1, M.front + 0.04], color: wood });
+  S.push({ size: [0.05, 0.6, 0.05], pos: [hx0 + 2.6, 1.1, M.front + 0.1], color: "#d4a017" });
+  t.homeWins.push({ x: hx1 + 0.04, y: 1.4, z: cz, w: 2.4, h: 1.4, face: "x" });
+  // upper floor: timber slats, cantilevered 1.2 m over the porch, a long window band and the balcony
+  const U = 2.9, uy = G - 0.1 + U / 2, ud = d + 1.2, ucz = cz + 0.6;
+  S.push({ size: [hw + 0.4, 0.22, ud], pos: [hcx, G - 0.02, ucz], color: white });
+  S.push({ size: [hw, U, ud - 0.2], pos: [hcx, uy, ucz - 0.1], color: wood });
+  for (let k = 0; k < 26; k++) S.push({ size: [0.04, U - 0.2, 0.04], pos: [hx0 + 0.15 + (k * (hw - 0.3)) / 25, uy, M.front + 1.1 + 0.03], color: "#6b4430" });
+  t.homeWins.push({ x: hcx - 0.6, y: uy + 0.1, z: M.front + 1.15, w: hw - 2.8, h: 1.5 });
+  t.homeWins.push({ x: hx1 + 0.04, y: uy, z: ucz, w: 3, h: 1.3, face: "x" });
+  // the roof: a thin white slab with a deep overhang, a dark fascia
+  S.push({ size: [hw + 1.2, 0.2, ud + 1.0], pos: [hcx, G + U, ucz + 0.2], color: white });
+  S.push({ size: [hw + 1.22, 0.08, ud + 1.02], pos: [hcx, G + U - 0.12, ucz + 0.2], color: dark });
+  // porch: two slim steel columns under the cantilever, wide steps, planters, two palms
+  for (const x of [hx0 + 0.3, hx1 - 0.3]) S.push({ size: [0.1, G - 0.1, 0.1], pos: [x, G / 2 - 0.1, M.front + 1.05], color: dark });
+  S.push({ size: [2.4, 0.12, 0.9], pos: [hx0 + 2.2, -0.04, M.front + 0.5], color: "#d6d3cc" });
+  for (const x of [M.x0 + 0.6, hx1 - 0.6]) {
+    S.push({ shape: "cyl", size: [0.08, 3.2, 6], pos: [x, 1.5, M.gateZ - 0.9], color: "#8a6a4a" });
+    for (let k = 0; k < 6; k++) S.push({ size: [1.3, 0.04, 0.3], pos: [x + Math.cos((k / 6) * Math.PI * 2) * 0.55, 3.1, M.gateZ - 0.9 + Math.sin((k / 6) * Math.PI * 2) * 0.55], rot: [0, -(k / 6) * Math.PI * 2, -0.35], color: "#3f7d4a" });
+  }
+  for (const x of [hx0 + 3.6, hx0 + 6.5]) S.push({ size: [1.4, 0.4, 0.5], pos: [x, 0.1, M.front + 0.4], color: "#57534e" }, { shape: "cyl", size: [0.4, 0.5, 8], pos: [x, 0.5, M.front + 0.4], color: "#4a7f50" });
+
+  // the garage: white box, a dark roll-up door facing the street, a terrace with glass rail on its roof
+  const gw = M.garage.x1 - M.garage.x0, gcx = (M.garage.x0 + M.garage.x1) / 2;
+  const gFront = M.front + 0.4;
+  // open at the front (the roll-up door is up, rolled into the box over the opening), so the car drives in
+  const gd = gFront - M.back, gcz = (gFront + M.back) / 2, GH = G - 0.2;
+  for (const x of [M.garage.x0 + 0.1, M.garage.x1 - 0.1]) S.push({ size: [0.2, GH, gd], pos: [x, GH / 2 - 0.1, gcz], color: white });
+  S.push({ size: [gw, GH, 0.2], pos: [gcx, GH / 2 - 0.1, M.back + 0.1], color: white });
+  S.push({ size: [gw - 0.4, 0.02, gd - 0.2], pos: [gcx, -0.08, gcz], color: "#6b7280" });
+  S.push({ size: [gw - 0.2, 0.55, 0.3], pos: [gcx, GH - 0.37, gFront - 0.1], color: dark });
+  S.push({ size: [gw + 0.1, 0.12, gd + 0.1], pos: [gcx, GH - 0.04, gcz], color: "#d6d3cc" });
+  S.push({ size: [gw, 0.05, 0.05], pos: [gcx, G + 0.65, gFront], color: glassRail });
+  t.homeWins.push({ x: M.garage.x1 + 0.04, y: 1.3, z: cz, w: 1.6, h: 0.5, face: "x" });
+  // wall lamps either side of the garage door
+  for (const x of [M.garage.x0 + 0.2, M.garage.x1 - 0.2]) t.homeWins.push({ x, y: 2.2, z: gFront + 0.05, w: 0.12, h: 0.3 });
+
+  // the boundary wall on the street: rendered, with a dark band, a sliding steel gate for the driveway
+  // and a pedestrian gate; lamp-topped pillars
+  const FH = 1.5, gx0 = M.garage.x0 - 0.3, gx1 = M.garage.x1 + 0.3, px0 = hx0 + 1.7, px1 = hx0 + 2.7;
+  const wall = (a: number, b: number) => {
+    if (b - a < 0.05) return;
+    S.push({ size: [b - a, FH, 0.22], pos: [(a + b) / 2, FH / 2 - 0.1, M.gateZ], color: white });
+    S.push({ size: [b - a, 0.1, 0.24], pos: [(a + b) / 2, FH - 0.3, M.gateZ], color: dark });
+  };
+  wall(M.x0, px0); wall(px1, gx0); wall(gx1, M.x1);
+  for (const x of [M.x0, px0, px1, gx0, gx1, M.x1]) {
+    S.push({ size: [0.4, FH + 0.4, 0.4], pos: [x, (FH + 0.4) / 2 - 0.1, M.gateZ], color: white });
+    t.homeWins.push({ x, y: FH + 0.38, z: M.gateZ + 0.21, w: 0.22, h: 0.16 });
+  }
+  for (let k = 0; k < 9; k++) S.push({ size: [0.04, 1.3, 0.05], pos: [px0 + 0.1 + (k * (px1 - px0 - 0.2)) / 8, 0.6, M.gateZ], color: dark });
+  // the sliding gate: slatted dark steel, slid open behind the wall to the left of the driveway
+  for (let k = 0; k < 14; k++) S.push({ size: [gx1 - gx0 - 0.4, 0.05, 0.04], pos: [gx0 - (gx1 - gx0) / 2 + 0.1, 0.15 + k * 0.095, M.gateZ - 0.2], color: dark });
+  // the house number
+  S.push({ size: [0.5, 0.3, 0.04], pos: [px1 + 0.6, 1.0, M.gateZ + 0.13], color: "#d4a017" });
+}
+
 function houses(t: Town): void {
+  mansion(t);
   for (const s of HOUSE_SLOTS) {
+    if (s.row === 0 && OWNER_LOTS.some((x) => Math.abs(x - s.x) < 0.01)) continue; // the boss's double lot
     const own = homeBySlot(s.i);
     house(t, s.x, s.gateZ, s.i, !own && (s.i === 4 || s.i === 13), own);
   }

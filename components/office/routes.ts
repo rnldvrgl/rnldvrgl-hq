@@ -7,7 +7,7 @@ import { TEAM, type EmployeeId, type EmployeeMeta } from "@/lib/team";
 import {
   hm, JANITOR_ROUNDS, TRASH_AT, TRASH_DROP_AT, HOME_FROM, BACK_AT, LUNCH_FROM, LUNCH_TO, STANDUP_FROM, STANDUP_TO, VAPE_FROM, VAPE_TO, MEETING_FROM, MEETING_TO,
 } from "@/lib/office-clock";
-import { DESK, DINING, DUMPSTER, ENTRANCE, HUDDLE, LANES, MAIN_BIN, MEETING, OFFICE, OUTSIDE, ROOM, VAPE } from "./palette";
+import { DESK, DINING, DUMPSTER, ENTRANCE, HUDDLE, LANES, MAIN_BIN, MEETING, OFFICE, OUTSIDE, PARKING, ROOM, VAPE } from "./palette";
 import { BACK_STREETS, SIDE_STREET, SIDEWALK } from "./world";
 import { homeOf, type Who } from "./homes";
 
@@ -533,24 +533,14 @@ const leadRoute = memo((_: "lead"): Route => {
     ...[...out].reverse(), { ...OWNER_CHAIR, wait: 1.1, act: "sit", face: FACE_BACK }], OWNER_SPEED);
 });
 
-/** The boss's walk home: out of the corner office, through the entrance, and home to the house behind the office. */
-const ownerCommute = memo((_: "home"): Route => compile([
-  { ...OWNER_CHAIR, wait: 1.1, act: "rise", face: FACE_BACK },
-  OWNER_STAND, OFFICE_DOOR_IN, OFFICE_DOOR_OUT, ...toEntrance(P(OFFICE.doorX, LANES.mid)), DOOR, DOOR_OUT, STREET, ...walkHome("owner"),
-], OWNER_SPEED));
+/** Beside the driver's door of the boss's car (left-hand drive; the car faces −z, so its left is −x). */
+export const CAR_DOOR = P(PARKING.x - 1.3, PARKING.z - 0.5);
 
-/**
- * The boss going home at `hours.from` and coming back at `hours.back` (the walk home played backwards,
- * timed to sit down on the hour). `home` is true while they're at home.
- */
-export function ownerCommuteAt(min: number, hours: OfficeHours): { route: Route; t: number; reverse: boolean } | { home: true } | null {
-  const route = ownerCommute("home");
-  const leaveT = (min - hours.from) * 60;
-  if (leaveT >= 0 && leaveT <= route.duration) return { route, t: leaveT, reverse: false };
-  const arriveT = min * 60 - (hours.back * 60 - route.duration);
-  if (arriveT >= 0 && arriveT <= route.duration) return { route, t: route.duration - arriveT, reverse: true };
-  return min >= hours.from || min < hours.back ? { home: true } : null;
-}
+/** The boss's walk from the desk out to the car (and, played backwards, from the car in to the desk). */
+export const ownerToCar = memo((_: "car"): Route => compile([
+  { ...OWNER_CHAIR, wait: 1.1, act: "rise", face: FACE_BACK },
+  OWNER_STAND, OFFICE_DOOR_IN, OFFICE_DOOR_OUT, ...toEntrance(P(OFFICE.doorX, LANES.mid)), DOOR, DOOR_OUT, P(CAR_DOOR.x, DOOR_OUT.z), CAR_DOOR,
+], OWNER_SPEED));
 
 /** Ronald leading the weekday stand-up, if it's on. He leaves his desk 20 s early. */
 export function ownerStandupAt(weekday: boolean, min: number): { route: Route; t: number } | null {
