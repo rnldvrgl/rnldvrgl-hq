@@ -1,23 +1,24 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, MicVocal, Music, Pause, Play, Radio, Shuffle, SkipBack, SkipForward } from "lucide-react";
+import { ChevronDown, MicVocal, Music, Pause, Play, Radio, Shuffle, SkipBack, SkipForward, Volume1, Volume2, VolumeX } from "lucide-react";
 import { useSpotify } from "@/lib/spotify";
 import { musicStyleLabel, useRadio } from "@/lib/ambience";
 import { MUSIC_STYLES, useSettings } from "@/lib/settings";
 import { cn } from "@/lib/utils";
-import { useCurrentLine, useLiveProgress } from "./Lyrics";
+import { LyricsView, useCurrentLine, useLiveProgress } from "./Lyrics";
 import { usePlaceOpen } from "./Places";
 
 /**
  * A floating "now playing" card over the bottom-left of the office. It sits small (cover, title, a little
  * equalizer) and grows for a few seconds whenever the music changes, so you can see what just came on,
- * then shrinks back. Tap it to keep it open: controls, progress and the line being sung right now.
+ * then shrinks back. Tap it to keep it open: controls, volume, progress and the lyrics, scrolling along.
  * Shows the Spotify track, or the office sound system's style when that's what's playing.
  */
 
 const AUTO_MS = 7000;
-const btn = "grid size-8 place-items-center rounded-full transition-colors hover:bg-foreground/10 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-ring";
+/** Phones get 44 px touch targets. */
+const btn = "grid size-8 place-items-center rounded-full transition-colors hover:bg-foreground/10 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-ring max-sm:size-11";
 
 export function NowPlayingFloat() {
   const track = useSpotify((s) => s.track);
@@ -46,7 +47,8 @@ export function NowPlayingFloat() {
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const expanded = pinned || auto;
-  const line = useCurrentLine(source === "spotify" ? track : null, lyricsOn && source === "spotify");
+  // the small card shows the line being sung; the big one the whole lyrics
+  const line = useCurrentLine(source === "spotify" ? track : null, lyricsOn && source === "spotify" && !expanded);
   const ms = useLiveProgress(source === "spotify" ? track : null, 1000);
 
   if (!source || placeOpen) return null;
@@ -63,7 +65,7 @@ export function NowPlayingFloat() {
       onMouseEnter={() => { hovering.current = true; }}
       onMouseLeave={() => { hovering.current = false; if (auto && !pinned) armCollapse(); }}
       className={cn(
-        "glass absolute bottom-3 left-3 z-30 overflow-hidden bg-popover/85 shadow-lg transition-[width,border-radius,box-shadow] duration-500 ease-out motion-safe:animate-in motion-safe:zoom-in-95 motion-safe:fade-in",
+        "glass absolute bottom-3 left-3 z-30 max-h-[calc(100%-1.5rem)] overflow-x-hidden overflow-y-auto overscroll-contain [scrollbar-width:thin] bg-popover/85 shadow-lg transition-[width,border-radius,box-shadow] duration-500 ease-out motion-safe:animate-in motion-safe:zoom-in-95 motion-safe:fade-in",
         // just changed: a soft glow in the music's colour while it's big
         auto && !pinned && (source === "spotify" ? "ring-2 ring-[#1db954]/40" : "ring-2 ring-primary/30"),
         expanded ? "w-[min(19rem,calc(100%-5.5rem))] rounded-2xl" : "w-[min(14rem,calc(100%-5.5rem))] rounded-[1.4rem]",
@@ -91,14 +93,12 @@ export function NowPlayingFloat() {
       {/* the part that grows */}
       <div className={cn("grid transition-[grid-template-rows] duration-500 ease-out", expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
         <div className="min-h-0 overflow-hidden">
-          <div className="grid gap-2 px-3 pb-3">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-2 px-3 pb-3">
             {source === "spotify" ? (
               <>
-                {lyricsOn && line && (
-                  <p className="min-h-9 text-sm leading-snug font-semibold" aria-live="off">
-                    {line.now}
-                    {line.next && <span className="block truncate text-xs font-normal text-muted-foreground">{line.next}</span>}
-                  </p>
+                {lyricsOn && (
+                  // the whole lyrics, wrapped and scrolling along with the song, sized to the screen so they are never cut off
+                  <LyricsView track={track!} className="scroll-thin max-h-[min(10rem,24dvh)] text-pretty sm:max-h-[min(15rem,34dvh)]" />
                 )}
                 <div className="h-1 overflow-hidden rounded-full bg-foreground/10" aria-hidden>
                   <div className="h-full rounded-full bg-[#1db954] transition-[width] duration-1000 ease-linear" style={{ width: `${pct}%` }} />
@@ -109,13 +109,14 @@ export function NowPlayingFloat() {
                   </button>
                   <div className="flex items-center gap-1" role="group" aria-label="Playback">
                     <button type="button" className={btn} disabled={!canControl} onClick={() => void useSpotify.getState().prev()} aria-label="Previous track"><SkipBack className="size-4" aria-hidden /></button>
-                    <button type="button" className={cn(btn, "size-9 bg-foreground text-background hover:bg-foreground/85")} disabled={!canControl} onClick={() => void useSpotify.getState().toggle()} aria-label={playing ? "Pause" : "Play"}>
+                    <button type="button" className={cn(btn, "size-9 bg-foreground text-background hover:bg-foreground/85 max-sm:size-11")} disabled={!canControl} onClick={() => void useSpotify.getState().toggle()} aria-label={playing ? "Pause" : "Play"}>
                       {playing ? <Pause className="size-4" aria-hidden /> : <Play className="size-4" aria-hidden />}
                     </button>
                     <button type="button" className={btn} disabled={!canControl} onClick={() => void useSpotify.getState().next()} aria-label="Next track"><SkipForward className="size-4" aria-hidden /></button>
                   </div>
-                  <span className="w-8" aria-hidden />
+                  <span className="w-8 max-sm:w-11" aria-hidden />
                 </div>
+                <VolumeRow disabled={!canControl} />
               </>
             ) : (
               <div className="flex items-center justify-between gap-2">
@@ -135,6 +136,35 @@ export function NowPlayingFloat() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Spotify's volume, through the store's setVolume (which sends at most one change per 250 ms while you drag
+ * and keeps polls from moving the slider back for 4 s). The speaker button mutes and un-mutes.
+ */
+function VolumeRow({ disabled }: { disabled: boolean }) {
+  const volume = useSpotify((s) => s.volume);
+  const before = useRef(0.6);
+  const pct = Math.round(volume * 100);
+  const Icon = pct === 0 ? VolumeX : pct < 50 ? Volume1 : Volume2;
+  const set = (v: number) => void useSpotify.getState().setVolume(v);
+  return (
+    <div className="flex items-center gap-1.5">
+      <button
+        type="button" className={cn(btn, "shrink-0 text-muted-foreground")} disabled={disabled}
+        onClick={() => { if (volume > 0) { before.current = volume; set(0); } else set(before.current || 0.6); }}
+        aria-label={pct === 0 ? "Unmute Spotify" : "Mute Spotify"} title={pct === 0 ? "Unmute" : "Mute"}
+      >
+        <Icon className="size-4" aria-hidden />
+      </button>
+      <input
+        type="range" min={0} max={100} step={1} value={pct} disabled={disabled} aria-label="Spotify volume" aria-valuetext={`${pct}%`}
+        onChange={(e) => set(Number(e.target.value) / 100)}
+        className="h-6 w-0 min-w-0 flex-1 cursor-pointer accent-[#1db954] disabled:cursor-not-allowed max-sm:h-11"
+      />
+      <span className="w-8 shrink-0 text-right font-mono text-[10px] tabular-nums text-muted-foreground" aria-hidden>{pct}%</span>
     </div>
   );
 }
