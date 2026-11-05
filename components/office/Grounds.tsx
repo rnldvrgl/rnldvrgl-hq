@@ -56,7 +56,7 @@ const NEAR_TREES: readonly TreeSpot[] = [
 function fieldTrees(): TreeSpot[] {
   const r = rng(91);
   const out: TreeSpot[] = [];
-  const builtUp = (x: number, z: number) => x > -50 && x < 70 && z > -36 && z < 36;
+  const builtUp = (x: number, z: number) => x > -50 && x < 82 && z > -36 && z < 36;
   const onRoad = (x: number, z: number) => (z > SIDEWALK.z0 - 1 && z < FAR_WALK.z1 + 1)
     || SIDE_STREETS.some((st) => x > st.x0 - 1 && x < st.x1 + 1 && z < SIDEWALK.z0)
     || BACK_STREETS.some((b) => z > b.z0 - 1 && z < b.z1 + 1);
@@ -138,8 +138,8 @@ const along = (z: number, dir: 1 | -1) => (x: number): Lamp => ({ x, z, ax: 0, a
 
 /** The street lamps (warm sodium-ish LED): the main road, both residential streets, up both side streets. */
 const LAMPS: readonly Lamp[] = [
-  ...[-29, -20.5, -11.5, -1.2, 8, 16, OUTSIDE.x1 + 3, 31, 39.5, 48].map(along(SIDEWALK.z1 - 0.25, 1)),
-  ...[-25, -13, 1, 12, 24, 36, 47].map(along(FAR_WALK.z0 + 0.25, -1)),
+  ...[-29, -20.5, -11.5, -1.2, 8, 16, OUTSIDE.x1 + 3, 31, 39.5, 48, 60, 72].map(along(SIDEWALK.z1 - 0.25, 1)),
+  ...[-25, -13, 1, 12, 24, 36, 47, 61, 73].map(along(FAR_WALK.z0 + 0.25, -1)),
   // the residential streets: lamps on their +z side, reaching over the street
   ...[-34, -18, -1.5, 14, 30, 46, 62].map(along(BACK_STREETS[0].z1 + 0.25, -1)),
   ...[-26, -9, 8, 25, 42, 59].map(along(BACK_STREETS[1].z1 + 0.25, -1)),

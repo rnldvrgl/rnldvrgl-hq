@@ -7,7 +7,7 @@ import { sceneNow, sceneWeather } from "@/lib/store";
 import { manilaMinutes } from "@/lib/office-clock";
 import { PAL } from "./palette";
 import { CROSS_Z, JUNCTIONS, signalClock, walkLamp, walkLeft, type Junction } from "./signals";
-import { FAR_WALK, SIDEWALK } from "./world";
+import { FAR_WALK, SCHOOL, SIDEWALK } from "./world";
 
 /**
  * People out on the street: students in uniform with backpacks going to school and home again, office
@@ -16,6 +16,7 @@ import { FAR_WALK, SIDEWALK } from "./world";
  *   - they cross the main road only at the zebra, and only on the walk signal, when there's time to make it
  *     across (otherwise they wait at the kerb for the next one)
  *   - in the rain, out come the umbrellas
+ *   - students go in through Republic Central Colleges' gate before class and pour out of it at lunch and after class
  * How many depends on the hour (busiest at the school and office rush), up to the number set in
  * Settings → Performance → People outside, so slower phones can keep it low.
  *
@@ -24,7 +25,7 @@ import { FAR_WALK, SIDEWALK } from "./world";
  */
 
 type Kind = "student" | "worker" | "jogger" | "local" | "elder";
-type Mode = "walk" | "toCross" | "wait" | "cross";
+type Mode = "walk" | "toCross" | "wait" | "cross" | "enter";
 
 type Walker = {
   kind: Kind;
@@ -43,7 +44,11 @@ type Walker = {
   height: number;
 };
 
-const X_RANGE = { x0: -40, x1: 62 } as const;
+const X_RANGE = { x0: -40, x1: 76 } as const;
+/** The school gate (Republic Central Colleges, across the street): students go in there in the morning and come out after class. */
+const GATE = { x: SCHOOL.gateX, z: FAR_WALK.z1 + 0.75 } as const;
+const schoolIn = (h: number) => h >= 6 && h < 7.9;
+const schoolOut = (h: number) => (h >= 11.9 && h < 12.4) || (h >= 15.5 && h < 17.5);
 /** Sidewalk lanes: keep right. Walking +x on the near sidewalk you keep to the road side, and so on. */
 const laneZ = (side: 0 | 1, dir: 1 | -1) => {
   const w = side === 0 ? SIDEWALK : FAR_WALK;
@@ -99,12 +104,13 @@ function dress(kind: Kind, r: () => number): Walker["look"] {
   return { shirt: SHIRTS[Math.floor(r() * SHIRTS.length)], pants: ["#334155", "#78716c", "#1e3a8a", "#57534e"][Math.floor(r() * 4)], skin, hair, bag: kind === "local" && r() < 0.4 ? "#a16207" : null, umbrella };
 }
 
-/** Put someone at one end of a sidewalk, walking in. */
-function spawn(w: Walker, kind: Kind, r: () => number, anywhere: boolean) {
+/** Put someone at one end of a sidewalk, walking in (or, after class, a student out of the school gate). */
+function spawn(w: Walker, kind: Kind, r: () => number, anywhere: boolean, hour = 12) {
   w.kind = kind;
   w.side = r() < 0.5 ? 0 : 1;
   w.dir = r() < 0.5 ? 1 : -1;
   w.x = anywhere ? X_RANGE.x0 + r() * (X_RANGE.x1 - X_RANGE.x0) : w.dir > 0 ? X_RANGE.x0 : X_RANGE.x1;
+  if (kind === "student" && !anywhere && schoolOut(hour) && r() < 0.75) { w.side = 1; w.x = GATE.x + (r() - 0.5) * 2; }
   w.z = laneZ(w.side, w.dir);
   w.speed = SPEED[kind] * (0.85 + r() * 0.3);
   w.mode = "walk";
@@ -168,6 +174,7 @@ export function Walkers({ count }: { count: number }) {
     const t = signalClock();
     const min = manilaMinutes(sceneNow());
     const { level, weights } = crowd(min);
+    const hour = min / 60;
     const wanted = Math.round(count * level);
     const rain = sceneWeather() === "rain" || sceneWeather() === "storm";
     let out = walkers.filter((w) => !w.away).length;
@@ -175,7 +182,7 @@ export function Walkers({ count }: { count: number }) {
     walkers.forEach((w, i) => {
       // off the street: come back when the hour wants more people
       if (w.away) {
-        if (out < wanted && rng() < dt * 0.5) { spawn(w, pickKind(weights, rng()), rng, false); w.away = false; out++; paint(i); }
+        if (out < wanted && rng() < dt * 0.5) { spawn(w, pickKind(weights, rng()), rng, false, hour); w.away = false; out++; paint(i); }
         else return hideAll(i);
       }
       const stepping = w.mode !== "wait";
@@ -189,11 +196,19 @@ export function Walkers({ count }: { count: number }) {
             w.mode = "toCross"; w.junction = j; w.x = j.crossX + (rng() - 0.5) * (j.crossW - 0.5);
           }
         }
+        // a student on the school's side, at its gate before class: in they go
+        if (w.kind === "student" && w.side === 1 && schoolIn(hour) && Math.abs(w.x - GATE.x) < 1.6 && rng() < 0.7) w.mode = "enter";
         // walked off the end of the street: leave if there are too many people for the hour, or turn back in
         if (w.x < X_RANGE.x0 - 2 || w.x > X_RANGE.x1 + 2) {
           if (out > wanted) { w.away = true; out--; return hideAll(i); }
-          spawn(w, pickKind(weights, rng()), rng, false); paint(i);
+          spawn(w, pickKind(weights, rng()), rng, false, hour); paint(i);
         }
+      }
+      if (w.mode === "enter") {
+        // through the gate and across the quadrangle, then inside (off the street)
+        w.x += (GATE.x - w.x) * Math.min(1, dt * 2);
+        w.z += w.speed * dt;
+        if (w.z > GATE.z + 3) { w.away = true; out--; return hideAll(i); }
       }
       if (w.mode === "toCross") {
         // step to the kerb, then wait for the walk signal
@@ -226,7 +241,7 @@ export function Walkers({ count }: { count: number }) {
       if (stepping) w.phase += dt * w.speed * 5.2;
       const swing = stepping ? Math.sin(w.phase) * (w.kind === "jogger" ? 0.8 : 0.5) : 0;
       // facing +x is 0; across the road is +z from the near side (−π/2), −z from the far side (π/2)
-      const heading = w.mode !== "walk" ? (w.side === 0 ? -Math.PI / 2 : Math.PI / 2) : w.dir > 0 ? 0 : Math.PI;
+      const heading = w.mode === "enter" ? -Math.PI / 2 : w.mode !== "walk" ? (w.side === 0 ? -Math.PI / 2 : Math.PI / 2) : w.dir > 0 ? 0 : Math.PI;
       const bob = stepping ? Math.abs(Math.cos(w.phase)) * 0.025 : 0;
       tmp.q.setFromAxisAngle(tmp.v.set(0, 1, 0), heading);
       tmp.root.compose(tmp.v.set(w.x, bob, w.z), tmp.q, tmp.s.setScalar(w.height * 1.7));

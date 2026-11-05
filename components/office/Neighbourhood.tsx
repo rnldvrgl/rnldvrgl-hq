@@ -11,7 +11,7 @@ import { light, getGlowTexture } from "./Lighting";
 import { streetLightLevel } from "./StreetLamp";
 import { canvasTexture, joinGeometries, mergeParts, mergePlaced, partsAt, placed, type Part } from "./batch";
 import { vehicle, type Kind as VehicleKind } from "./Traffic";
-import { BACK_STREETS, FAR_WALK, SIDE_STREETS, SIDEWALK, YARD_X1 } from "./world";
+import { BACK_STREETS, FAR_WALK, SCHOOL, SIDE_STREETS, SIDEWALK, YARD_X1 } from "./world";
 
 /**
  * The town around the office, Filipino style:
@@ -23,7 +23,8 @@ import { BACK_STREETS, FAR_WALK, SIDE_STREETS, SIDEWALK, YARD_X1 } from "./world
  *                      window grills, a gated concrete fence, carports with a parked tricycle, water tanks on
  *                      stands, clotheslines, potted plants, a basketball hoop on the street
  *   across the street  a Shell and a Petron station, the tricycle terminal (TODA) and its shed, the barangay
- *                      court with floodlights, a parking lot, a park and the barangay hall
+ *                      court with floodlights, a parking lot, a park, the barangay hall and Republic Central
+ *                      Colleges; on this side, past the hardware, a Starbucks with its terrace
  *
  * Brand names come from HQ.town.realBrands (generic names when it's off).
  *
@@ -39,7 +40,7 @@ const brand = (real: string, generic: string) => (REAL ? real : generic);
 
 /* ------------------------------------------------------------------ signs */
 
-type SignStyle = "plain" | "jollibee" | "mcdo" | "seven" | "mercury" | "shell" | "petron" | "hall";
+type SignStyle = "plain" | "jollibee" | "mcdo" | "seven" | "mercury" | "shell" | "petron" | "hall" | "cafe" | "school";
 type SignSpec = { text: string; sub: string; bg: string; ink: string; style?: SignStyle };
 
 export const SIGN = {
@@ -58,6 +59,8 @@ export const SIGN = {
   toda: { text: "TODA", sub: "tricycle terminal", bg: "#15803d", ink: "#ffffff" },
   hall: { text: "BARANGAY HALL", sub: HQ.town.barangay, bg: "#1e3a8a", ink: "#ffffff", style: "hall" },
   sariHome: { text: "SARI-SARI", sub: "Coke · yelo · load", bg: "#b91c1c", ink: "#ffffff" },
+  starbucks: { text: brand("STARBUCKS", "KAPE VERDE"), sub: "COFFEE", bg: "#ffffff", ink: "#00704a", style: "cafe" },
+  rcc: { text: "REPUBLIC CENTRAL COLLEGES", sub: "Angeles City, Pampanga", bg: "#7f1d1d", ink: "#fde68a", style: "school" },
 } as const satisfies Record<string, SignSpec>;
 type SignId = keyof typeof SIGN;
 const SIGN_IDS = Object.keys(SIGN) as SignId[];
@@ -124,6 +127,30 @@ function drawSign(g: CanvasRenderingContext2D, s: SignSpec, x: number, y: number
       g.fillStyle = "#e4002b"; g.fillRect(x, y + 100, W, 14);
       g.fillStyle = "#0033a0"; g.fillRect(x, y + 114, W, 14);
       g.fillStyle = s.ink; g.font = `italic 900 80px ${sans}`; g.fillText(s.text, cx, y + 54, W - 40);
+      break;
+    }
+    case "cafe": {
+      // a green roundel (a white ring and a star) and the name in green capitals
+      g.fillStyle = "#00704a"; g.beginPath(); g.arc(x + 64, y + 64, 52, 0, Math.PI * 2); g.fill();
+      g.strokeStyle = "#ffffff"; g.lineWidth = 5; g.beginPath(); g.arc(x + 64, y + 64, 40, 0, Math.PI * 2); g.stroke();
+      g.fillStyle = "#ffffff"; g.beginPath();
+      for (let k = 0; k < 10; k++) {
+        const a = -Math.PI / 2 + (k * Math.PI) / 5, r = k % 2 ? 9 : 22;
+        g.lineTo(x + 64 + Math.cos(a) * r, y + 64 + Math.sin(a) * r);
+      }
+      g.closePath(); g.fill();
+      g.fillStyle = s.ink; g.font = `800 58px ${sans}`; g.fillText(s.text, cx + 56, y + 52, W - 150);
+      g.font = `700 26px ${sans}`; g.fillText(s.sub, cx + 56, y + 98, W - 150);
+      break;
+    }
+    case "school": {
+      // maroon with a gold rule, a little seal on the left
+      g.fillStyle = "#fbbf24"; g.fillRect(x, y + 6, W, 5); g.fillRect(x, y + H - 11, W, 5);
+      g.fillStyle = "#fde68a"; g.beginPath(); g.arc(x + 50, y + 64, 36, 0, Math.PI * 2); g.fill();
+      g.fillStyle = "#7f1d1d"; g.beginPath(); g.arc(x + 50, y + 64, 29, 0, Math.PI * 2); g.fill();
+      g.fillStyle = "#fde68a"; g.font = `900 30px ${sans}`; g.fillText("RCC", x + 50, y + 66);
+      g.fillStyle = s.ink; g.font = `800 40px ${sans}`; g.fillText(s.text, cx + 44, y + 52, W - 110);
+      g.fillStyle = "#ffffff"; g.font = `600 24px ${sans}`; g.fillText(s.sub, cx + 44, y + 96, W - 110);
       break;
     }
     case "hall": {
@@ -211,7 +238,7 @@ function parked(t: Town, kind: VehicleKind, color: string, pos: [number, number,
 
 /* ------------------------------------------------------------------ establishments along the street */
 
-type EstKind = "row" | "sari" | "food" | "mart";
+type EstKind = "row" | "sari" | "food" | "mart" | "cafe";
 type Est = {
   x0: number; x1: number; depth: number; h: number; floors: 1 | 2; kind: EstKind;
   wall: string; trim: string; awning: string; upper?: string; sign: SignId; allNight?: boolean;
@@ -230,6 +257,7 @@ export const EST: readonly Est[] = [
   { x0: YARD_X1 + 7.0, x1: YARD_X1 + 12.6, depth: 6, h: 3.3, floors: 1, kind: "row", wall: "#f4c9a8", trim: "#9a3412", awning: "#ea580c", sign: "carinderia" },
   { x0: YARD_X1 + 13.4, x1: SIDE_STREETS[1].x0 - 0.8, depth: 8.5, h: 3.9, floors: 1, kind: "food", wall: "#e7e5e4", trim: "#da291c", awning: "#ffc72c", sign: "mcdo", allNight: true },
   { x0: SIDE_STREETS[1].x1 + 0.8, x1: SIDE_STREETS[1].x1 + 7.2, depth: 6.5, h: 3.2, floors: 2, kind: "row", wall: "#d4d4d8", trim: "#3f3f46", awning: "#dc2626", upper: "#e4e4e7", sign: "hardware" },
+  { x0: SIDE_STREETS[1].x1 + 8.0, x1: SIDE_STREETS[1].x1 + 15.0, depth: 7, h: 3.6, floors: 1, kind: "cafe", wall: "#f5f1ea", trim: "#3b2a20", awning: "#00704a", sign: "starbucks" },
 ];
 
 function establishment(t: Town, e: Est): void {
@@ -279,6 +307,37 @@ function establishment(t: Town, e: Est): void {
       t.signs.push({ id: e.sign, x: px, y: 6.3, z: pz + 0.13, w: 2.2, h: 0.55 });
       t.nightWins.push({ x: px, y: 5.85, z: pz + 0.13, w: 2.2, h: 0.06 });
     }
+    return;
+  }
+
+  if (e.kind === "cafe") {
+    // the coffee shop: floor-to-ceiling glass, dark wood cladding above it, a green awning, the roundel on a
+    // wood fin by the door, and tables out front under green umbrellas
+    wins.push({ x: cx + 0.5, y: 1.35, z: fz, w: w - 1.8, h: 2.3 });
+    for (let i = 0; i <= 5; i++) S.push({ size: [0.05, 2.4, 0.06], pos: [e.x0 + 1.4 + (i * (w - 1.8)) / 5, 1.35, FRONT + 0.07], color: "#1f2937" });
+    S.push({ size: [1.1, 2.3, 0.08], pos: [e.x0 + 0.75, 1.05, FRONT + 0.06], color: "#2b3640" });
+    S.push({ size: [w + 0.06, e.h - 2.55, 0.14], pos: [cx, (2.55 + e.h) / 2 - 0.05, FRONT + 0.06], color: e.trim });
+    for (let i = 0; i < 14; i++) S.push({ size: [0.03, e.h - 2.6, 0.02], pos: [e.x0 + 0.25 + (i * (w - 0.5)) / 13, (2.55 + e.h) / 2 - 0.05, FRONT + 0.14], color: "#5a4030" });
+    S.push({ size: [w - 0.4, 0.06, 1.1], pos: [cx, 2.5, FRONT + 0.55], rot: [0.12, 0, 0], color: e.awning });
+    t.signs.push({ id: e.sign, x: cx + 0.6, y: (2.55 + e.h) / 2 - 0.02, z: FRONT + 0.16, w: 3.6, h: 0.9 });
+    // the side (+x, seen from the camera): more glass, and the roundel up high
+    wins.push({ x: e.x1 + 0.04, y: 1.4, z: cz + 0.8, w: e.depth - 2.4, h: 1.9, face: "x" });
+    S.push({ size: [0.1, e.h - 2.55, e.depth], pos: [e.x1 + 0.03, (2.55 + e.h) / 2 - 0.05, cz], color: e.trim });
+    t.signs.push({ id: e.sign, x: e.x1 + 0.1, y: (2.55 + e.h) / 2 - 0.02, z: cz, w: 3.4, h: 0.85, sideX: true });
+    // terrace: a timber deck, three tables with chairs and umbrellas, planters
+    S.push({ size: [w, 0.06, 1.25], pos: [cx, -0.02, SIDEWALK.z0 + 0.62], color: "#8a6a4a" });
+    for (let k = 0; k < 3; k++) {
+      const tx = e.x0 + 1.4 + k * ((w - 2.4) / 2), tz = SIDEWALK.z0 + 0.62;
+      S.push({ shape: "cyl", size: [0.3, 0.04, 12], pos: [tx, 0.74, tz], color: "#e7e5e4" });
+      S.push({ shape: "cyl", size: [0.03, 0.74, 6], pos: [tx, 0.37, tz], color: "#1f2937" });
+      for (const dx of [-0.42, 0.42]) S.push({ size: [0.34, 0.45, 0.34], pos: [tx + dx, 0.22, tz], color: "#2f3a33" });
+      S.push({ shape: "cyl", size: [0.025, 1.3, 6], pos: [tx, 1.4, tz], color: "#d6d3cc" });
+      S.push({ shape: "cone", size: [0.8, 0.35, 8], pos: [tx, 2.15, tz], color: e.awning });
+    }
+    for (const px of [e.x0 + 0.25, e.x1 - 0.25]) S.push({ size: [0.4, 0.5, 1.0], pos: [px, 0.2, SIDEWALK.z0 + 0.6], color: "#3f6b4a" });
+    S.push({ size: [w + 0.12, 0.2, e.depth + 0.12], pos: [cx, top, cz], color: e.trim });
+    S.push({ size: [w - 0.4, 0.04, e.depth - 0.4], pos: [cx, top + 0.11, cz], color: "#9ca3af" });
+    for (const dx of [-1.4, 1.4]) S.push({ size: [1.0, 0.6, 0.7], pos: [cx + dx, top + 0.38, back + 1.2], color: "#cbd5e1" });
     return;
   }
 
@@ -593,6 +652,103 @@ function across(t: Town): void {
   t.pools.push([hcx, hz1 + 1.5, 10, 3]);
 }
 
+
+/* ------------------------------------------------------------------ the school */
+
+/**
+ * A Filipino college campus: a three-storey classroom wing running back from the road with open corridors
+ * and railings on its courtyard side, a second wing across the back, a covered court with a stage, the
+ * flagpole in the quadrangle, and a fence along the road with an arched gate carrying the name.
+ */
+function school(t: Town): void {
+  const S = t.solid;
+  const z0 = FAR_WALK.z1 + 0.6, z1 = z0 + 16;
+  const { x0, x1, gateX } = SCHOOL;
+  const wall = "#f3ede1", trim = "#7f1d1d", gold = "#fbbf24", rail = "#e5e7eb";
+  // the grounds: a concrete quadrangle
+  S.push({ size: [x1 - x0, 0.04, z1 - z0], pos: [(x0 + x1) / 2, -0.1, (z0 + z1) / 2], color: "#cfcac0" });
+  S.push({ size: [8, 0.05, 6], pos: [gateX + 1.5, -0.085, z0 + 6], color: "#a3b18a" });
+
+  const FL = 3.1; // floor height
+  // wing A along z, its corridor on the +x (courtyard, camera) side
+  const ax0 = x0 + 0.4, ax1 = x0 + 4.6, az0 = z0 + 2.2, az1 = z1 - 0.4;
+  const aw = ax1 - ax0, ad = az1 - az0, acx = (ax0 + ax1) / 2, acz = (az0 + az1) / 2;
+  S.push({ size: [aw, FL * 3, ad], pos: [acx, (FL * 3) / 2 - 0.1, acz], color: wall });
+  for (let f = 0; f < 3; f++) {
+    const y = f * FL;
+    // the corridor slab, its maroon edge, the railing and the classroom windows and doors behind it
+    S.push({ size: [1.5, 0.16, ad], pos: [ax1 + 0.75, y + FL - 0.12, acz], color: "#d6d3cc" });
+    S.push({ size: [0.08, 0.24, ad], pos: [ax1 + 1.5, y + FL - 0.12, acz], color: trim });
+    if (f < 2) {
+      S.push({ size: [0.05, 0.05, ad], pos: [ax1 + 1.48, y + FL + 0.85, acz], color: rail });
+      for (let k = 0; k <= 22; k++) S.push({ size: [0.03, 0.85, 0.03], pos: [ax1 + 1.48, y + FL + 0.42, az0 + (k * ad) / 22], color: rail });
+    }
+    for (let k = 0; k < 5; k++) {
+      const wz = az0 + 1.4 + k * ((ad - 2.4) / 4);
+      t.shopWins.push({ x: ax1 + 0.04, y: y + 1.5, z: wz, w: 1.6, h: 1.1, face: "x" });
+      grill(t, ax1 + 0.06, y + 1.5, wz, 1.6, 1.1, "#e5e7eb");
+      S.push({ size: [0.06, 2.0, 0.9], pos: [ax1 + 0.03, y + 0.9, wz + 1.25], color: "#6b4a33" });
+    }
+  }
+  for (let k = 0; k <= 6; k++) S.push({ size: [0.24, FL * 3, 0.24], pos: [ax1 + 1.4, (FL * 3) / 2 - 0.1, az0 + (k * ad) / 6], color: wall });
+  // roof: GI gable, the name along its parapet facing the courtyard
+  S.push({ shape: "gable", size: [ad + 0.4, 1.3, aw + 2.2], pos: [acx + 0.75, FL * 3 - 0.1, acz], rotY: Math.PI / 2, color: trim });
+  t.signs.push({ id: "rcc", x: ax1 + 1.56, y: FL * 3 - 0.55, z: acz, w: 8.4, h: 0.62, sideX: true });
+
+  // wing B across the back, two storeys; windows on its road side (the corridor faces the road)
+  const bx0 = ax1 + 1.6, bx1 = x1 - 0.4, bz0 = z1 - 4.4, bz1 = z1 - 0.4;
+  const bw = bx1 - bx0, bcx = (bx0 + bx1) / 2, bcz = (bz0 + bz1) / 2;
+  S.push({ size: [bw, FL * 2, bz1 - bz0], pos: [bcx, FL - 0.1, bcz], color: wall });
+  for (let f = 0; f < 2; f++) {
+    for (let k = 0; k < 6; k++) {
+      const wx = bx0 + 1.2 + k * ((bw - 2.4) / 5);
+      t.shopWins.push({ x: wx, y: f * FL + 1.5, z: bz1 + 0.04, w: 1.4, h: 1.0 });
+      grill(t, wx, f * FL + 1.5, bz1 + 0.08, 1.4, 1.0, "#e5e7eb");
+    }
+    S.push({ size: [bw, 0.2, 0.1], pos: [bcx, (f + 1) * FL - 0.1, bz1 + 0.05], color: trim });
+  }
+  S.push({ size: [bw + 0.2, 0.5, bz1 - bz0 + 0.2], pos: [bcx, FL * 2, bcz], color: trim });
+  t.signs.push({ id: "rcc", x: bcx, y: FL * 2, z: bz1 + 0.12, w: 7.2, h: 0.5 });
+  t.signs.push({ id: "rcc", x: bcx, y: FL * 2, z: bz0 - 0.12, w: 7.2, h: 0.5, back: true });
+
+  // the covered court in the quadrangle: posts, a curved roof, a stage at the back
+  const cx0 = bx0 + 1.5, cx1 = bx1 - 0.5, cz0 = z0 + 3.4, cz1 = bz0 - 1.4;
+  for (const px of [cx0, (cx0 + cx1) / 2, cx1]) for (const pz of [cz0, cz1]) S.push({ size: [0.22, 4.8, 0.22], pos: [px, 2.3, pz], color: "#6b7280" });
+  S.push({ size: [cx1 - cx0 + 0.6, 0.08, cz1 - cz0 + 0.6], pos: [(cx0 + cx1) / 2, 4.75, (cz0 + cz1) / 2], rot: [0, 0, 0], color: "#1e3a8a" });
+  S.push({ shape: "gable", size: [cx1 - cx0 + 0.6, 0.7, cz1 - cz0 + 0.6], pos: [(cx0 + cx1) / 2, 4.8, (cz0 + cz1) / 2], color: "#1e3a8a" });
+  S.push({ size: [cx1 - cx0 - 0.4, 0.02, cz1 - cz0 - 0.4], pos: [(cx0 + cx1) / 2, -0.07, (cz0 + cz1) / 2], color: "#3b7a6a" });
+  S.push({ size: [4.5, 0.6, 1.4], pos: [(cx0 + cx1) / 2, 0.2, cz1 - 0.8], color: "#d6d3cc" });
+  t.pools.push([(cx0 + cx1) / 2, (cz0 + cz1) / 2, cx1 - cx0, cz1 - cz0]);
+  t.nightWins.push({ x: (cx0 + cx1) / 2, y: 4.6, z: cz1 + 0.12, w: 2.5, h: 0.08 });
+
+  // the flagpole by the gate
+  const fx = gateX - 4.2, fz = z0 + 2.2;
+  S.push({ size: [1.4, 0.3, 1.4], pos: [fx, 0.05, fz], color: "#d6d3cc" });
+  S.push({ shape: "cyl", size: [0.05, 6.2, 8], pos: [fx, 3.1, fz], color: "#e5e7eb" });
+  S.push({ size: [1.3, 0.33, 0.02], pos: [fx + 0.67, 5.85, fz], color: "#0038a8" });
+  S.push({ size: [1.3, 0.33, 0.02], pos: [fx + 0.67, 5.52, fz], color: "#ce1126" });
+  S.push({ size: [0.4, 0.66, 0.03], pos: [fx + 0.22, 5.69, fz], color: "#ffffff" });
+
+  // the fence along the road and the arched gate with the name over it, both faces
+  const FZ = z0 + 0.15, gw = 4.2;
+  const fence = (a: number, b: number) => {
+    S.push({ size: [b - a, 0.7, 0.2], pos: [(a + b) / 2, 0.25, FZ], color: wall });
+    for (let x = a; x <= b + 0.01; x += 2.5) S.push({ size: [0.3, 1.8, 0.3], pos: [x, 0.8, FZ], color: trim });
+    for (let x = a + 0.15; x < b; x += 0.25) S.push({ size: [0.03, 1.0, 0.03], pos: [x, 1.1, FZ], color: "#1f2937" });
+  };
+  fence(x0, gateX - gw / 2); fence(gateX + gw / 2, x1);
+  for (const px of [gateX - gw / 2, gateX + gw / 2]) S.push({ size: [0.55, 3.6, 0.55], pos: [px, 1.7, FZ], color: trim });
+  S.push({ size: [gw + 0.6, 0.85, 0.45], pos: [gateX, 3.5, FZ], color: trim });
+  S.push({ size: [gw + 0.7, 0.1, 0.5], pos: [gateX, 3.95, FZ], color: gold });
+  t.signs.push({ id: "rcc", x: gateX, y: 3.5, z: FZ + 0.24, w: gw + 0.3, h: 0.7 });
+  t.signs.push({ id: "rcc", x: gateX, y: 3.5, z: FZ - 0.24, w: gw + 0.3, h: 0.7, back: true });
+  t.pools.push([gateX, FZ, 5, 3]);
+  // the guard house by the gate
+  S.push({ size: [1.4, 2.3, 1.4], pos: [gateX + gw / 2 + 1.2, 1.05, FZ + 1.1], color: wall });
+  S.push({ size: [1.6, 0.12, 1.6], pos: [gateX + gw / 2 + 1.2, 2.25, FZ + 1.1], color: trim });
+  t.nightWins.push({ x: gateX + gw / 2 + 0.48, y: 1.3, z: FZ + 1.1, w: 0.9, h: 0.7, face: "x" });
+}
+
 /* ------------------------------------------------------------------ meshes */
 
 function planes(wins: readonly Win[]): THREE.BufferGeometry | null {
@@ -607,6 +763,7 @@ function build() {
   EST.forEach((e) => establishment(t, e));
   houses(t);
   across(t);
+  school(t);
   const signGeo = mergePlaced(t.signs.map((s) => ({ geometry: signPlane(s.w, s.h, cellOf(s.id)), matrix: placed([s.x, s.y, s.z], [0, s.back ? Math.PI : s.sideX ? Math.PI / 2 : 0, 0]) })));
   const poolPlane = new THREE.PlaneGeometry(1, 1);
   const pools = mergePlaced(t.pools.map(([x, z, w, d]) => ({ geometry: poolPlane, matrix: placed([x, 0.015, z], [-Math.PI / 2, 0, 0], [w, d, 1]) })));

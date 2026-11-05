@@ -35,11 +35,14 @@ export const BACK_X = { x0: -70, x1: 90 } as const;
 /** Lane centre and direction of each back street's single slow lane. */
 export const BACK_LANE = [BACK_STREETS[0].z0 + 1.6, BACK_STREETS[1].z0 + 1.6] as const;
 
+/** Republic Central Colleges' campus across the street, east of the barangay hall (students go in at its gate). */
+export const SCHOOL = { x0: 57.5, x1: 77.5, gateX: 66.5 } as const;
+
 /** One big ground plane: wide enough that zoomed all the way out, panned to the edge, you still see ground. */
 export const GROUND = { cx: 10, cz: 8, size: 420 } as const;
 
 /** Where the camera target may go: the whole neighbourhood, not the empty fields past it. */
-export const TOWN = { x0: -26, x1: 50, z0: -12, z1: FAR_WALK.z1 + 10 } as const;
+export const TOWN = { x0: -26, x1: 66, z0: -12, z1: FAR_WALK.z1 + 10 } as const;
 
 /** The office's own yard to the right of the patio (dog, trees), before the next shop. */
 export const YARD_X1 = OUTSIDE.x1 + 5.7;

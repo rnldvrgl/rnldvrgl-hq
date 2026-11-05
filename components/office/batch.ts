@@ -7,10 +7,10 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
  * material instead of one per part. Built once (useMemo) and never touched again.
  */
 
-export type Shape = "box" | "gable" | "cyl";
+export type Shape = "box" | "gable" | "cyl" | "cone";
 export type Part = {
   shape?: Shape;
-  /** Box: [w, h, d]. Gable roof: [w along x, ridge height, d] (ridge runs along x). Cylinder: [radius, h, segments]. */
+  /** Box: [w, h, d]. Gable roof: [w along x, ridge height, d] (ridge runs along x). Cylinder / cone: [radius, h, segments]. */
   size: readonly [number, number, number];
   /** Centre of a box / cylinder; for a gable roof, the centre of its base. */
   pos: readonly [number, number, number];
@@ -44,6 +44,7 @@ function partGeometry(p: Part): THREE.BufferGeometry {
   let g: THREE.BufferGeometry;
   if (p.shape === "gable") g = gable(a, b, c);
   else if (p.shape === "cyl") g = new THREE.CylinderGeometry(a, a, b, Math.max(3, Math.round(c)));
+  else if (p.shape === "cone") g = new THREE.ConeGeometry(a, b, Math.max(3, Math.round(c)));
   else g = new THREE.BoxGeometry(a, b, c);
   const flat = g.index ? g.toNonIndexed() : g;
   if (flat !== g) g.dispose();
