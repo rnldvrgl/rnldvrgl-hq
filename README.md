@@ -354,8 +354,10 @@ Use the clock and weather buttons at the top left of the office to preview any o
   - **Show in the office:** turn off the neighbourhood, traffic, street vendors, trees, pets, weather effects, street lights, vape smoke or name bubbles on slower devices.
   - **Daily routine:** switch off the stand-up, team sync, lunch, binning trash, the trash run, the commute, the janitor, breaks when idle, or going to the boss for help. Off means they stay at their desks.
   - **Boss:** the look (him: street style; her: soft street style with long wavy hair and a skirt), the corner office's style (Match the boss, Executive, Gaming, Cozy, Minimal, Creator studio or Filipino heritage; "Match the boss" is executive for him and cozy for her), and whether the boss walks around on their own.
-  - **Sound:** office music through the speakers and subwoofer under the big TV during office hours (8 AM – 7 PM), in one of six styles, all generated live (no audio files): Cozy lo-fi, Café jazz, Bossa nova, Calm piano, Night drive (synthwave) and 8-bit arcade. Pick one here or under **Music → Office radio**. It only plays when the office sound is on (and pauses while Spotify plays); the woofer cone pumps on the kick. **Who-needs-you chimes:** each employee has their own three-note tune that plays the moment they start needing you.
+  - **Sound:** office music through the speakers and subwoofer under the big TV during office hours (8 AM – 7 PM), in one of six styles, all generated live (no audio files): Cozy lo-fi, Café jazz, Bossa nova, Calm piano, Night drive (synthwave) and 8-bit arcade. Pick one here or under **Music → Office radio**. It only plays when the office sound is on (and pauses while Spotify plays); the woofer cone pumps on the kick. **Who-needs-you chimes:** each employee has their own three-note tune that plays the moment they start needing you. **Volume:** a slider for each kind of sound (office radio, office hum, keyboards, rain & thunder, street & nature, alerts) and one for all of it, 0–150 %; tap a channel's speaker icon to mute just that. The same sliders are under **Music → Office sound volumes**.
   - **Account:** add or remove passkeys for this device.
+
+**Moving around:** drag to pan, pinch or scroll to zoom. To turn the view, right-drag with a mouse or drag with two fingers on a phone, or tap the **Turn** button (bottom right, above Reset view), which swings the view across its range in steps.
 
 The lightning button at the bottom right is a shortcut for low-power rendering.
 
@@ -370,7 +372,7 @@ HQ is built to be cloned for another person (a different boss, team names, city 
    - `owner.office`: the corner office's default style, `"auto"`, `"executive"`, `"gaming"`, `"cozy"`, `"minimal"`, `"studio"` or `"heritage"`.
    - `appName` / `shortName`.
    - `style`: `"slate"`, `"blush"` or `"mango"`.
-   - `login`: the sign-in page's `tagline` (under "Good morning, …"), and its `backdrop`: `"street"` (the office's street at this hour in their city) or `"aurora"` (soft colour fields in the colour style). The greeting, the app name, the city, the team and the colours on the sign-in page all come from this file too.
+   - `login`: the sign-in page's `tagline` (under "Good morning, …"), and its `backdrop`: `"street"` (the office's street at this hour in their city) or `"aurora"` (soft colour fields in the colour style); and `askAgain`, when to ask for the sign-in again after HQ is closed: `"phones"` (the default: phones and tablets; each time you open the app or a new tab you sign in again, handy with a passkey), `"always"` (every device) or `"never"` (stay signed in for weeks). The greeting, the app name, the city, the team and the colours on the sign-in page all come from this file too.
    - `city`: the name, clock label and latitude / longitude for the weather.
    - `town`: `barangay` (the name on the barangay hall) and `realBrands`. Set `realBrands` to `false` for a copy you publish: the signs then show made-up names instead of Jollibee, McDonald's, Shell, Petron, 7-Eleven and Mercury Drug, whose names are their owners' trademarks.
    - `car`: the plate and badge.
@@ -382,7 +384,7 @@ HQ is built to be cloned for another person (a different boss, team names, city 
 
 ## Spotify in the office
 
-The **Music** button (top-right of the office, under the sound button) is a Spotify remote: see what's playing on any of your devices (song, artist, cover, progress), pause or skip, change the volume, start one of your playlists, or read the **lyrics**, which scroll along with the song. While Spotify plays, the office speakers' woofers pump along and HQ's own office radio goes quiet.
+The **Music** button (top-right of the office, under the sound button) is a Spotify remote: see what's playing on any of your devices (song, artist, cover, progress), pause or skip, change the volume, start one of your playlists, **choose where it plays** (this HQ tab, your phone, a speaker or TV with Spotify Connect, like the Spotify app's device picker; tap **Playing on … → Device**), or read the **lyrics**, which scroll along with the song. While Spotify plays, the office speakers' woofers pump along and HQ's own office radio goes quiet.
 
 A small **now-playing card** floats in the bottom-left corner of the office. It grows for a few seconds whenever the song changes, so you can see what just came on, then shrinks back to the cover and title. Tap it to keep it open, with controls and the line being sung right now.
 
