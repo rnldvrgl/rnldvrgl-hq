@@ -19,7 +19,7 @@ import {
 import { launchDelivery } from "./Deliveries";
 import { useSceneNow } from "./scene-clock-ui";
 import { OWNER, OWNERS } from "@/hq.config";
-import { useSettings } from "@/lib/settings";
+import { clockLabel, useSettings, workHours } from "@/lib/settings";
 
 const HAIR: readonly HairStyle[] = ["bun", "short", "short", "long", "neat", "long", "short", "bun"];
 const PANTS = ["#2f3a4a", "#3b3f46", "#4b5563", "#1f2937"] as const;
@@ -38,7 +38,7 @@ type Activity =
  * run (today's collector); 5:30 PM drop-off (everyone); then, only if idle, the weekday stand-up, lunch,
  * the commute and being home for the night. Anyone busy stays at their desk.
  */
-function activityOf(min: number, weekday: boolean, meta: EmployeeMeta, index: number, status: EmployeeStatus, enabled: boolean, duty: EmployeeId | null): Activity {
+export function activityOf(min: number, weekday: boolean, meta: EmployeeMeta, index: number, status: EmployeeStatus, enabled: boolean, duty: EmployeeId | null): Activity {
   if (!enabled) return { kind: "away", why: "paused" };
   const on = useSettings.getState().routine;
   const route = (purpose: Purpose, r: Route, t: number): Activity => ({ kind: "route", route: r, t, reverse: false, purpose });
@@ -59,9 +59,10 @@ function activityOf(min: number, weekday: boolean, meta: EmployeeMeta, index: nu
     }
     const lunch = on.lunch ? lunchRunT(min, meta.id) : null;
     if (lunch !== null) return route("lunch", lunchRoute(meta.id), lunch);
-    const c = on.commute ? commuteAt(min, meta, index) : null;
+    const hours = workHours("team");
+    const c = on.commute ? commuteAt(min, meta, index, hours) : null;
     if (c) return { kind: "route", route: c.route, t: c.t, reverse: c.reverse, purpose: c.reverse ? "arriving" : "leaving" };
-    if (isAfterHours(min)) return { kind: "away", why: "home" };
+    if (isAfterHours(min, hours)) return { kind: "away", why: "home" };
   }
   return { kind: "seat" };
 }
@@ -134,6 +135,7 @@ export function Employee3D({ meta, index, pal, shadows, reducedMotion, duty }: P
   const selected = useOffice((s) => s.selected === meta.id);
   const enabled = emp?.enabled ?? true;
   useSettings((s) => s.routine); // re-render the bubble when the daily routine changes
+  useSettings((s) => s.hours);
   const status: EmployeeStatus = emp?.status ?? "idle";
   const shirt = SHIRTS[meta.color - 1];
 
@@ -274,7 +276,7 @@ export function Employee3D({ meta, index, pal, shadows, reducedMotion, duty }: P
   if (activity.kind === "away") {
     chip = undefined;
     if (activity.why === "paused") { tone = "off"; label = "Paused"; Icon = Pause; detail = "Resume from the desk panel"; }
-    else { tone = "off"; label = "Home"; Icon = House; detail = "Back 7:00 AM"; }
+    else { tone = "off"; label = "Home"; Icon = House; detail = `Back ${clockLabel(useSettings.getState().hours.teamIn)}`; }
   } else if (activity.kind === "route") {
     chip = undefined;
     if (activity.purpose === "collect") {
@@ -290,7 +292,7 @@ export function Employee3D({ meta, index, pal, shadows, reducedMotion, duty }: P
       tone = "idle"; label = "Team sync"; Icon = Presentation; detail = "Meeting room · until 2:15 PM";
     } else if (activity.purpose === "standup") {
       tone = "idle"; label = "Stand-up"; Icon = Users; detail = "Daily 9:00 AM";
-    } else if (activity.purpose === "leaving") { tone = "off"; label = "Heading home"; Icon = LogOut; detail = "See you at 7 AM"; }
+    } else if (activity.purpose === "leaving") { tone = "off"; label = "Heading home"; Icon = LogOut; detail = `See you at ${clockLabel(useSettings.getState().hours.teamIn)}`; }
     else { tone = "idle"; label = "Clocking in"; Icon = LogIn; detail = "Good morning"; }
   } else if (status === "working") {
     tone = "working"; label = "Working"; busy = !reducedMotion; detail = meta.title;

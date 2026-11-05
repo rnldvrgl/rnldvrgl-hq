@@ -8,6 +8,8 @@ import {
   hm, JANITOR_ROUNDS, TRASH_AT, TRASH_DROP_AT, HOME_FROM, BACK_AT, LUNCH_FROM, LUNCH_TO, STANDUP_FROM, STANDUP_TO, VAPE_FROM, VAPE_TO, MEETING_FROM, MEETING_TO,
 } from "@/lib/office-clock";
 import { DESK, DINING, DUMPSTER, ENTRANCE, HUDDLE, LANES, MAIN_BIN, MEETING, OFFICE, OUTSIDE, ROOM, VAPE } from "./palette";
+import { BACK_STREETS, SIDE_STREET, SIDEWALK } from "./world";
+import { homeOf, type Who } from "./homes";
 
 export type Pt = { readonly x: number; readonly z: number };
 export type Act = "rise" | "sit" | "pickup" | "drop" | "toss" | "inspect" | "coffee" | "look" | "eat" | "listen" | "lead" | "vape" | "meet";
@@ -387,9 +389,28 @@ export function standupRunT(min: number, id: EmployeeId): number | null {
 
 /* ------------------------------------------------------------------ going home and coming back */
 
+/** The sidewalk lane people walk home along (clear of the trees and lamp posts out front). */
+const HOME_WALK_Z = SIDEWALK.z0 + 0.3;
+/** Up the side street by the office, on its office-side edge. */
+const SIDE_X = SIDE_STREET.x1 - 0.35;
+/** Along the residential street on the houses' side. */
+const BACK_WALK_Z = BACK_STREETS[0].z0 + 0.45;
+
+/**
+ * From the office's front walkway to someone's front door: along the sidewalk to the side street, up it to the
+ * residential street behind the office, along that to their gate, through the yard to the door.
+ */
+function walkHome(who: Who): Pt[] {
+  const h = homeOf(who);
+  return [
+    P(STREET.x, HOME_WALK_Z), P(SIDE_X, HOME_WALK_Z), P(SIDE_X, BACK_WALK_Z),
+    P(h.gate.x, BACK_WALK_Z), P(h.gate.x, h.gate.z), P(h.door.x, h.door.z + 0.6), P(h.door.x, h.door.z),
+  ];
+}
+
 function buildCommute(m: EmployeeMeta): Route {
   const c = chairOf(m);
-  return compile([...outOfChair(m), ...toEntrance(P(c.x, laneZOf(m))), DOOR, DOOR_OUT, STREET], WALK);
+  return compile([...outOfChair(m), ...toEntrance(P(c.x, laneZOf(m))), DOOR, DOOR_OUT, STREET, ...walkHome(m.id)], WALK);
 }
 
 const commutes = new Map<EmployeeId, Route>();
@@ -403,17 +424,19 @@ function commute(m: EmployeeMeta): Route {
 const STAGGER_S = 9;
 
 export type Commute = { route: Route; t: number; reverse: boolean };
+/** Minutes since Manila midnight: arriving (`back`) and going home (`from`). */
+export type OfficeHours = { back: number; from: number };
 
 /**
  * If this idle employee is mid-commute right now, where on the route they are.
  * `reverse` means arriving in the morning (the leave route walked backwards).
  */
-export function commuteAt(min: number, m: EmployeeMeta, index: number): Commute | null {
+export function commuteAt(min: number, m: EmployeeMeta, index: number, hours: OfficeHours = { from: HOME_FROM, back: BACK_AT }): Commute | null {
   const route = commute(m);
-  const leaveT = (min - HOME_FROM) * 60 - index * STAGGER_S;
+  const leaveT = (min - hours.from) * 60 - index * STAGGER_S;
   if (leaveT >= 0 && leaveT <= route.duration) return { route, t: leaveT, reverse: false };
-  // arrive so that they sit down at BACK_AT minus their stagger
-  const arriveEnd = BACK_AT * 60 - (TEAM.length - index) * STAGGER_S;
+  // arrive so that they sit down at the arrival time minus their stagger
+  const arriveEnd = hours.back * 60 - (TEAM.length - index) * STAGGER_S;
   const arriveT = min * 60 - (arriveEnd - route.duration);
   if (arriveT >= 0 && arriveT <= route.duration) return { route, t: route.duration - arriveT, reverse: true };
   return null;
@@ -509,6 +532,25 @@ const leadRoute = memo((_: "lead"): Route => {
     { ...LEADER_SPOT, wait: Math.max(1, hold), act: "lead", face: LEADER_SPOT.face },
     ...[...out].reverse(), { ...OWNER_CHAIR, wait: 1.1, act: "sit", face: FACE_BACK }], OWNER_SPEED);
 });
+
+/** The boss's walk home: out of the corner office, through the entrance, and home to the house behind the office. */
+const ownerCommute = memo((_: "home"): Route => compile([
+  { ...OWNER_CHAIR, wait: 1.1, act: "rise", face: FACE_BACK },
+  OWNER_STAND, OFFICE_DOOR_IN, OFFICE_DOOR_OUT, ...toEntrance(P(OFFICE.doorX, LANES.mid)), DOOR, DOOR_OUT, STREET, ...walkHome("owner"),
+], OWNER_SPEED));
+
+/**
+ * The boss going home at `hours.from` and coming back at `hours.back` (the walk home played backwards,
+ * timed to sit down on the hour). `home` is true while they're at home.
+ */
+export function ownerCommuteAt(min: number, hours: OfficeHours): { route: Route; t: number; reverse: boolean } | { home: true } | null {
+  const route = ownerCommute("home");
+  const leaveT = (min - hours.from) * 60;
+  if (leaveT >= 0 && leaveT <= route.duration) return { route, t: leaveT, reverse: false };
+  const arriveT = min * 60 - (hours.back * 60 - route.duration);
+  if (arriveT >= 0 && arriveT <= route.duration) return { route, t: route.duration - arriveT, reverse: true };
+  return min >= hours.from || min < hours.back ? { home: true } : null;
+}
 
 /** Ronald leading the weekday stand-up, if it's on. He leaves his desk 20 s early. */
 export function ownerStandupAt(weekday: boolean, min: number): { route: Route; t: number } | null {

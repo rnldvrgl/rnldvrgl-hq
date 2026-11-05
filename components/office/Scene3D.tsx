@@ -4,7 +4,7 @@ import { useEffect, useRef, type RefObject } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { AdaptiveDpr, CameraControls, CameraControlsImpl } from "@react-three/drei";
-import { useOffice, useTrashDuty } from "@/lib/store";
+import { sceneNow, useOffice, useTrashDuty } from "@/lib/store";
 import { TEAM, teamById } from "@/lib/team";
 import { MANILA_OFFSET_MS } from "@/lib/time";
 import { useIsDesktop, usePrefersReducedMotion } from "@/hooks/use-media";
@@ -12,7 +12,8 @@ import { Room } from "./Room";
 import { Desk3D, DRAG_PX } from "./Desk3D";
 import { Employee3D } from "./Employee3D";
 import { OwnerOffice } from "./OwnerOffice";
-import { Owner, Janitor } from "./Staff";
+import { Owner, Janitor, ownerIsHome } from "./Staff";
+import { HomeBadges } from "./HomeBadges";
 import { Amenities } from "./Amenities";
 import { Grounds } from "./Grounds";
 import { Pets } from "./Pets";
@@ -242,7 +243,7 @@ function SoundListener() {
       const c = chairOf(m);
       place(m.id, c.x, c.z, !!e?.enabled && e.status === "working");
     }
-    place("owner", OWNER_CHAIR.x, OWNER_CHAIR.z, true);
+    place("owner", OWNER_CHAIR.x, OWNER_CHAIR.z, !ownerIsHome(sceneNow()));
   });
   return null;
 }
@@ -319,6 +320,7 @@ export default function Scene3D() {
         {show.neighbourhood && <Neighbourhood />}
         {show.neighbourhood && <PlaceHits />}
         {show.neighbourhood && <TrafficLights />}
+        {show.neighbourhood && show.homeNames && <HomeBadges />}
         {show.traffic && !minimal && <Traffic />}
         {walkers > 0 && !minimal && <Walkers count={lowPower ? Math.min(walkers, 10) : walkers} />}
         {show.vendors && <Vendors shadows={shadows} frozen={minimal} />}

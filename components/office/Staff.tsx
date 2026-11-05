@@ -3,15 +3,15 @@
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
-import { Coffee, Crown, Footprints, Megaphone, ShoppingBag, Sparkles, Wind, type LucideIcon } from "lucide-react";
+import { Coffee, Crown, Footprints, LogIn, LogOut, Megaphone, ShoppingBag, Sparkles, Wind, type LucideIcon } from "lucide-react";
 import { sceneNow, useOffice, type BossErrandKind, type BossErrandState } from "@/lib/store";
-import { useSettings } from "@/lib/settings";
+import { clockLabel, useSettings, workHours } from "@/lib/settings";
 import { isWeekday, manilaDay, manilaMinutes } from "@/lib/office-clock";
 import { TEAM } from "@/lib/team";
 import { DESK, PAL, ROOM, type Palette } from "./palette";
 import { Person, applyPose, REST, type Look, type Pose, type PersonRig } from "./Person";
 import { Bubble } from "./Bubble";
-import { OWNER_CHAIR, WET_SIGN, bossErrandRoute, janitorAt, ownerStandupAt, ownerTourAt, sample, type Route } from "./routes";
+import { OWNER_CHAIR, WET_SIGN, bossErrandRoute, janitorAt, ownerCommuteAt, ownerStandupAt, ownerTourAt, sample, type Route } from "./routes";
 import { VaporPuffs, vapePose } from "./Employee3D";
 import { useSceneNow } from "./scene-clock-ui";
 import { HQ, type BossLook } from "@/hq.config";
@@ -29,7 +29,7 @@ function nearestEmployee(x: number, z: number): string | null {
   return best;
 }
 
-type Outing = { route: Route; t: number; coffee: boolean; standup: boolean; errand: BossErrandKind | null };
+type Outing = { route: Route; t: number; coffee: boolean; standup: boolean; errand: BossErrandKind | null; commute?: "leaving" | "arriving" };
 
 /** A finished errand stays "finished" (back at the desk) until the next one is sent. */
 function errandAt(e: BossErrandState | null): Outing | null {
@@ -39,17 +39,26 @@ function errandAt(e: BossErrandState | null): Outing | null {
   return t <= route.duration ? { route, t, coffee: e.kind === "coffee", standup: false, errand: e.kind } : null;
 }
 
-/** Where the boss is: on an errand you sent them on, leading the stand-up, on a walk, or (null) at the desk. */
-function ownerOuting(now: Date): Outing | null {
+/**
+ * Where the boss is: on an errand you sent them on, walking home or in, at home ("home"), leading the
+ * stand-up, on a walk, or (null) at the desk.
+ */
+function ownerOuting(now: Date): Outing | "home" | null {
   const errand = errandAt(useOffice.getState().bossErrand);
   if (errand) return errand;
   const { routine, boss } = useSettings.getState();
   const min = manilaMinutes(now);
+  const c = routine.commute ? ownerCommuteAt(min, workHours("boss")) : null;
+  if (c && "home" in c) return "home";
+  if (c) return { route: c.route, t: c.t, coffee: false, standup: false, errand: null, commute: c.reverse ? "arriving" : "leaving" };
   const lead = routine.standup ? ownerStandupAt(isWeekday(now), min) : null;
   if (lead) return { ...lead, coffee: false, standup: true, errand: null };
   const tour = boss.wanders ? ownerTourAt(manilaDay(now), min) : null;
   return tour ? { ...tour, standup: false, errand: null } : null;
 }
+
+/** Is the boss at home right now (gone for the night)? */
+export const ownerIsHome = (now: Date): boolean => ownerOuting(now) === "home";
 
 /** The boss's two looks (Settings → Boss, default in hq.config.ts). */
 export function bossLook(look: BossLook): Look {
@@ -64,7 +73,8 @@ export function bossLook(look: BossLook): Look {
  * The boss: at the desk in the corner office, typing in bursts. Now and then gets up and walks the floor
  * (hands clasped behind the back, stopping behind people to look at their screens with an approving nod),
  * sometimes via the pantry for a coffee. The Boss menu sends them on errands: a vape break on the patio,
- * a walk down the street, a snack run to the sari-sari store, a coffee, a round of the office.
+ * a walk down the street, a snack run to the sari-sari store, a coffee, a round of the office. At the end of
+ * the day (Settings → Office hours) they walk home to the house behind the office, and back in the morning.
  */
 export function Owner({ shadows, reducedMotion }: { pal: Palette; shadows: boolean; reducedMotion: boolean }) {
   const group = useRef<THREE.Group>(null);
@@ -77,12 +87,16 @@ export function Owner({ shadows, reducedMotion }: { pal: Palette; shadows: boole
   // re-render the bubble when an errand starts or a setting changes
   useOffice((s) => s.bossErrand);
   useSettings((s) => s.boss.wanders);
+  useSettings((s) => s.hours);
+  useSettings((s) => s.routine.commute);
 
   useFrame(({ clock }) => {
     const g = group.current, r = rig.current;
     if (!g || !r) return;
     const now = sceneNow();
-    const tour = ownerOuting(now);
+    const out = ownerOuting(now);
+    g.visible = out !== "home";
+    const tour = out === "home" ? null : out;
     const p = pose.current;
     Object.assign(p, REST);
     p.time = reducedMotion ? 0 : clock.elapsedTime;
@@ -96,12 +110,15 @@ export function Owner({ shadows, reducedMotion }: { pal: Palette; shadows: boole
       // types in bursts, then leans back to think
       p.typing = Math.max(0, Math.sin(p.time * 0.35)) > 0.3 ? 1 : 0.1;
     } else {
-      const s = sample(tour.route, tour.t);
+      const back = tour.commute === "arriving";
+      const s0 = sample(tour.route, tour.t);
+      // coming in: the walk home played backwards
+      const s = back ? { ...s0, heading: s0.moving ? s0.heading + Math.PI : s0.heading, dist: tour.route.length - s0.dist } : s0;
       g.position.set(s.x, 0, s.z);
       g.rotation.y = s.heading;
       p.walk = s.moving ? 1 : 0;
       p.stride = reducedMotion ? 0 : s.dist * STRIDE * 0.9;
-      if (s.act === "rise") p.sit = 1 - s.actT;
+      if (s.act === "rise") p.sit = back ? s.actT : 1 - s.actT;
       if (s.act === "sit") p.sit = s.actT;
       // after the coffee machine (or the sari-sari store) the boss carries it back
       const pickAct = tour.errand === "snack" ? "inspect" : "coffee";
@@ -126,9 +143,14 @@ export function Owner({ shadows, reducedMotion }: { pal: Palette; shadows: boole
 
   // Bubble: once a second.
   const now = useSceneNow(1000);
-  const tour = ownerOuting(now);
+  const out = ownerOuting(now);
+  const tour = out === "home" ? null : out;
+  const { hours } = useSettings.getState();
   let status = "Boss", detail = "Main office", Icon: LucideIcon = Crown;
-  if (tour) {
+  if (tour?.commute) {
+    if (tour.commute === "leaving") { status = "Heading home"; detail = `Back ${clockLabel(hours.bossIn)}`; Icon = LogOut; }
+    else { status = "Clocking in"; detail = "Good morning, team"; Icon = LogIn; }
+  } else if (tour) {
     const s = sample(tour.route, tour.t);
     const inside = s.x < ROOM.W && s.z < ROOM.D;
     if (tour.standup) { status = "Stand-up"; detail = s.act === "lead" ? "Leading the 9 AM stand-up" : "Heading to stand-up"; Icon = Megaphone; }

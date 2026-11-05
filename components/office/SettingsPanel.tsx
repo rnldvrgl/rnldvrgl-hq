@@ -8,7 +8,7 @@ import { HOLIDAYS, nextLabel, useHolidayPreview, type Holiday } from "@/lib/holi
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useOffice } from "@/lib/store";
 import {
-  DEFAULT_SETTINGS, LIGHT_SHOW, MUSIC_STYLES, WALKERS_MAX, OFFICE_STYLES, ROUTINE_LABELS, SHOW_LABELS, useSettings, type Motion,
+  ARRIVE_TIMES, DEFAULT_SETTINGS, LEAVE_TIMES, LIGHT_SHOW, MUSIC_STYLES, WALKERS_MAX, OFFICE_STYLES, ROUTINE_LABELS, SHOW_LABELS, clockLabel, useSettings, type Motion,
 } from "@/lib/settings";
 import { STYLES } from "@/lib/theme";
 import { Passkeys } from "./Passkeys";
@@ -41,6 +41,7 @@ export function SettingsPanel({ open, onOpenChange }: { open: boolean; onOpenCha
             <ShowList />
           </Section>
           <Section title="Daily routine" hint="What the team does on the clock. Off = they stay at their desks.">
+            <OfficeHours />
             <RoutineList />
           </Section>
           <Boss />
@@ -248,6 +249,49 @@ function ShowList() {
         <SwitchRow key={key} label={label} hint={hint} checked={show[key]} onChange={(on) => setShow(key, on)} />
       ))}
     </div>
+  );
+}
+
+/** When the team and the boss arrive and walk home (Commute below must be on). */
+function OfficeHours() {
+  const hours = useSettings((s) => s.hours);
+  const setHours = useSettings((s) => s.setHours);
+  const rows = [
+    { who: "Team", inKey: "teamIn", outKey: "teamOut" },
+    { who: HQ.owner.name, inKey: "bossIn", outKey: "bossOut" },
+  ] as const;
+  return (
+    <div className="grid gap-2 rounded-xl border border-border bg-muted/30 p-2.5">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-sm font-medium">Office hours</span>
+        <span className="text-[11px] text-muted-foreground">They walk home to their houses</span>
+      </div>
+      <div className="grid grid-cols-[auto_1fr_1fr] items-center gap-x-2 gap-y-1.5 text-xs">
+        <span />
+        <span className="text-muted-foreground">Arrive</span>
+        <span className="text-muted-foreground">Go home</span>
+        {rows.map((r) => (
+          <div key={r.who} className="contents">
+            <span className="max-w-24 truncate font-medium">{r.who}</span>
+            <TimeSelect label={`${r.who} arrive`} value={hours[r.inKey]} options={ARRIVE_TIMES} onChange={(v) => setHours({ [r.inKey]: v })} />
+            <TimeSelect label={`${r.who} go home`} value={hours[r.outKey]} options={LEAVE_TIMES} onChange={(v) => setHours({ [r.outKey]: v })} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TimeSelect({ label, value, options, onChange }: { label: string; value: string; options: readonly string[]; onChange: (v: string) => void }) {
+  return (
+    <select
+      aria-label={label}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="min-h-9 w-full rounded-lg border border-border bg-background px-2 text-sm focus-visible:outline-2 focus-visible:outline-ring"
+    >
+      {options.map((t) => <option key={t} value={t}>{clockLabel(t)}</option>)}
+    </select>
   );
 }
 

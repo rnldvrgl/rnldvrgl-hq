@@ -14,7 +14,7 @@ import { HQ, type BossLook, type BossOffice } from "@/hq.config";
  *   boss      the boss's look and whether he/she wanders around on their own
  */
 
-export type ShowKey = "neighbourhood" | "traffic" | "vendors" | "pets" | "weather" | "streetLights" | "smoke" | "bubbles" | "trees" | "holidays";
+export type ShowKey = "neighbourhood" | "traffic" | "vendors" | "pets" | "weather" | "streetLights" | "smoke" | "bubbles" | "trees" | "holidays" | "homeNames";
 export type RoutineKey =
   | "standup" | "meeting" | "lunch" | "trashDrop" | "trashRun" | "commute" | "janitor" | "idleBreaks" | "errorHelp";
 export type Motion = "full" | "minimal";
@@ -36,7 +36,30 @@ export type Settings = {
   autoSaver: boolean;
   /** At most this many people walking outside at the busiest hour (0 = none). Fewer is lighter on slow phones. */
   walkers: number;
+  /** Office hours, "HH:MM" Manila time: when the team and the boss arrive and walk home (with Commute on). */
+  hours: Hours;
 };
+export type Hours = { teamIn: string; teamOut: string; bossIn: string; bossOut: string };
+export const DEFAULT_HOURS: Hours = { teamIn: "07:00", teamOut: "19:00", bossIn: "08:00", bossOut: "20:00" };
+/** The times you can pick: arrivals 5–10 AM, going home 3–11:30 PM, on the half hour. */
+const halfHours = (from: number, to: number) => Array.from({ length: (to - from) * 2 + 1 }, (_, i) => {
+  const m = from * 60 + i * 30;
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+});
+export const ARRIVE_TIMES = halfHours(5, 10);
+export const LEAVE_TIMES = halfHours(15, 23).concat("23:30");
+const pickTime = (v: unknown, list: readonly string[], d: string) => (typeof v === "string" && list.includes(v) ? v : d);
+const toMin = (hhmm: string) => { const [h, m] = hhmm.split(":").map(Number); return h * 60 + m; };
+/** Minutes since Manila midnight that `who` arrives (`back`) and goes home (`from`). Reads the live settings. */
+export function workHours(who: "team" | "boss"): { back: number; from: number } {
+  const h = useSettings.getState().hours;
+  return who === "team" ? { back: toMin(h.teamIn), from: toMin(h.teamOut) } : { back: toMin(h.bossIn), from: toMin(h.bossOut) };
+}
+/** "7:00 AM" from "07:00". */
+export function clockLabel(hhmm: string): string {
+  const [h, m] = hhmm.split(":").map(Number);
+  return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
+}
 export const WALKERS_MAX = 40;
 
 /** The office sound system's music styles (see lib/ambience.ts for how each one is played). */
@@ -89,6 +112,7 @@ export const SHOW_LABELS: readonly { key: ShowKey; label: string; hint: string }
   { key: "streetLights", label: "Street lights", hint: "Lamp posts and their glow at night" },
   { key: "smoke", label: "Vape smoke", hint: "Smoke clouds on breaks" },
   { key: "bubbles", label: "Name bubbles", hint: "Status bubbles over people" },
+  { key: "homeNames", label: "House name badges", hint: "Whose house is whose, floating over each home" },
 ];
 
 export const ROUTINE_LABELS: readonly { key: RoutineKey; label: string; hint: string }[] = [
@@ -97,7 +121,7 @@ export const ROUTINE_LABELS: readonly { key: RoutineKey; label: string; hint: st
   { key: "lunch", label: "Lunch", hint: "12:00–12:55 PM at the dining table" },
   { key: "trashDrop", label: "Binning trash", hint: "5:30 PM, everyone to the main bin" },
   { key: "trashRun", label: "Trash run", hint: "5:40 PM, one person takes it out" },
-  { key: "commute", label: "Commute", hint: "Arrive 7 AM, go home 7 PM" },
+  { key: "commute", label: "Commute", hint: "Walk to and from their houses at office hours (below)" },
   { key: "janitor", label: "Janitor rounds", hint: "Mopping at 7 AM, 12 PM and 6 PM" },
   { key: "idleBreaks", label: "Breaks when idle", hint: "Idle people hang out on the patio" },
   { key: "errorHelp", label: "Ask the boss for help", hint: "On an error, wait in the boss's office" },
@@ -106,7 +130,7 @@ export const ROUTINE_LABELS: readonly { key: RoutineKey; label: string; hint: st
 const KEY = "hq:settings";
 
 export const DEFAULT_SETTINGS: Settings = {
-  show: { neighbourhood: true, traffic: true, vendors: true, pets: true, weather: true, streetLights: true, smoke: true, bubbles: true, trees: true, holidays: true },
+  show: { neighbourhood: true, traffic: true, vendors: true, pets: true, weather: true, streetLights: true, smoke: true, bubbles: true, trees: true, holidays: true, homeNames: true },
   motion: "full",
   routine: { standup: true, meeting: true, lunch: true, trashDrop: true, trashRun: true, commute: true, janitor: true, idleBreaks: true, errorHelp: true },
   boss: { look: HQ.owner.look, wanders: true, office: HQ.owner.office },
@@ -116,11 +140,12 @@ export const DEFAULT_SETTINGS: Settings = {
   chimes: true,
   autoSaver: true,
   walkers: 16,
+  hours: DEFAULT_HOURS,
 };
 
 /** Light settings for weak phones: what "Battery saver" switches to in one tap. */
 export const LIGHT_SHOW: Settings["show"] = {
-  neighbourhood: false, traffic: false, vendors: false, pets: false, weather: false, streetLights: false, smoke: false, bubbles: true, trees: false, holidays: false,
+  neighbourhood: false, traffic: false, vendors: false, pets: false, weather: false, streetLights: false, smoke: false, bubbles: true, trees: false, holidays: false, homeNames: false,
 };
 
 function read(): Settings {
@@ -142,6 +167,12 @@ function read(): Settings {
       chimes: v.chimes ?? DEFAULT_SETTINGS.chimes,
       autoSaver: v.autoSaver ?? DEFAULT_SETTINGS.autoSaver,
       walkers: typeof v.walkers === "number" && Number.isFinite(v.walkers) ? Math.max(0, Math.min(WALKERS_MAX, Math.round(v.walkers))) : DEFAULT_SETTINGS.walkers,
+      hours: {
+        teamIn: pickTime(v.hours?.teamIn, ARRIVE_TIMES, DEFAULT_HOURS.teamIn),
+        teamOut: pickTime(v.hours?.teamOut, LEAVE_TIMES, DEFAULT_HOURS.teamOut),
+        bossIn: pickTime(v.hours?.bossIn, ARRIVE_TIMES, DEFAULT_HOURS.bossIn),
+        bossOut: pickTime(v.hours?.bossOut, LEAVE_TIMES, DEFAULT_HOURS.bossOut),
+      },
     };
   } catch {
     return DEFAULT_SETTINGS;
@@ -165,14 +196,15 @@ type SettingsStore = Settings & {
   setChimes: (on: boolean) => void;
   setAutoSaver: (on: boolean) => void;
   setWalkers: (n: number) => void;
+  setHours: (patch: Partial<Hours>) => void;
   reset: () => void;
 };
 
 export const useSettings = create<SettingsStore>()((set, get) => {
   const commit = (patch: Partial<Settings>) => {
     set(patch);
-    const { show, motion, routine, boss, music, musicStyle, volumes, chimes, autoSaver, walkers } = get();
-    save({ show, motion, routine, boss, music, musicStyle, volumes, chimes, autoSaver, walkers });
+    const { show, motion, routine, boss, music, musicStyle, volumes, chimes, autoSaver, walkers, hours } = get();
+    save({ show, motion, routine, boss, music, musicStyle, volumes, chimes, autoSaver, walkers, hours });
   };
   return {
     ...(typeof window === "undefined" ? DEFAULT_SETTINGS : read()),
@@ -188,6 +220,7 @@ export const useSettings = create<SettingsStore>()((set, get) => {
     setChimes: (chimes) => commit({ chimes }),
     setAutoSaver: (autoSaver) => commit({ autoSaver }),
     setWalkers: (n) => commit({ walkers: Math.max(0, Math.min(WALKERS_MAX, Math.round(n))) }),
+    setHours: (patch) => commit({ hours: { ...get().hours, ...patch } }),
     reset: () => commit(DEFAULT_SETTINGS),
   };
 });

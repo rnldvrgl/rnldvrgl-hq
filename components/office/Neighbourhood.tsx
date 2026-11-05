@@ -11,6 +11,7 @@ import { light, getGlowTexture } from "./Lighting";
 import { streetLightLevel } from "./StreetLamp";
 import { canvasTexture, joinGeometries, mergeParts, mergePlaced, partsAt, placed, type Part } from "./batch";
 import { vehicle, type Kind as VehicleKind } from "./Traffic";
+import { HOUSE_SLOTS, homeBySlot, rnd, type Home } from "./homes";
 import { BACK_STREETS, FAR_WALK, SCHOOL, SIDE_STREETS, SIDEWALK, YARD_X1 } from "./world";
 
 /**
@@ -411,23 +412,26 @@ const ROOFS = ["#9b3b2a", "#2f5d8a", "#3f6b4a", "#8a4b2a", "#6b7280", "#b45309"]
 const GATES = ["#1f2937", "#14532d", "#7f1d1d", "#1e3a8a", "#3f3f46"];
 const FENCES = ["#e7e2d6", "#d6d3cc", "#f0e6d2", "#dbe4e8"];
 
-function rnd(seed: number): () => number {
-  let s = (seed * 9301 + 49297) % 2147483647;
-  return () => ((s = (s * 16807) % 2147483647) / 2147483647);
-}
 
-/** One Filipino house on a residential street: front faces +z, its fence and gate on the street edge (gateZ). */
-function house(t: Town, x: number, gateZ: number, i: number, sari: boolean): void {
+const mix = (a: string, b: string, k: number) => `#${new THREE.Color(a).lerp(new THREE.Color(b), k).getHexString()}`;
+
+/**
+ * One Filipino house on a residential street: front faces +z, its fence and gate on the street edge (gateZ).
+ * `own`: someone from the office lives here, so it's done up in their colour (walls a soft tint of it, the
+ * gate and roof in it, a nameplate on the gate post); the boss's is a two-storey with a roof deck.
+ */
+function house(t: Town, x: number, gateZ: number, i: number, sari: boolean, own?: Home): void {
   const r = rnd(i + 3);
   const S = t.solid;
   const w = 5.4 + Math.round(r() * 2) * 0.4;
   const d = 5.2;
   const front = gateZ - 1.9;
   const cx = x + w / 2, cz = front - d / 2;
-  const two = r() < 0.45;
-  const flat = !two && r() < 0.3;
-  const wall = WALLS[i % WALLS.length];
-  const roof = ROOFS[(i * 5) % ROOFS.length];
+  const boss = own?.who === "owner";
+  const two = r() < 0.45 || boss;
+  const flat = (!two && r() < 0.3) || boss;
+  const wall = own ? mix(own.color, "#ffffff", boss ? 0.82 : 0.68) : WALLS[i % WALLS.length];
+  const roof = own ? mix(own.color, "#1f2937", 0.35) : ROOFS[(i * 5) % ROOFS.length];
   const lowH = 2.6;
 
   // concrete yard slab, then the house: painted hollow block downstairs
@@ -444,7 +448,7 @@ function house(t: Town, x: number, gateZ: number, i: number, sari: boolean): voi
 
   if (two) {
     // upstairs overhangs the front a little (a nod to the bahay na bato): wood or paint, its own windows
-    const upper = r() < 0.5 ? "#a16207" : wall;
+    const upper = boss ? "#5b4030" : r() < 0.5 ? "#a16207" : wall;
     S.push({ size: [w + 0.2, 0.14, d + 0.6], pos: [cx, top + 0.02, cz + 0.3], color: "#d6d3cc" });
     S.push({ size: [w + 0.2, 2.3, d + 0.6], pos: [cx, top + 1.2, cz + 0.3], color: upper });
     for (const k of [0.25, 0.72]) {
@@ -467,7 +471,7 @@ function house(t: Town, x: number, gateZ: number, i: number, sari: boolean): voi
   }
 
   // the perimeter fence: painted hollow block with pillars, and a steel gate wide enough for the tricycle
-  const fence = FENCES[i % FENCES.length], gate = GATES[i % GATES.length];
+  const fence = own ? mix(own.color, "#ffffff", 0.85) : FENCES[i % FENCES.length], gate = own ? mix(own.color, "#111827", 0.25) : GATES[i % GATES.length];
   const gx0 = x + 0.2, gx1 = gx0 + 2.6;
   const FH = 1.25;
   const fenceRun = (a: number, b: number) => { if (b - a > 0.05) S.push({ size: [b - a, FH, 0.16], pos: [(a + b) / 2, FH / 2 - 0.1, gateZ], color: fence }); };
@@ -478,6 +482,11 @@ function house(t: Town, x: number, gateZ: number, i: number, sari: boolean): voi
     S.push({ size: [0.36, 0.08, 0.36], pos: [px, FH + 0.24, gateZ], color: "#d6d3cc" });
   }
   S.push({ size: [gx1 - gx0 - 0.3, 1.35, 0.05], pos: [(gx0 + gx1) / 2, 0.62, gateZ], color: gate });
+  if (own) {
+    // the nameplate on the gate post, and a band of their colour along the eaves
+    S.push({ size: [0.4, 0.24, 0.05], pos: [gx1, 0.95, gateZ + 0.18], color: own.color });
+    S.push({ size: [w + 0.04, 0.16, d + 0.04], pos: [cx, lowH - 0.18, cz], color: own.color });
+  }
   for (let k = 1; k < 8; k++) S.push({ size: [0.03, 1.2, 0.07], pos: [gx0 + 0.15 + (k * (gx1 - gx0 - 0.3)) / 8, 0.62, gateZ + 0.02], color: "#9ca3af" });
 
   // potted plants along the fence
@@ -511,15 +520,10 @@ function house(t: Town, x: number, gateZ: number, i: number, sari: boolean): voi
 }
 
 function houses(t: Town): void {
-  let i = 0;
-  BACK_STREETS.forEach((b, row) => {
-    const gateZ = b.z0 - 0.45;
-    for (let x = -46 + row * 3.4; x < 66; x += 7.6) {
-      if (SIDE_STREETS.some((st) => x + 7 > st.x0 - 0.3 && x - 0.5 < st.x1 + 0.3)) continue; // keep the side streets clear
-      house(t, x, gateZ, i, i === 4 || i === 13);
-      i++;
-    }
-  });
+  for (const s of HOUSE_SLOTS) {
+    const own = homeBySlot(s.i);
+    house(t, s.x, s.gateZ, s.i, !own && (s.i === 4 || s.i === 13), own);
+  }
   // a basketball hoop on the residential street (a plywood board nailed to a post)
   const hx = 21.5, hz = BACK_STREETS[0].z1 + 0.35;
   t.solid.push({ size: [0.12, 3.2, 0.12], pos: [hx, 1.5, hz], color: "#6b4a33" });

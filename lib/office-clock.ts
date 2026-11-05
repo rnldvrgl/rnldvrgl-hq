@@ -36,10 +36,13 @@ export function phaseAt(min: number): Phase {
   return "night";
 }
 
-/** Idle employees leave at 7 PM and are back at their desks at 7 AM. Anyone with work to show stays. */
+/**
+ * Idle employees leave at 7 PM and are back at their desks at 7 AM by default (Settings → Daily routine
+ * → Office hours changes it per device). Anyone with work to show stays.
+ */
 export const HOME_FROM = hm("19:00");
 export const BACK_AT = hm("07:00");
-export const isAfterHours = (min: number): boolean => min >= HOME_FROM || min < BACK_AT;
+export const isAfterHours = (min: number, h: { from: number; back: number } = { from: HOME_FROM, back: BACK_AT }): boolean => min >= h.from || min < h.back;
 
 /** The janitor mops during these windows, [start, end) in minutes. */
 export const JANITOR_ROUNDS: readonly (readonly [number, number])[] = [

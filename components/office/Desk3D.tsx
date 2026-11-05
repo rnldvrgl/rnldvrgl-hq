@@ -8,6 +8,7 @@ import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { useOffice, useEmployee, sceneNow } from "@/lib/store";
 import { isAfterHours, manilaMinutes } from "@/lib/office-clock";
+import { workHours } from "@/lib/settings";
 import type { EmployeeMeta } from "@/lib/team";
 import { DESK, SHIRTS, SCENE_FONT, type Palette } from "./palette";
 import { OfficeChair, Plant } from "./Furniture";
@@ -70,7 +71,7 @@ export function Desk3D({ meta, index, pal, shadows, reducedMotion }: Props) {
   useFrame(({ clock }) => {
     const m = screen.current;
     if (!m) return;
-    const home = status === "idle" && isAfterHours(manilaMinutes(sceneNow()));
+    const home = status === "idle" && isAfterHours(manilaMinutes(sceneNow()), workHours("team"));
     const off = !enabled || home;
     const c = off ? colors.off : status === "working" ? colors.on : status === "error" ? colors.error : status === "needs_you" ? colors.needs : colors.idle;
     m.color.copy(c);
