@@ -636,46 +636,54 @@ export class Ambience {
   }
 
   /**
-   * A rooster's crow, "ko-ko-ro-ko-ooo": four rising syllables and a long falling one, a buzzy sawtooth through
-   * two formant filters, with a little vibrato on the last note. `k` picks the bird (pitch and where it is).
+   * A rooster's crow (the tilaok), "ku-kuk-ka-rooo": three short barks rising and a long last note that climbs
+   * then falls, harsh and nasal: two detuned sawtooths, roughened by a fast tremolo, through two broad
+   * formants. `k` picks the bird (pitch, and where it is left to right).
    */
   crow(k: number) {
     const ctx = this.ctx, t0 = ctx.currentTime + 0.02;
-    const base = [560, 640, 500][k % 3];
+    const base = [620, 700, 560][k % 3];
     const pan = [-0.55, 0.15, 0.65][k % 3];
-    const syll: readonly (readonly [number, number, number, number])[] = [
-      // start, length, from pitch, to pitch (× base)
-      [0, 0.16, 1.0, 1.15], [0.2, 0.15, 1.2, 1.3], [0.39, 0.2, 1.35, 1.5], [0.64, 1.0, 1.55, 1.05],
+    // start, length, pitch at start / peak / end (× base)
+    const syll: readonly (readonly [number, number, number, number, number])[] = [
+      [0, 0.12, 0.95, 1.05, 1.0], [0.17, 0.13, 1.05, 1.2, 1.12], [0.36, 0.17, 1.2, 1.35, 1.3], [0.6, 1.05, 1.3, 1.55, 0.95],
     ];
     const out = ctx.createGain();
-    out.gain.value = 0.05;
+    out.gain.value = 0.1;
     const p = ctx.createStereoPanner();
     p.pan.value = pan;
-    const f1 = ctx.createBiquadFilter(), f2 = ctx.createBiquadFilter();
-    f1.type = "bandpass"; f1.frequency.value = 1300; f1.Q.value = 2.5;
-    f2.type = "bandpass"; f2.frequency.value = 2700; f2.Q.value = 3;
-    f1.connect(out); f2.connect(out);
-    out.connect(p).connect(this.bus.street);
-    for (const [at, len, a, b] of syll) {
-      const o = ctx.createOscillator(), g = ctx.createGain();
-      o.type = "sawtooth";
-      const s0 = t0 + at;
-      o.frequency.setValueAtTime(base * a, s0);
-      o.frequency.linearRampToValueAtTime(base * b, s0 + len);
-      if (len > 0.5) {
-        // the vibrato on the long last note
-        const lfo = ctx.createOscillator(), depth = ctx.createGain();
-        lfo.frequency.value = 9; depth.gain.value = base * 0.04;
-        lfo.connect(depth).connect(o.frequency);
-        lfo.start(s0); lfo.stop(s0 + len + 0.05);
+    const f1 = ctx.createBiquadFilter(), f2 = ctx.createBiquadFilter(), hp = ctx.createBiquadFilter();
+    f1.type = "peaking"; f1.frequency.value = 1100; f1.Q.value = 1.1; f1.gain.value = 12;
+    f2.type = "peaking"; f2.frequency.value = 2400; f2.Q.value = 1.4; f2.gain.value = 9;
+    hp.type = "highpass"; hp.frequency.value = 380;
+    hp.connect(f1).connect(f2).connect(out).connect(p).connect(this.bus.street);
+    for (const [at, len, a, peak, b] of syll) {
+      const s0 = t0 + at, s1 = s0 + len;
+      const g = ctx.createGain();
+      // the rasp: a fast tremolo on the voice
+      const rasp = ctx.createGain(), lfo = ctx.createOscillator(), depth = ctx.createGain();
+      lfo.frequency.value = 55 + k * 6; depth.gain.value = 0.35; rasp.gain.value = 0.65;
+      lfo.connect(depth).connect(rasp.gain);
+      // a wobble on the long last note
+      const vib = len > 0.5 ? ctx.createOscillator() : null, vd = ctx.createGain();
+      if (vib) { vib.frequency.value = 7; vd.gain.value = base * 0.03; vib.connect(vd); vib.start(s0); vib.stop(s1 + 0.05); }
+      for (const detune of [-14, 11]) {
+        const o = ctx.createOscillator();
+        if (vib) vd.connect(o.frequency);
+        o.type = "sawtooth";
+        o.detune.value = detune;
+        o.frequency.setValueAtTime(base * a, s0);
+        o.frequency.linearRampToValueAtTime(base * peak, s0 + len * (len > 0.5 ? 0.35 : 0.5));
+        o.frequency.linearRampToValueAtTime(base * b, s1);
+        o.connect(rasp);
+        o.start(s0); o.stop(s1 + 0.05);
       }
+      rasp.connect(g).connect(hp);
       g.gain.setValueAtTime(0.0001, s0);
-      g.gain.exponentialRampToValueAtTime(1, s0 + 0.03);
-      g.gain.setValueAtTime(1, s0 + len * 0.7);
-      g.gain.exponentialRampToValueAtTime(0.0001, s0 + len);
-      o.connect(g);
-      g.connect(f1); g.connect(f2);
-      o.start(s0); o.stop(s0 + len + 0.05);
+      g.gain.exponentialRampToValueAtTime(1, s0 + 0.025);
+      g.gain.setValueAtTime(1, s0 + len * 0.75);
+      g.gain.exponentialRampToValueAtTime(0.0001, s1);
+      lfo.start(s0); lfo.stop(s1 + 0.05);
     }
   }
 
