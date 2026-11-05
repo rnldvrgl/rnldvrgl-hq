@@ -1,6 +1,7 @@
 "use client";
 
 import { applyNames } from "@/lib/names";
+import { applyServerPrefs, isOnTeam } from "@/lib/prefs-client";
 import { create } from "zustand";
 import type { EmployeeId, EmployeeView, OfficeState } from "@/lib/team";
 import type { JobStatus, ReminderRepeat } from "@/lib/supabase/database.types";
@@ -94,7 +95,11 @@ export const useOffice = create<OfficeStore>()((set, get) => ({
   lowPower: typeof window === "undefined" ? false : readLowPower(),
   bossErrand: null,
 
-  hydrate: (data) => { if (applyNames(data.names)) set({ namesVersion: get().namesVersion + 1 }); set({ data }); },
+  hydrate: (data) => {
+    if (applyNames(data.names)) set({ namesVersion: get().namesVersion + 1 });
+    applyServerPrefs(data.prefs, data.hq?.handle);
+    set({ data });
+  },
   select: (id) => set({ selected: id }),
   hover: (id) => set({ hovered: id }),
   previewTime: (hhmm, label) => {
@@ -124,6 +129,7 @@ export const useOffice = create<OfficeStore>()((set, get) => ({
       const data = await call<OfficeState>("/api/state", { cache: "no-store" });
       // renamed someone (here or on another device): the office redraws with the new names
       if (applyNames(data.names)) set({ namesVersion: get().namesVersion + 1 });
+      applyServerPrefs(data.prefs, data.hq?.handle);
       set({ data, offline: false });
     } catch {
       set({ offline: true });
@@ -197,7 +203,7 @@ export function sceneNow(): Date {
 export function useTrashDuty(): EmployeeId | null {
   const employees = useOffice((s) => s.data.employees);
   useOffice((s) => s.timeTravel); // re-run when the previewed day changes
-  return trashDuty(sceneNow(), (id) => employees.find((e) => e.id === id)?.enabled ?? true);
+  return trashDuty(sceneNow(), (id) => isOnTeam(id) && (employees.find((e) => e.id === id)?.enabled ?? true));
 }
 
 /**

@@ -1,4 +1,8 @@
 "use client";
+import { isOnTeam } from "@/lib/prefs-client";
+
+import { handleNow } from "@/lib/prefs-client";
+import { appNameOf } from "@/lib/prefs";
 
 import { useEffect, useRef, type RefObject } from "react";
 import * as THREE from "three";
@@ -240,6 +244,7 @@ function SoundListener() {
       typingSources.set(id, { gain, pan: Math.max(-1, Math.min(1, ear.x)) * 0.8 });
     };
     for (const m of TEAM) {
+      if (!isOnTeam(m.id)) continue;
       const e = employees.find((x) => x.id === m.id);
       const c = chairOf(m);
       place(m.id, c.x, c.z, !!e?.enabled && e.status === "working");
@@ -304,7 +309,7 @@ export default function Scene3D() {
           if (from && Math.hypot(e.clientX - from.x, e.clientY - from.y) > DRAG_PX) return;
           select(null);
         }}
-        aria-label={`${HQ.appName} in 3D. Drag to move around, pinch or scroll to zoom, two-finger drag or right-drag to turn. Select a person or desk to open it.`}
+        aria-label={`${appNameOf(handleNow())} in 3D. Drag to move around, pinch or scroll to zoom, two-finger drag or right-drag to turn. Select a person or desk to open it.`}
         role="img"
       >
         <AdaptiveDpr pixelated={false} />
@@ -331,10 +336,10 @@ export default function Scene3D() {
         {show.pets && <Pets frozen={minimal} />}
         {show.pets && show.neighbourhood && <Roosters />}
         <Amenities pal={pal} shadows={shadows} assignee={duty} />
-        {TEAM.map((meta, i) => (
+        {TEAM.map((meta, i) => isOnTeam(meta.id) && (
           <Desk3D key={meta.id} meta={meta} index={i} pal={pal} shadows={shadows} reducedMotion={reducedMotion} />
         ))}
-        {TEAM.map((meta, i) => (
+        {TEAM.map((meta, i) => isOnTeam(meta.id) && (
           <Employee3D key={meta.id} meta={meta} index={i} pal={pal} shadows={shadows} reducedMotion={reducedMotion} duty={duty} />
         ))}
         <Owner pal={pal} shadows={shadows} reducedMotion={reducedMotion} />

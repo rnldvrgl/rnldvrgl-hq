@@ -1,4 +1,5 @@
 "use client";
+import { isOnTeam } from "@/lib/prefs-client";
 
 import { Suspense, useMemo } from "react";
 import * as THREE from "three";
@@ -387,7 +388,7 @@ function Dashboard({ pal, done, waiting, trashName }: { pal: Palette; done: numb
   const max = Math.max(1, ...(days ?? []).map((d) => d.done + d.failed));
   const weekTotal = (days ?? []).reduce((n, d) => n + d.done, 0);
   const BAR = { x0: R + 0.06, step: 0.17, w: 0.1, y0: 0.13, h: 0.34 };
-  const rows = TEAM.map((m) => {
+  const rows = TEAM.filter((m) => isOnTeam(m.id)).map((m) => {
     const e = employees.find((v) => v.id === m.id);
     const st: EmployeeStatus = e?.status ?? "idle";
     return { name: m.name, st, word: e && !e.enabled ? "off" : STATUS_WORD[st] };

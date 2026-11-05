@@ -87,7 +87,9 @@ export type OfficeState = {
   /** Per employee, what this HQ still has to connect before they can work (empty = hired). */
   hiring?: Partial<Record<EmployeeId, ("ai" | "privateAi" | "google" | "github" | "profile")[]>>;
   /** About this HQ: the founder's (yours) or a friend's. */
-  hq?: { founder: boolean };
+  hq?: { founder: boolean; /** The default handle before one is chosen in Settings. */ handle?: string };
+  /** This HQ's saved preferences (lib/prefs.ts), synced to every device. */
+  prefs?: { prefs: import("@/lib/prefs").Prefs; at: string | null };
   /** Which AI the office is running on right now, and whether private desks may use the backup. */
   ai: { provider: AiProvider; backupAllowsPrivate: boolean };
   employees: EmployeeView[];

@@ -15,12 +15,12 @@ if (!dir || !existsSync(dir)) { console.error("Usage: node scripts/db-restore.mj
 const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
 const FOUNDER = "00000000-0000-4000-8000-000000000001";
-const TABLES = ["hqs", "employees", "runs", "jobs", "interviews", "reminders", "inbox_items", "push_subscriptions", "spotify_auth", "office_names", "hq_invites", "hq_secrets"];
+const TABLES = ["hqs", "employees", "runs", "jobs", "interviews", "reminders", "inbox_items", "push_subscriptions", "spotify_auth", "office_names", "hq_invites", "hq_secrets", "hq_prefs"];
 // what each table's rows are unique by, before and after multi-hq.sql
 const KEYS = {
   hqs: ["id"], employees: ["hq_id,id", "id"], runs: ["id"], jobs: ["id"], interviews: ["id"], reminders: ["id"],
   inbox_items: ["hq_id,message_id", "message_id"], push_subscriptions: ["hq_id,endpoint", "endpoint"],
-  spotify_auth: ["hq_id", "id"], office_names: ["hq_id,id", "id"], hq_invites: ["code"], hq_secrets: ["hq_id,key"],
+  spotify_auth: ["hq_id", "id"], office_names: ["hq_id,id", "id"], hq_invites: ["code"], hq_secrets: ["hq_id,key"], hq_prefs: ["hq_id"],
 };
 
 // does the live database have hq_id yet?

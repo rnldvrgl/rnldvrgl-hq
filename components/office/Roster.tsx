@@ -1,4 +1,5 @@
 "use client";
+import { isOnTeam } from "@/lib/prefs-client";
 
 import { useRef } from "react";
 import { gsap } from "gsap";
@@ -50,7 +51,7 @@ export function Roster({ heading = true }: { heading?: boolean }) {
         </p>
       )}
       <ul className="grid gap-1">
-        {TEAM.map((m) => {
+        {TEAM.filter((m) => isOnTeam(m.id)).map((m) => {
           const e = employees.find((x) => x.id === m.id);
           const Icon = ICONS[m.icon];
           const lamp: LampKey = !e?.enabled ? "off" : e.status;

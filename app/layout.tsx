@@ -19,6 +19,9 @@ export const metadata: Metadata = {
     // Installed from Safari's "Add to Home Screen": full screen, content runs under the status bar.
     appleWebApp: { capable: true, title: HQ.shortName, statusBarStyle: "black-translucent" },
     formatDetection: { telephone: false },
+    // the defaults (sign-in page); the office (app/page.tsx) swaps in its HQ's own name and icon
+    icons: { icon: [{ url: "/icon.svg", type: "image/svg+xml" }], apple: "/hq-icon/cube-navy/180" },
+    manifest: `/hq-manifest/cube-navy?h=${HQ.owner.handle}`,
 };
 
 export const viewport: Viewport = {

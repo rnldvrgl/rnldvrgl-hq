@@ -9,6 +9,8 @@ import { db } from "@/lib/supabase/admin";
 import { TEAM, type DayTally, type OfficeState, type RunView } from "@/lib/team";
 import { activeProvider, backupAllowsPrivate } from "@/lib/ai";
 import { STALE_MS } from "@/lib/employees";
+import { defaultHandle, loadPrefs } from "@/lib/prefs-server";
+import { HQ } from "@/hq.config";
 
 const STUCK_SUMMARY = "Run never finished (stopped mid-way). Tap Run now to try again.";
 
@@ -32,13 +34,14 @@ export async function loadOfficeState(): Promise<OfficeState> {
   await ensureDesks(hqCtx().id).catch(() => { /* before multi-hq.sql: nothing to add */ });
   await releaseStuckDesks().catch((e: unknown) => console.warn("[state] couldn't release stuck desks:", e instanceof Error ? e.message : e));
   const weekFrom = new Date(Date.now() - 7 * 86_400_000).toISOString();
-  const [employees, runs, jobs, reminders, inbox, recent] = await Promise.all([
+  const [employees, runs, jobs, reminders, inbox, recent, prefs] = await Promise.all([
     db().from("employees").select("id, enabled, status, summary, last_run_at").eq("hq_id", hqId()),
     db().from("runs").select("id, employee_id, status, output, error, started_at, finished_at, trigger").eq("hq_id", hqId()).order("started_at", { ascending: false }).limit(160),
     db().from("jobs").select("id, role, company, link, salary_text, fit_score, fit_reason, status, date_found").eq("hq_id", hqId()).order("date_found", { ascending: false }).order("fit_score", { ascending: false }).limit(100),
     db().from("reminders").select("id, title, due_at, repeat, source").eq("hq_id", hqId()).is("sent_at", null).order("due_at").limit(30),
     db().from("inbox_items").select("message_id, sender, subject, category, summary, draft_id").eq("hq_id", hqId()).eq("handled", false).order("created_at", { ascending: false }).limit(30),
     db().from("runs").select("status, started_at").eq("hq_id", hqId()).gte("started_at", weekFrom).limit(3000),
+    loadPrefs(),
   ]);
 
   const rowById = new Map((employees.data ?? []).map((e) => [e.id, e]));
@@ -52,7 +55,8 @@ export async function loadOfficeState(): Promise<OfficeState> {
   return {
     names,
     hiring: Object.fromEntries(TEAM.map((t) => [t.id, missing(t.id, has)])) as OfficeState["hiring"],
-    hq: { founder: hqCtx().founder },
+    hq: { founder: hqCtx().founder, handle: defaultHandle(hqCtx().names?.owner ?? names.owner ?? HQ.owner.name, HQ.owner.handle) },
+    prefs,
     ai: { provider: activeProvider(), backupAllowsPrivate: backupAllowsPrivate() },
     employees: TEAM.map((t) => {
       const row = rowById.get(t.id);

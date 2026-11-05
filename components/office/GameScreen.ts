@@ -1,10 +1,10 @@
+import { handleNow } from "@/lib/prefs-client";
 "use client";
 
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
-import { HQ } from "@/hq.config";
 
-const ME = HQ.owner.handle;
+const me = (): string => handleNow();
 
 /**
  * What's on Ronald's ultrawide: an original battle-royale match (no real game's art or logos) drawn on a canvas.
@@ -75,13 +75,13 @@ function draw(g: CanvasRenderingContext2D, tick: number) {
   g.fillStyle = "#f8fafc"; g.font = "bold 18px ui-monospace, monospace";
   g.fillText(`SQUADS  ${Math.max(2, 9 - Math.floor(tick / 20) % 8)}`, 1024, 33);
   g.font = "13px ui-monospace, monospace";
-  [[ME, "Dune_77"], ["Kite", "nova.exe"], [ME, "Pebble"]].forEach(([a, b], i) => {
+  [[me(), "Dune_77"], ["Kite", "nova.exe"], [me(), "Pebble"]].forEach(([a, b], i) => {
     g.fillStyle = "rgba(0,0,0,0.35)"; g.fillRect(960, 62 + i * 24, 220, 20);
-    g.fillStyle = a === ME ? "#fbbf24" : "#e2e8f0";
+    g.fillStyle = a === me() ? "#fbbf24" : "#e2e8f0";
     g.fillText(`${a}  ✕  ${b}`, 970, 72 + i * 24);
   });
   // squad (bottom left): name, shield (blue segments) and health (white)
-  [ME, "Kite", "Mara"].forEach((n, i) => {
+  [me(), "Kite", "Mara"].forEach((n, i) => {
     const y = 290 + i * 34;
     g.fillStyle = "rgba(0,0,0,0.4)"; g.fillRect(16, y - 4, 230, 30);
     g.fillStyle = "#f8fafc"; g.font = "bold 13px ui-monospace, monospace"; g.fillText(n, 24, y + 6);

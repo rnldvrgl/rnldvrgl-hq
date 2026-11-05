@@ -1,4 +1,5 @@
 "use client";
+import { isOnTeam } from "@/lib/prefs-client";
 
 import { useMemo } from "react";
 import { House, Pause, Footprints, Briefcase } from "lucide-react";
@@ -36,7 +37,7 @@ export function HomeBadges() {
   const weekday = isWeekday(now);
   return (
     <>
-      {HOMES.filter((h) => h.who !== "owner").map((h) => {
+      {HOMES.filter((h) => h.who !== "owner" && isOnTeam(h.who)).map((h) => {
         let where: Where;
         {
           const index = TEAM.findIndex((m) => m.id === h.who);

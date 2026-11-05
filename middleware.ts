@@ -41,5 +41,5 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   // The PWA manifest and icons must load without a session: iOS fetches them when you add HQ to the Home Screen.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg|apple-icon|manifest.webmanifest|pwa-icon|fonts/|sounds/|sw.js).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg|apple-icon|manifest.webmanifest|pwa-icon|hq-icon|hq-manifest|fonts/|sounds/|sw.js).*)"],
 };

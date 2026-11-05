@@ -10,6 +10,7 @@ export type RunStatus = "running" | "done" | "needs_you" | "error";
 export type RunTrigger = "schedule" | "manual";
 export type JobStatus = "saved" | "applied" | "interview" | "offer" | "closed";
 export type ReminderRepeat = "daily" | "weekdays" | "weekly";
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 export type InboxCategory = "reply" | "fyi" | "ignore" | "interview";
 export type ReminderSource = "hq" | "iphone";
 
@@ -258,6 +259,12 @@ export type Database = {
         Row: { hq_id: string; key: string; value: string; updated_at: string };
         Insert: { hq_id: string; key: string; value: string; updated_at?: string };
         Update: Partial<Database["public"]["Tables"]["hq_secrets"]["Insert"]>;
+        Relationships: [];
+      };
+      hq_prefs: {
+        Row: { hq_id: string; data: Json; updated_at: string };
+        Insert: { hq_id: string; data: Json; updated_at?: string };
+        Update: Partial<Database["public"]["Tables"]["hq_prefs"]["Insert"]>;
         Relationships: [];
       };
       office_names: {

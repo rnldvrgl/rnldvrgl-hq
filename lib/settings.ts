@@ -185,7 +185,15 @@ function read(): Settings {
   try {
     const raw = window.localStorage.getItem(KEY);
     if (!raw) return DEFAULT_SETTINGS;
-    const v = JSON.parse(raw) as Partial<Settings>;
+    return parse(JSON.parse(raw) as Partial<Settings>);
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+}
+
+/** Any saved settings, merged over the defaults with every value checked (so settings added later start at their default). */
+function parse(v: Partial<Settings>): Settings {
+  try {
     // merge over the defaults, so settings added later start at their default
     return {
       show: { ...DEFAULT_SETTINGS.show, ...v.show },
@@ -212,6 +220,11 @@ function read(): Settings {
   }
 }
 
+/** The settings that follow the owner to every device (saved in the database via lib/prefs-client.ts). */
+export const SYNCED_KEYS = ["boss", "routine", "hours", "music", "musicStyle", "chimes"] as const;
+export type Synced = Pick<Settings, (typeof SYNCED_KEYS)[number]>;
+export const syncedOf = (s: Settings): Synced => ({ boss: s.boss, routine: s.routine, hours: s.hours, music: s.music, musicStyle: s.musicStyle, chimes: s.chimes });
+
 function save(s: Settings): void {
   try { window.localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* private mode: not remembered */ }
 }
@@ -230,6 +243,8 @@ type SettingsStore = Settings & {
   setAutoSaver: (on: boolean) => void;
   setWalkers: (n: number) => void;
   setHours: (patch: Partial<Hours>) => void;
+  /** Take the synced settings saved for this HQ (another device changed them). */
+  applySynced: (o: Record<string, unknown>) => void;
   reset: () => void;
 };
 
@@ -254,6 +269,10 @@ export const useSettings = create<SettingsStore>()((set, get) => {
     setAutoSaver: (autoSaver) => commit({ autoSaver }),
     setWalkers: (n) => commit({ walkers: Math.max(0, Math.min(WALKERS_MAX, Math.round(n))) }),
     setHours: (patch) => commit({ hours: { ...get().hours, ...patch } }),
+    applySynced: (o) => {
+      const merged = parse({ ...get(), ...o } as Partial<Settings>);
+      commit(syncedOf(merged));
+    },
     reset: () => commit(DEFAULT_SETTINGS),
   };
 });

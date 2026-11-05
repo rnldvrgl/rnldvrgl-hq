@@ -16,7 +16,7 @@ if (!url || !key) { console.error("Need NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SE
 const db = createClient(url, key, { auth: { persistSession: false } });
 
 // parents before children, so a restore can follow the same order
-const TABLES = ["hqs", "employees", "runs", "jobs", "interviews", "reminders", "inbox_items", "push_subscriptions", "spotify_auth", "office_names", "hq_invites", "hq_secrets"];
+const TABLES = ["hqs", "employees", "runs", "jobs", "interviews", "reminders", "inbox_items", "push_subscriptions", "spotify_auth", "office_names", "hq_invites", "hq_secrets", "hq_prefs"];
 
 const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
 const dir = process.argv[2] ?? join(homedir(), "hq-backups", stamp);

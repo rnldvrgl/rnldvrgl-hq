@@ -2,6 +2,8 @@ import { syncNames } from "@/lib/names-server";
 import { nameOf } from "@/lib/names";
 import { have } from "@/lib/connections";
 import { missing, NEED_LABEL } from "@/lib/hiring";
+import { onTeam } from "@/lib/prefs";
+import { loadPrefs } from "@/lib/prefs-server";
 import { hqId } from "@/lib/hq-context";
 import "server-only";
 import { db } from "@/lib/supabase/admin";
@@ -65,6 +67,9 @@ export async function runEmployee(id: EmployeeId, trigger: RunTrigger): Promise<
   const now = new Date();
 
   // not hired yet in this HQ: it hasn't connected what this employee needs (Settings → Connections)
+  // not on this HQ's team (Settings → Team): nothing to do
+  if (!onTeam((await loadPrefs()).prefs, id)) return true;
+
   const lacking = missing(id, have());
   if (lacking.length) {
     await db().from("employees").update({
@@ -151,8 +156,9 @@ export async function tick(): Promise<string[]> {
   const ran: string[] = [];
   const { data: rows } = await db().from("employees").select("id, enabled, last_run_at").eq("hq_id", hqId());
   const state = new Map((rows ?? []).map((r) => [r.id, r]));
+  const { prefs } = await loadPrefs();
 
-  if (state.get("reminder-bot")?.enabled !== false) {
+  if (state.get("reminder-bot")?.enabled !== false && onTeam(prefs, "reminder-bot")) {
     // Checked every tick, but only logged when something was sent, so the run history stays readable.
     try {
       const r = await reminderBot();
@@ -170,7 +176,7 @@ export async function tick(): Promise<string[]> {
 
   const now = new Date();
   const due = TEAM
-    .filter((e) => e.schedule.kind === "times" && state.get(e.id)?.enabled !== false)
+    .filter((e) => e.schedule.kind === "times" && state.get(e.id)?.enabled !== false && onTeam(prefs, e.id))
     .map((e) => {
       const last = state.get(e.id)?.last_run_at;
       return { e, slot: dueSlot(e.schedule, last ? new Date(last) : null, now) };

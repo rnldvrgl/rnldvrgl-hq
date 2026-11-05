@@ -1,4 +1,5 @@
 "use client";
+import { isOnTeam } from "@/lib/prefs-client";
 
 import { ownerName, ownersName } from "@/lib/names";
 import { useMemo, useRef } from "react";
@@ -25,6 +26,7 @@ const STRIDE = 4.8;
 function nearestEmployee(x: number, z: number): string | null {
   let best: string | null = null, bestD = 1.2;
   for (const m of TEAM) {
+    if (!isOnTeam(m.id)) continue;
     const d = Math.hypot(m.desk.x + DESK.W / 2 - x, m.desk.y + DESK.D + 1.05 - z);
     if (d < bestD) { bestD = d; best = m.name; }
   }

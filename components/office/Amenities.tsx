@@ -1,5 +1,7 @@
 "use client";
 
+import { handleNow } from "@/lib/prefs-client";
+
 import { Suspense, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
@@ -242,7 +244,7 @@ function Entrance({ pal }: { pal: Palette }) {
             </mesh>
             <Suspense fallback={null}>
                 <Text font={SCENE_FONT} position={[x + 0.055, H - 0.15, ENTRANCE.z]} rotation={[0, Math.PI / 2, 0]} fontSize={0.12} color="#ffffff" anchorX="center" anchorY="middle" letterSpacing={0.1}>
-                    {`${HQ.owner.handle} ${HQ.shortName}`}
+                    {`${handleNow()} ${HQ.shortName}`}
                 </Text>
             </Suspense>
             <mesh position={[x - 0.5, 0.008, ENTRANCE.z]} rotation={[-Math.PI / 2, 0, 0]}>

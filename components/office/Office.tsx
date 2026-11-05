@@ -8,6 +8,8 @@ import { Activity, Bell, BellRing, Building2, History, Sparkles, Users, WifiOff,
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useOffice } from "@/lib/store";
+import { useAppIcon, useHandle, usePrefs } from "@/lib/prefs-client";
+import { Glyph, iconGradient } from "@/lib/app-icon";
 import { isEmployeeId, TEAM, teamById, type AiProvider, type OfficeState } from "@/lib/team";
 import { useSettings } from "@/lib/settings";
 import { playChime } from "@/lib/ambience";
@@ -74,7 +76,10 @@ export default function Office({ initial }: { initial: OfficeState }) {
   useNeedsYouChimes();
 
   // a rename redraws everything that shows people's names (it's rare, so a remount is fine)
-  return isDesktop ? <DesktopOffice key={namesVersion} /> : <PhoneOffice key={namesVersion} />;
+  const teamVersion = usePrefs((s) => s.teamVersion);
+  // renamed someone, or changed the team: the office redraws
+  const key = `${namesVersion}-${teamVersion}`;
+  return isDesktop ? <DesktopOffice key={key} /> : <PhoneOffice key={key} />;
 }
 
 /** Settings → Sound → chimes: each employee's own little tune the moment they start needing you (sound on only). */
@@ -202,29 +207,27 @@ function OfflineNotice() {
   );
 }
 
-/** The HQ cube, as in the app icon. */
+/** This HQ's app icon (Settings → Appearance). */
 function Logo({ className }: { className?: string }) {
+  const icon = useAppIcon();
   return (
     <span
-      className={cn("grid shrink-0 place-items-center rounded-xl shadow-[inset_0_1px_0_rgb(255_255_255/0.14),0_6px_16px_-6px_rgb(0_0_0/0.55)]", className)}
-      style={{ background: "linear-gradient(145deg, var(--logo-a), var(--logo-b))" }}
+      className={cn("grid shrink-0 place-items-center rounded-xl shadow-[inset_0_1px_0_rgb(255_255_255/0.14),0_6px_16px_-6px_rgb(0_0_0/0.55)] [&>svg]:size-[66%]", className)}
+      style={{ background: iconGradient(icon) }}
       aria-hidden
     >
-      <svg viewBox="12 12 40 40" className="size-[62%]">
-        <polygon points="32,14 52,24 32,34 12,24" fill="#e7b04a" />
-        <polygon points="12,24 32,34 32,48 12,38" fill="#c98f2c" />
-        <polygon points="52,24 32,34 32,48 52,38" fill="#a8761f" />
-      </svg>
+      <Glyph glyph={icon.glyph} size={40} />
     </span>
   );
 }
 
 function Brand({ compact = false }: { compact?: boolean }) {
+  const handle = useHandle();
   return (
     <div data-head className="flex shrink-0 items-center gap-2.5">
       <Logo className={compact ? "size-9" : "size-10"} />
       <div className="grid leading-none">
-        <span className="max-w-[7.5rem] truncate font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground">{HQ.owner.handle}</span>
+        <span className="max-w-[7.5rem] truncate font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground">{handle}</span>
         <h1 className={cn("mt-1 font-bold tracking-tight", compact ? "text-lg" : "text-xl")}>
           HQ<span className="text-ring">.</span>
         </h1>

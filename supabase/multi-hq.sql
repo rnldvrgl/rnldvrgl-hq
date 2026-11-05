@@ -7,6 +7,7 @@
 --   hqs          one row per HQ. Yours is the fixed "founder" row (its owner is OWNER_EMAIL from the env).
 --   hq_invites   invite links you (or a friend) create; one use each.
 --   hq_secrets   each HQ's own keys and connections (AI keys, Google, GitHub), encrypted by the app.
+--   hq_prefs     each HQ's settings (name, app icon, team, style, office), synced to all its devices.
 --   hq_id        added to every table; all your existing rows become the founder HQ's.
 -- RLS stays on with no public policies: only the server (service-role key) reads and writes.
 
@@ -38,6 +39,14 @@ create table if not exists hq_secrets (
   value text not null,            -- AES-GCM ciphertext (the app holds the key, HQ_SECRET_KEY)
   updated_at timestamptz not null default now(),
   primary key (hq_id, key)
+);
+
+-- each HQ's preferences (Settings): its name, app icon, team, colour style and office settings, so they
+-- follow the owner to every device. One JSON document per HQ, validated by the app (lib/prefs.ts).
+create table if not exists hq_prefs (
+  hq_id uuid primary key references hqs(id) on delete cascade,
+  data jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
 );
 
 -- hq_id on every table, existing rows → the founder HQ
@@ -123,5 +132,6 @@ revoke all on function create_friend_hq(text, uuid, text[]) from public, anon, a
 alter table hqs enable row level security;
 alter table hq_invites enable row level security;
 alter table hq_secrets enable row level security;
+alter table hq_prefs enable row level security;
 
 commit;

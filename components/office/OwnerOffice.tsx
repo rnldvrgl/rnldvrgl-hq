@@ -1,5 +1,7 @@
 "use client";
 
+import { handleNow } from "@/lib/prefs-client";
+
 import { ownerName, ownersName } from "@/lib/names";
 import { Suspense, useMemo, useRef } from "react";
 import * as THREE from "three";
@@ -380,7 +382,7 @@ function BossDecor({ pal, shadows, th, style, rgb, reducedMotion }: { pal: Palet
         </RoundedBox>
         <Suspense fallback={null}>
           <Text font={SCENE_FONT} position={[0, 0, 0.02]} fontSize={0.16} color={th.signInk} anchorX="center" anchorY="middle" letterSpacing={0.14}>
-            {HQ.owner.handle}
+            {handleNow()}
           </Text>
         </Suspense>
       </group>

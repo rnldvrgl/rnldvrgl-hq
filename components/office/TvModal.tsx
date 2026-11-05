@@ -1,4 +1,5 @@
 "use client";
+import { isOnTeam } from "@/lib/prefs-client";
 
 import { create } from "zustand";
 import { Dialog } from "radix-ui";
@@ -139,7 +140,7 @@ export function TvModal({ done, waiting, trashName }: { done: number; waiting: n
                   <section>
                     <p className="mb-2 text-[11px] tracking-[0.2em] text-[#5fd0d8]">THE TEAM</p>
                     <ul className="grid gap-1.5">
-                      {TEAM.map((m) => {
+                      {TEAM.filter((m) => isOnTeam(m.id)).map((m) => {
                         const e = employees.find((v) => v.id === m.id);
                         const st: EmployeeStatus | "off" = !e ? "idle" : !e.enabled ? "off" : e.status;
                         const Icon = ICONS[m.icon];
