@@ -8,7 +8,7 @@ import { useSettings, useShow } from "@/lib/settings";
 import { OUTSIDE, ROOM, type Palette } from "./palette";
 import { getGlowTexture, light } from "./Lighting";
 import { streetLightLevel } from "./StreetLamp";
-import { mergeParts, mergePlaced, placed, type Part } from "./batch";
+import { canvasTexture, mergeParts, mergePlaced, placed, type Part } from "./batch";
 import { BACK_STREETS, BACK_X, FAR_WALK, GROUND, ROAD, ROAD_X, SIDE_STREETS, SIDEWALK, YARD_X1 } from "./world";
 import { JUNCTIONS } from "./signals";
 
@@ -18,7 +18,8 @@ export { GROUND, SIDEWALK, ROAD, ROAD_X } from "./world";
  * The ground the town stands on: one big lawn (big enough that you never see its edge), the main street
  * with sidewalks on both sides, two side streets leading to the residential streets behind the office,
  * concrete power poles with their wires along those streets, the office lot's curb, trees and hedges, and
- * street lamps. Everything static is batched: all streets are 1 draw call, the lamps 4, the trees 3.
+ * street lamps (white crossing lights over every zebra). Everything static is batched: all streets are 1 draw call,
+ * the lamps 11, the trees 3.
  */
 
 const roadW = ROAD_X.x1 - ROAD_X.x0, roadCx = (ROAD_X.x0 + ROAD_X.x1) / 2;
@@ -131,54 +132,100 @@ function Trees({ shadows }: { shadows: boolean }) {
 /* ------------------------------------------------------------------ street lamps (batched) */
 
 const POLE_H = 2.8, ARM = 0.55;
-/** [x, z, arm direction]: +1 reaches toward +z (front sidewalk, over the road), -1 toward -z (far sidewalk). */
-const LAMPS: readonly (readonly [number, number, 1 | -1])[] = [
-  ...[-29, -20.5, -11.5, -1.2, 8, 16, OUTSIDE.x1 + 3, 31, 39.5, 48].map((x) => [x, SIDEWALK.z1 - 0.25, 1] as const),
-  ...[-25, -13, 1, 12, 24, 36, 47].map((x) => [x, FAR_WALK.z0 + 0.25, -1] as const),
+/** A lamp: where its pole stands and which way its arm reaches (a unit step along x or z). */
+type Lamp = { x: number; z: number; ax: number; az: number; h?: number; arm?: number };
+const along = (z: number, dir: 1 | -1) => (x: number): Lamp => ({ x, z, ax: 0, az: dir });
+
+/** The street lamps (warm sodium-ish LED): the main road, both residential streets, up both side streets. */
+const LAMPS: readonly Lamp[] = [
+  ...[-29, -20.5, -11.5, -1.2, 8, 16, OUTSIDE.x1 + 3, 31, 39.5, 48].map(along(SIDEWALK.z1 - 0.25, 1)),
+  ...[-25, -13, 1, 12, 24, 36, 47].map(along(FAR_WALK.z0 + 0.25, -1)),
   // the residential streets: lamps on their +z side, reaching over the street
-  ...[-34, -18, -1.5, 14, 30, 46, 62].map((x) => [x, BACK_STREETS[0].z1 + 0.25, -1] as const),
-  ...[-26, -9, 8, 25, 42, 59].map((x) => [x, BACK_STREETS[1].z1 + 0.25, -1] as const),
+  ...[-34, -18, -1.5, 14, 30, 46, 62].map(along(BACK_STREETS[0].z1 + 0.25, -1)),
+  ...[-26, -9, 8, 25, 42, 59].map(along(BACK_STREETS[1].z1 + 0.25, -1)),
+  // up the side streets, on the edge across from the power poles, reaching over the street
+  ...SIDE_STREETS.flatMap((st) => [-1.8, -12.6, -23.5, -33].map((z): Lamp => ({ x: st.x0 - 0.3, z, ax: 1, az: 0 }))),
 ];
 
 /**
- * All the street lamps as four meshes: poles and arms (one vertex-coloured mesh), the LED heads (one emissive
+ * The pedestrian lanes: a taller, brighter white light on both kerbs of every zebra, reaching over the
+ * crossing so people on it are lit at night (as the DPWH puts them up), with the blue crossing sign on the pole.
+ */
+const CROSSING_LAMPS: readonly Lamp[] = JUNCTIONS.flatMap((j) => [
+  // beside the zebra (people wait on it at the kerb), on the side away from the walk signals' poles
+  { x: j.crossX - j.crossW / 2 - 0.3, z: SIDEWALK.z1 - 0.2, ax: 0, az: 1, h: 3.4, arm: 1.3 },
+  { x: j.crossX - j.crossW / 2 - 0.3, z: FAR_WALK.z0 + 0.2, ax: 0, az: -1, h: 3.4, arm: 1.3 },
+]);
+
+/** The blue pedestrian-crossing sign: a white triangle with someone walking on a zebra. */
+function crossingSignTexture(): THREE.CanvasTexture {
+  return canvasTexture(128, 128, (g) => {
+    g.fillStyle = "#1d4ed8"; g.fillRect(0, 0, 128, 128);
+    g.fillStyle = "#ffffff"; g.fillRect(4, 4, 120, 4); g.fillRect(4, 120, 120, 4); g.fillRect(4, 4, 4, 120); g.fillRect(120, 4, 4, 120);
+    g.beginPath(); g.moveTo(64, 16); g.lineTo(114, 108); g.lineTo(14, 108); g.closePath(); g.fill();
+    g.fillStyle = "#111827";
+    for (let k = 0; k < 4; k++) g.fillRect(34 + k * 16, 96, 9, 6);
+    g.beginPath(); g.arc(66, 44, 7, 0, Math.PI * 2); g.fill();
+    g.lineWidth = 7; g.lineCap = "round"; g.strokeStyle = "#111827";
+    g.beginPath(); g.moveTo(64, 54); g.lineTo(60, 74); g.lineTo(50, 90); g.moveTo(60, 74); g.lineTo(72, 90); g.moveTo(52, 64); g.lineTo(64, 58); g.lineTo(76, 68); g.stroke();
+  });
+}
+
+type Tint = { head: string; glow: string; pool: string; cone: string; bright: number };
+const WARM: Tint = { head: "#fff6e0", glow: "#ffd9a0", pool: "#ffcf8a", cone: "#ffe2b0", bright: 1 };
+const WHITE: Tint = { head: "#ffffff", glow: "#e6f0ff", pool: "#f1f6ff", cone: "#eef4ff", bright: 1.25 };
+
+/**
+ * A set of street lamps as five meshes: poles and arms (one vertex-coloured mesh), the LED heads (one emissive
  * mesh), and additive glow (halos, light cones and the pools on the ground). They come on at dusk.
  */
-function StreetLights() {
+function LampSet({ lamps, tint, signs = false }: { lamps: readonly Lamp[]; tint: Tint; signs?: boolean }) {
   const head = useRef<THREE.MeshStandardMaterial>(null);
   const halo = useRef<THREE.MeshBasicMaterial>(null);
   const cone = useRef<THREE.MeshBasicMaterial>(null);
   const pool = useRef<THREE.MeshBasicMaterial>(null);
+  const sign = useRef<THREE.MeshStandardMaterial>(null);
   const glow = useMemo(() => getGlowTexture(), []);
+  const signTex = useMemo(() => (signs ? crossingSignTexture() : null), [signs]);
   const geo = useMemo(() => {
     const poles: Part[] = [], heads: Part[] = [];
     const halos: { geometry: THREE.BufferGeometry; matrix: THREE.Matrix4 }[] = [];
-    const cones: typeof halos = [], pools: typeof halos = [];
+    const cones: typeof halos = [], pools: typeof halos = [], plates: typeof halos = [];
     const haloG = new THREE.PlaneGeometry(0.9, 0.9);
-    const coneG = new THREE.ConeGeometry(1.2, POLE_H - 0.1 + 0.1, 20, 1, true);
     const poolG = new THREE.PlaneGeometry(3.4, 3.4);
-    for (const [x, z, dir] of LAMPS) {
-      const hz = z + dir * ARM;
-      poles.push({ shape: "cyl", size: [0.05, POLE_H, 8], pos: [x, POLE_H / 2 - 0.1, z], color: "#2b3238" });
-      poles.push({ size: [0.06, 0.05, ARM], pos: [x, POLE_H - 0.12, z + (dir * ARM) / 2], color: "#2b3238" });
-      poles.push({ size: [0.18, 0.05, 0.3], pos: [x, POLE_H - 0.15, hz], color: "#2b3238" });
-      heads.push({ size: [0.14, 0.015, 0.24], pos: [x, POLE_H - 0.18, hz], color: "#fff6e0" });
+    const plateG = new THREE.PlaneGeometry(0.5, 0.5);
+    const coneGs: THREE.BufferGeometry[] = [];
+    for (const l of lamps) {
+      const H = l.h ?? POLE_H, A = l.arm ?? ARM;
+      const hx = l.x + l.ax * A, hz = l.z + l.az * A;
+      const alongX = l.ax !== 0;
+      poles.push({ shape: "cyl", size: [0.05, H, 8], pos: [l.x, H / 2 - 0.1, l.z], color: "#2b3238" });
+      poles.push({ size: alongX ? [A, 0.05, 0.06] : [0.06, 0.05, A], pos: [l.x + (l.ax * A) / 2, H - 0.12, l.z + (l.az * A) / 2], color: "#2b3238" });
+      poles.push({ size: alongX ? [0.3, 0.05, 0.18] : [0.18, 0.05, 0.3], pos: [hx, H - 0.15, hz], color: "#2b3238" });
+      heads.push({ size: alongX ? [0.24, 0.015, 0.14] : [0.14, 0.015, 0.24], pos: [hx, H - 0.18, hz], color: tint.head });
       // halo faces the camera's usual direction (front-right, from above)
-      halos.push({ geometry: haloG, matrix: placed([x, POLE_H - 0.22, hz], [-0.62, Math.PI / 4, 0], [1, 1, 1]) });
-      cones.push({ geometry: coneG, matrix: placed([x, (POLE_H - 0.2 - 0.1) / 2, hz]) });
-      pools.push({ geometry: poolG, matrix: placed([x, -0.088, hz], [-Math.PI / 2, 0, 0]) });
+      halos.push({ geometry: haloG, matrix: placed([hx, H - 0.22, hz], [-0.62, Math.PI / 4, 0], [tint.bright, tint.bright, 1]) });
+      const cg = new THREE.ConeGeometry(1.2 * tint.bright, H - 0.1, 20, 1, true);
+      coneGs.push(cg);
+      cones.push({ geometry: cg, matrix: placed([hx, (H - 0.3) / 2, hz]) });
+      pools.push({ geometry: poolG, matrix: placed([hx, -0.086, hz], [-Math.PI / 2, 0, 0], [tint.bright, tint.bright, 1]) });
+      // the crossing sign, on the pole facing the oncoming traffic of that lane (and a second facing the other way)
+      if (signs) {
+        for (const face of [Math.PI / 2, -Math.PI / 2]) plates.push({ geometry: plateG, matrix: placed([l.x + (face > 0 ? 0.04 : -0.04), 2.2, l.z], [0, face, 0]) });
+      }
     }
-    const out = { poles: mergeParts(poles), heads: mergeParts(heads), halos: mergePlaced(halos), cones: mergePlaced(cones), pools: mergePlaced(pools) };
-    haloG.dispose(); coneG.dispose(); poolG.dispose();
+    const out = { poles: mergeParts(poles), heads: mergeParts(heads), halos: mergePlaced(halos), cones: mergePlaced(cones), pools: mergePlaced(pools), plates: plates.length ? mergePlaced(plates) : null };
+    haloG.dispose(); poolG.dispose(); plateG.dispose(); coneGs.forEach((g) => g.dispose());
     return out;
-  }, []);
+  }, [lamps, tint, signs]);
 
   useFrame(() => {
     const k = streetLightLevel();
-    if (head.current) head.current.emissiveIntensity = 0.1 + k * 3.2;
+    if (head.current) head.current.emissiveIntensity = 0.1 + k * 3.2 * tint.bright;
     if (halo.current) halo.current.opacity = k * 0.75;
-    if (cone.current) cone.current.opacity = k * 0.09;
-    if (pool.current) pool.current.opacity = k * 0.7;
+    if (cone.current) cone.current.opacity = k * 0.09 * tint.bright;
+    if (pool.current) pool.current.opacity = k * 0.7 * tint.bright;
+    if (sign.current) sign.current.emissiveIntensity = 0.1 + k * 0.6;
   });
 
   return (
@@ -186,25 +233,40 @@ function StreetLights() {
       {geo.poles && <mesh geometry={geo.poles}><meshStandardMaterial vertexColors /></mesh>}
       {geo.heads && (
         <mesh geometry={geo.heads}>
-          <meshStandardMaterial ref={head} vertexColors emissive="#ffd9a0" emissiveIntensity={0.1} toneMapped={false} />
+          <meshStandardMaterial ref={head} vertexColors emissive={tint.glow} emissiveIntensity={0.1} toneMapped={false} />
+        </mesh>
+      )}
+      {geo.plates && signTex && (
+        <mesh geometry={geo.plates}>
+          <meshStandardMaterial ref={sign} map={signTex} emissiveMap={signTex} emissive="#ffffff" emissiveIntensity={0.1} roughness={0.5} />
         </mesh>
       )}
       {geo.halos && (
         <mesh geometry={geo.halos} renderOrder={3}>
-          <meshBasicMaterial ref={halo} map={glow} color="#ffd9a0" transparent opacity={0} depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} side={THREE.DoubleSide} />
+          <meshBasicMaterial ref={halo} map={glow} color={tint.glow} transparent opacity={0} depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} side={THREE.DoubleSide} />
         </mesh>
       )}
       {geo.cones && (
         <mesh geometry={geo.cones}>
-          <meshBasicMaterial ref={cone} color="#ffe2b0" transparent opacity={0} depthWrite={false} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} toneMapped={false} />
+          <meshBasicMaterial ref={cone} color={tint.cone} transparent opacity={0} depthWrite={false} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} toneMapped={false} />
         </mesh>
       )}
       {geo.pools && (
         <mesh geometry={geo.pools}>
-          <meshBasicMaterial ref={pool} map={glow} color="#ffcf8a" transparent opacity={0} depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} />
+          <meshBasicMaterial ref={pool} map={glow} color={tint.pool} transparent opacity={0} depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} />
         </mesh>
       )}
     </group>
+  );
+}
+
+/** Every street lamp: the warm ones along the streets and the white ones over the pedestrian lanes. */
+function StreetLights() {
+  return (
+    <>
+      <LampSet lamps={LAMPS} tint={WARM} />
+      <LampSet lamps={CROSSING_LAMPS} tint={WHITE} signs />
+    </>
   );
 }
 
