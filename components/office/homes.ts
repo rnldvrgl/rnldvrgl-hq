@@ -1,4 +1,5 @@
-import { TEAM, type EmployeeId } from "@/lib/team";
+import { TEAM, teamById, type EmployeeId } from "@/lib/team";
+import { ownerName } from "@/lib/names";
 import { HQ } from "@/hq.config";
 import { SHIRTS } from "./palette";
 import { BACK_STREETS, SIDE_STREETS } from "./world";
@@ -51,8 +52,10 @@ export type Home = {
 };
 
 /** The house a gate is in: gate 0.2–2.8 m in from the lot's left edge, the door 1 m in, 1.9 m behind the fence. */
-const homeAt = (slot: HouseSlot, who: Who, name: string, color: string): Home => ({
-  who, name, color, slot,
+const homeAt = (slot: HouseSlot, who: Who, _name: string, color: string): Home => ({
+  who, color, slot,
+  // the live name (Settings → Names)
+  get name() { return who === "owner" ? ownerName() : teamById[who].name; },
   gate: { x: slot.x + 1.5, z: slot.gateZ },
   door: { x: slot.x + 1.0, z: slot.gateZ - 1.9 + 0.3 },
   badge: [slot.x + 3, who === "owner" || twoStorey(slot.i) ? 6.6 : 4.4, slot.gateZ - 3.2],

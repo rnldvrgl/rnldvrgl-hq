@@ -1,5 +1,6 @@
 "use client";
 
+import { applyNames } from "@/lib/names";
 import { create } from "zustand";
 import type { EmployeeId, EmployeeView, OfficeState } from "@/lib/team";
 import type { JobStatus, ReminderRepeat } from "@/lib/supabase/database.types";
@@ -40,6 +41,9 @@ type OfficeStore = {
   bossErrand: BossErrandState | null;
 
   hydrate: (data: OfficeState) => void;
+  /** Bumped when the names change, so name-showing parts redraw. */
+  namesVersion: number;
+  saveNames: (names: Record<string, string>) => Promise<void>;
   select: (id: EmployeeId | null) => void;
   hover: (id: EmployeeId | null) => void;
   /** Jump the 3D office to "HH:MM" Manila today (it keeps ticking from there), or back to live with null. */
@@ -90,7 +94,7 @@ export const useOffice = create<OfficeStore>()((set, get) => ({
   lowPower: typeof window === "undefined" ? false : readLowPower(),
   bossErrand: null,
 
-  hydrate: (data) => set({ data }),
+  hydrate: (data) => { if (applyNames(data.names)) set({ namesVersion: get().namesVersion + 1 }); set({ data }); },
   select: (id) => set({ selected: id }),
   hover: (id) => set({ hovered: id }),
   previewTime: (hhmm, label) => {
@@ -118,6 +122,8 @@ export const useOffice = create<OfficeStore>()((set, get) => ({
   refresh: async () => {
     try {
       const data = await call<OfficeState>("/api/state", { cache: "no-store" });
+      // renamed someone (here or on another device): the office redraws with the new names
+      if (applyNames(data.names)) set({ namesVersion: get().namesVersion + 1 });
       set({ data, offline: false });
     } catch {
       set({ offline: true });
@@ -158,6 +164,12 @@ export const useOffice = create<OfficeStore>()((set, get) => ({
   draftCoverLetter: async (jobId) => {
     const r = await call<{ letter: string }>(`/api/jobs/${jobId}/cover-letter`, { method: "POST" });
     return r.letter;
+  },
+
+  namesVersion: 0,
+  saveNames: async (names) => {
+    await call("/api/names", { method: "POST", body: JSON.stringify({ names }) });
+    await get().refresh();
   },
 
   addReminder: async (input) => {

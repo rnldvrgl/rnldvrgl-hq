@@ -1,3 +1,4 @@
+import { syncNames } from "@/lib/names-server";
 import "server-only";
 import { db } from "@/lib/supabase/admin";
 import { TEAM, teamById, type EmployeeId, type EmployeeMeta } from "@/lib/team";
@@ -56,6 +57,7 @@ function withDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
  * Returns false if the employee was already busy.
  */
 export async function runEmployee(id: EmployeeId, trigger: RunTrigger): Promise<boolean> {
+  await syncNames(); // briefs and emails use the names set in Settings → Names
   const now = new Date();
 
   // Private desks don't touch your mail or calendar while only the free backup is available.

@@ -226,6 +226,12 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["spotify_auth"]["Insert"]>;
         Relationships: [];
       };
+      office_names: {
+        Row: { id: string; name: string; updated_at: string };
+        Insert: { id: string; name: string; updated_at?: string };
+        Update: Partial<Database["public"]["Tables"]["office_names"]["Insert"]>;
+        Relationships: [];
+      };
     };
     Views: { [_ in never]: never };
     Functions: { [_ in never]: never };

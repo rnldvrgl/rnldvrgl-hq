@@ -5,7 +5,7 @@ import { emailMe } from "@/lib/email";
 import { teamById, isEmployeeId } from "@/lib/team";
 import { formatManila } from "@/lib/time";
 import type { WorkResult } from "./types";
-import { OWNERS } from "@/hq.config";
+import { ownerName, ownersName } from "@/lib/names";
 
 export async function weeklyReviewer(): Promise<WorkResult> {
   const since = new Date(Date.now() - 7 * 86400_000).toISOString();
@@ -33,7 +33,7 @@ export async function weeklyReviewer(): Promise<WorkResult> {
   const recap = await ask({
     maxTokens: 800,
     system: "You write a short, encouraging but honest Friday recap. Plain text, under 170 words.",
-    prompt: `Write ${OWNERS} weekly recap from these facts: what got done, what slipped (name any employee with errors), and three priorities for next week.\n\n${facts}`,
+    prompt: `Write ${ownersName()} weekly recap from these facts: what got done, what slipped (name any employee with errors), and three priorities for next week.\n\n${facts}`,
   });
   await emailMe("Weekly recap", recap);
   return { status: "done", summary: "Friday recap sent", output: recap };

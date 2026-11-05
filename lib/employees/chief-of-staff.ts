@@ -5,7 +5,7 @@ import { listEvents, countMail } from "@/lib/google";
 import { emailMe } from "@/lib/email";
 import { manilaParts, manilaInstant, formatManila } from "@/lib/time";
 import type { WorkResult } from "./types";
-import { OWNER } from "@/hq.config";
+import { ownerName, ownersName } from "@/lib/names";
 
 function eventTime(e: { start: { dateTime?: string; date?: string } }) {
   return e.start.dateTime ? formatManila(e.start.dateTime) : "All day";
@@ -39,7 +39,7 @@ export async function chiefOfStaff(): Promise<WorkResult> {
     private: true,
     maxTokens: 700,
     system: "You are a calm, concise chief of staff. Plain text, no markdown headers, under 150 words.",
-    prompt: `Write today's morning brief for ${OWNER} from these facts. Start with the one thing that matters most today, then a short list of the rest. End with one suggested focus for the day.\n\n${facts}`,
+    prompt: `Write today's morning brief for ${ownerName()} from these facts. Start with the one thing that matters most today, then a short list of the rest. End with one suggested focus for the day.\n\n${facts}`,
   });
 
   await emailMe(`Morning brief · ${p.isoDate}`, brief);

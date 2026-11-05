@@ -1,4 +1,5 @@
 import "server-only";
+import { syncNames } from "@/lib/names-server";
 import { db } from "@/lib/supabase/admin";
 import { TEAM, type DayTally, type OfficeState, type RunView } from "@/lib/team";
 import { activeProvider, backupAllowsPrivate } from "@/lib/ai";
@@ -22,6 +23,7 @@ async function releaseStuckDesks(): Promise<void> {
 }
 
 export async function loadOfficeState(): Promise<OfficeState> {
+  const names = await syncNames();
   await releaseStuckDesks().catch((e: unknown) => console.warn("[state] couldn't release stuck desks:", e instanceof Error ? e.message : e));
   const weekFrom = new Date(Date.now() - 7 * 86_400_000).toISOString();
   const [employees, runs, jobs, reminders, inbox, recent] = await Promise.all([
@@ -41,6 +43,7 @@ export async function loadOfficeState(): Promise<OfficeState> {
     runsByEmployee.set(employee_id, list);
   }
   return {
+    names,
     ai: { provider: activeProvider(), backupAllowsPrivate: backupAllowsPrivate() },
     employees: TEAM.map((t) => {
       const row = rowById.get(t.id);

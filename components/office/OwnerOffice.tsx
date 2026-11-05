@@ -1,5 +1,6 @@
 "use client";
 
+import { ownerName, ownersName } from "@/lib/names";
 import { Suspense, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
@@ -9,7 +10,6 @@ import { OfficeChair, Plant, TallPlant, type Vec3 } from "./Furniture";
 import { AirCon, officeAcOn } from "./Amenities";
 import { light } from "./Lighting";
 import { useGameScreen } from "./GameScreen";
-import { OWNER_NAME } from "./Staff";
 import { HQ } from "@/hq.config";
 import { mergeParts, type Part } from "./batch";
 import { useOfficeStyle, type OfficeStyle } from "@/lib/settings";
@@ -201,7 +201,7 @@ export function OwnerOffice({ pal, shadows, reducedMotion }: { pal: Palette; sha
         </mesh>
         <Suspense fallback={null}>
           <Text font={SCENE_FONT} position={[0, 0.035, 0.008]} fontSize={0.075} color={pal.signInk} anchorX="center" anchorY="middle" letterSpacing={0.08}>
-            {OWNER_NAME.toUpperCase()}
+            {ownerName().toUpperCase()}
           </Text>
           <Text font={SCENE_FONT} position={[0, -0.055, 0.008]} fontSize={0.04} color={pal.signAccent} anchorX="center" anchorY="middle" letterSpacing={0.12}>
             MAIN OFFICE

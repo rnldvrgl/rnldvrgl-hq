@@ -1,5 +1,9 @@
 "use client";
 
+import { BASE_NAMES, NAME_KEYS, NAME_MAX, cleanName, currentNames, ownerName, type NameKey } from "@/lib/names";
+import { TEAM } from "@/lib/team";
+import { SHIRTS } from "./palette";
+import { toast } from "sonner";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { BatteryLow, Check, Eye, Gauge, LogOut, Loader2, SlidersHorizontal, Sparkles, Square } from "lucide-react";
@@ -30,9 +34,9 @@ export function SettingsPanel({ open, onOpenChange }: { open: boolean; onOpenCha
                 side={isDesktop ? "right" : "bottom"}
                 className={cn("scroll-thin gap-0 overflow-x-hidden", isDesktop ? "w-115 sm:max-w-108" : "max-h-[88dvh] rounded-t-3xl pb-[max(16px,env(safe-area-inset-bottom,0px))]")}
             >
-                <SheetHeader className="sticky top-0 z-10 border-b border-border bg-popover/90 pb-3 backdrop-blur-md">
+                <SheetHeader className="sticky top-0 z-10 border-b border-border bg-popover pb-3">
                     <SheetTitle>Office settings</SheetTitle>
-                    <SheetDescription>Saved on this device only. Lower-end phones: try Battery saver.</SheetDescription>
+                    <SheetDescription>Saved on this device (Names are saved for every device). Lower-end phones: try Battery saver.</SheetDescription>
                 </SheetHeader>
                 <div className="grid min-w-0 gap-4 px-4 pt-4 pb-6 [&>*]:min-w-0">
                     <Appearance />
@@ -44,7 +48,8 @@ export function SettingsPanel({ open, onOpenChange }: { open: boolean; onOpenCha
                         <OfficeHours />
                         <RoutineList />
                     </Section>
-                    <Boss />
+                    <NamesSection />
+          <Boss />
                     <Sound />
                     <Holidays onPreview={() => onOpenChange(false)} />
                     <Section title="Account" hint="Passkeys sign you in without a password or an email code.">
@@ -285,13 +290,13 @@ function OfficeHours() {
     const setHours = useSettings((s) => s.setHours);
     const rows = [
         { who: "Team", inKey: "teamIn", outKey: "teamOut" },
-        { who: HQ.owner.name, inKey: "bossIn", outKey: "bossOut" },
+        { who: ownerName(), inKey: "bossIn", outKey: "bossOut" },
     ] as const;
     return (
         <div className="grid gap-2 rounded-xl border border-border bg-muted/30 p-2.5">
             <div className="flex items-baseline justify-between gap-2">
                 <span className="text-sm font-medium">Office hours</span>
-                <span className="text-[11px] text-muted-foreground">The team walks home, {HQ.owner.name} drives</span>
+                <span className="text-[11px] text-muted-foreground">The team walks home, {ownerName()} drives</span>
             </div>
             <div className="grid grid-cols-[auto_1fr_1fr] items-center gap-x-2 gap-y-1.5 text-xs">
                 <span />
@@ -334,11 +339,72 @@ function RoutineList() {
     );
 }
 
+/** Rename the boss and the employees. Saved in the database: every device and the AI's emails use them. */
+function NamesSection() {
+  const saveNames = useOffice((s) => s.saveNames);
+  useOffice((s) => s.namesVersion);
+  const [draft, setDraft] = useState<Record<string, string>>(() => currentNames());
+  const [saving, setSaving] = useState(false);
+  const rows: { key: NameKey; job: string; color: string }[] = [
+    { key: "owner", job: "Boss", color: "#f59e0b" },
+    ...TEAM.map((m) => ({ key: m.id as NameKey, job: m.title, color: SHIRTS[m.color - 1] })),
+  ];
+  const changed = NAME_KEYS.some((k) => (draft[k] ?? "").trim() !== currentNames()[k]);
+  const bad = NAME_KEYS.filter((k) => (draft[k] ?? "").trim() && !cleanName(draft[k]));
+  return (
+    <Section title="Names" hint="What everyone is called: in the office, the panels, and the AI's briefs and emails. Saved for every device.">
+      <div className="grid gap-2">
+        {rows.map(({ key, job, color }) => (
+          <label key={key} className="grid grid-cols-[auto_1fr] items-center gap-2.5 rounded-xl px-1.5">
+            <span className="grid size-8 place-items-center rounded-full text-xs font-bold text-white" style={{ background: color }} aria-hidden>
+              {(draft[key] || BASE_NAMES[key]).slice(0, 1).toUpperCase()}
+            </span>
+            <span className="grid min-w-0 gap-0.5">
+              <span className="text-[11px] text-muted-foreground">{job}</span>
+              <input
+                value={draft[key] ?? ""}
+                onChange={(e) => setDraft({ ...draft, [key]: e.target.value })}
+                placeholder={BASE_NAMES[key]}
+                maxLength={NAME_MAX}
+                aria-label={`${job} name`}
+                aria-invalid={bad.includes(key)}
+                className={cn("h-10 w-full min-w-0 rounded-lg border bg-background px-3 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40",
+                  bad.includes(key) ? "border-destructive" : "border-border")}
+              />
+            </span>
+          </label>
+        ))}
+      </div>
+      {bad.length > 0 && <p className="px-1.5 text-xs text-destructive">Names can use letters, spaces, dots, hyphens and apostrophes (up to {NAME_MAX}).</p>}
+      <div className="flex gap-2 px-1.5">
+        <button
+          type="button"
+          disabled={!changed || bad.length > 0 || saving}
+          onClick={async () => {
+            setSaving(true);
+            try {
+              await saveNames(Object.fromEntries(NAME_KEYS.map((k) => [k, (draft[k] ?? "").trim()])));
+              toast.success("Names saved.");
+            } catch (e) { toast.error(e instanceof Error ? e.message : "Couldn't save the names."); }
+            finally { setSaving(false); }
+          }}
+          className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-primary px-3 text-sm font-semibold text-primary-foreground transition-opacity disabled:opacity-50"
+        >
+          {saving ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Check className="size-4" aria-hidden />} Save names
+        </button>
+        <button type="button" onClick={() => setDraft({ ...BASE_NAMES })} className="min-h-10 rounded-xl border border-border px-3 text-sm font-medium hover:bg-muted">
+          Use defaults
+        </button>
+      </div>
+    </Section>
+  );
+}
+
 function Boss() {
     const boss = useSettings((s) => s.boss);
     const setBoss = useSettings((s) => s.setBoss);
     return (
-        <Section title="Boss" hint={`${HQ.owner.name} in the 3D office.`}>
+        <Section title="Boss" hint={`${ownerName()} in the 3D office.`}>
             <div className="grid gap-1.5 px-2.5">
                 <span className="text-sm font-medium">Look</span>
                 <Segmented
@@ -372,7 +438,7 @@ function Boss() {
             </div>
             <div className="grid gap-1.5 px-2.5">
                 <span className="text-sm font-medium">Car</span>
-                <span className="-mt-1 text-[11px] text-muted-foreground">Parked in the carport; drives {HQ.owner.name} home at the end of the day.</span>
+                <span className="-mt-1 text-[11px] text-muted-foreground">Parked in the carport; drives {ownerName()} home at the end of the day.</span>
                 <div role="radiogroup" aria-label="Boss's car" className="grid grid-cols-2 gap-1.5">
                     {CAR_MODELS.map((o) => (
                         <button

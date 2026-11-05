@@ -1,5 +1,6 @@
 "use client";
 
+import { ownerName, ownersName } from "@/lib/names";
 import { useState } from "react";
 import {
   BatteryLow, Check, ChevronDown, Cloud, CloudLightning, CloudRain, CloudSun, Coffee, Crown, Footprints, LocateFixed, Minus, Plus,
@@ -263,12 +264,12 @@ function BossMenu() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button type="button" aria-label={`Boss: send ${HQ.owner.name} somewhere`} title={`${HQ.owner.name}: take a break…`} className={cn(iconButton, errand && "text-ring")}>
+        <button type="button" aria-label={`Boss: send ${ownerName()} somewhere`} title={`${ownerName()}: take a break…`} className={cn(iconButton, errand && "text-ring")}>
           <Crown className="size-4" aria-hidden />
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" side="left" className="w-64 p-1.5">
-        <p className="px-2 pt-1 pb-1.5 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">{HQ.owner.name} · boss actions</p>
+        <p className="px-2 pt-1 pb-1.5 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">{ownerName()} · boss actions</p>
         <ul className="grid gap-0.5">
           {ERRANDS.map((e) => (
             <li key={e.id}>

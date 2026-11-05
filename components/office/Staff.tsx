@@ -1,5 +1,6 @@
 "use client";
 
+import { ownerName, ownersName } from "@/lib/names";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
@@ -19,7 +20,6 @@ import { useSceneNow } from "./scene-clock-ui";
 import { HQ, type BossLook } from "@/hq.config";
 
 const STRIDE = 4.8;
-export const OWNER_NAME = HQ.owner.name;
 
 /** Who Ronald is standing behind, if he's at someone's desk. */
 function nearestEmployee(x: number, z: number): string | null {
@@ -192,7 +192,7 @@ export function Owner({ shadows, reducedMotion }: { pal: Palette; shadows: boole
         position={[0, tour ? 2.3 : 1.95, 0]}
         icon={Icon}
         tone="owner"
-        name={OWNER_NAME}
+        name={ownerName()}
         status={status}
         detail={detail}
         zIndex={19}

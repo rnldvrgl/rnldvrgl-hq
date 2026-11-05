@@ -1,5 +1,6 @@
 "use client";
 
+import { ownerName, ownersName } from "@/lib/names";
 import { Suspense, useMemo, useRef, type MutableRefObject } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
@@ -10,7 +11,7 @@ import { CarFront, KeyRound, Lightbulb, Lock, Power, X } from "lucide-react";
 import { getGlowTexture, light } from "./Lighting";
 import { Label } from "./Labels";
 import { cn } from "@/lib/utils";
-import { HQ, OWNERS } from "@/hq.config";
+import { HQ } from "@/hq.config";
 import { carSound } from "@/lib/ambience";
 import { sceneNow } from "@/lib/store";
 import { manilaMinutes } from "@/lib/office-clock";
@@ -505,7 +506,7 @@ function CarCard({ name }: { name: string }) {
           <span className="grid size-8 place-items-center rounded-xl bg-red-500/15 text-red-600"><CarFront className="size-4" aria-hidden /></span>
           <div className="leading-tight">
             <p className="text-sm font-semibold">{name}</p>
-            <p className="text-[11px] text-muted-foreground">{OWNERS} car · {engine ? "engine running" : "parked"}</p>
+            <p className="text-[11px] text-muted-foreground">{ownersName()} car · {engine ? "engine running" : "parked"}</p>
           </div>
         </div>
         <button type="button" onClick={close} aria-label="Close" className="grid size-6 place-items-center rounded-full text-muted-foreground hover:bg-muted">

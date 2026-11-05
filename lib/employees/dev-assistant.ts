@@ -2,7 +2,7 @@ import "server-only";
 import { ask, UNTRUSTED_NOTE } from "@/lib/ai";
 import { openWork } from "@/lib/github";
 import type { WorkResult } from "./types";
-import { OWNER } from "@/hq.config";
+import { ownerName, ownersName } from "@/lib/names";
 
 export async function devAssistant(): Promise<WorkResult> {
   const items = await openWork(7);
@@ -20,7 +20,7 @@ export async function devAssistant(): Promise<WorkResult> {
     private: true,
     maxTokens: 900,
     system: `You are a pragmatic dev lead. ${UNTRUSTED_NOTE} Plain text, under 180 words.`,
-    prompt: `Here are open GitHub items involving ${OWNER}. Group by repo, flag anything waiting on ${OWNER} (review requests, PRs by others), and end with "Do first:" naming one item with its link.\n\n${JSON.stringify(list)}`,
+    prompt: `Here are open GitHub items involving ${ownerName()}. Group by repo, flag anything waiting on ${ownerName()} (review requests, PRs by others), and end with "Do first:" naming one item with its link.\n\n${JSON.stringify(list)}`,
   });
   const waiting = list.filter((i) => i.kind === "PR" && i.by.toLowerCase() !== (process.env.GITHUB_USERNAME ?? "").toLowerCase()).length;
   return {

@@ -134,3 +134,12 @@ create table if not exists spotify_auth (
   updated_at timestamptz not null default now()
 );
 alter table spotify_auth enable row level security;
+
+-- Names (Settings → Names): renames of the boss ('owner') and the employees (their ids). Safe to re-run.
+-- A missing row means the name from hq.config.ts. Only the server reads it (service-role key).
+create table if not exists office_names (
+  id text primary key check (id in ('owner','chief-of-staff','inbox-triage','job-hunter','reminder-bot','scheduler','researcher','dev-assistant','weekly-reviewer')),
+  name text not null check (char_length(name) between 1 and 24),
+  updated_at timestamptz not null default now()
+);
+alter table office_names enable row level security;

@@ -1,5 +1,6 @@
 "use client";
 
+import { ownerName, ownersName } from "@/lib/names";
 import { Suspense, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
@@ -119,7 +120,7 @@ export function Carport({ shadows }: { shadows: boolean }) {
             RESERVED
           </Text>
           <Text font={SCENE_FONT} position={[0, -0.08, 0.012]} fontSize={0.07} color="#1f2937" anchorX="center" anchorY="middle" letterSpacing={0.08}>
-            {HQ.owner.name.toUpperCase()}
+            {ownerName().toUpperCase()}
           </Text>
         </group>
         {/* the sign on the front beam */}

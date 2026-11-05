@@ -82,6 +82,8 @@ export type EmployeeView = {
 };
 
 export type OfficeState = {
+  /** Renamed people (Settings → Names); missing = the hq.config.ts name. */
+  names?: Partial<Record<"owner" | EmployeeId, string>>;
   /** Which AI the office is running on right now, and whether private desks may use the backup. */
   ai: { provider: AiProvider; backupAllowsPrivate: boolean };
   employees: EmployeeView[];

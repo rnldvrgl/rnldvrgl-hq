@@ -28,6 +28,7 @@ export default function Office({ initial }: { initial: OfficeState }) {
   const isDesktop = useIsDesktop();
   const select = useOffice((s) => s.select);
   const refresh = useOffice((s) => s.refresh);
+  const namesVersion = useOffice((s) => s.namesVersion);
   const working = useOffice((s) => s.data.employees.filter((e) => e.status === "working").length);
 
   // Poll faster while anyone is working, so the desk lights up and settles on time.
@@ -60,7 +61,8 @@ export default function Office({ initial }: { initial: OfficeState }) {
 
   useNeedsYouChimes();
 
-  return isDesktop ? <DesktopOffice /> : <PhoneOffice />;
+  // a rename redraws everything that shows people's names (it's rare, so a remount is fine)
+  return isDesktop ? <DesktopOffice key={namesVersion} /> : <PhoneOffice key={namesVersion} />;
 }
 
 /** Settings → Sound → chimes: each employee's own little tune the moment they start needing you (sound on only). */

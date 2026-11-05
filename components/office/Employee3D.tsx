@@ -1,5 +1,6 @@
 "use client";
 
+import { ownerName, ownersName } from "@/lib/names";
 import { useMemo, useRef, type Ref } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
@@ -19,7 +20,6 @@ import {
 import { launchDelivery } from "./Deliveries";
 import { overrideAt, useCommute } from "./commuteOverride";
 import { useSceneNow } from "./scene-clock-ui";
-import { OWNER, OWNERS } from "@/hq.config";
 import { clockLabel, useSettings, workHours } from "@/lib/settings";
 
 const HAIR: readonly HairStyle[] = ["bun", "short", "short", "long", "neat", "long", "short", "bun"];
@@ -311,7 +311,7 @@ export function Employee3D({ meta, index, pal, shadows, reducedMotion, duty }: P
     detail = clip(emp?.summary) ?? "Tap to review";
   } else if (status === "error") {
     tone = "error"; label = "Error"; Icon = TriangleAlert; chip = undefined;
-    detail = place.current.route ? `Going to ${OWNER} for help` : place.current.at === "boss" ? `Waiting in ${OWNERS} office` : "Tap to see what happened";
+    detail = place.current.route ? `Going to ${ownerName()} for help` : place.current.at === "boss" ? `Waiting in ${ownersName()} office` : "Tap to see what happened";
   } else {
     const next = nextSlot(meta.schedule, now);
     const nextText = meta.schedule.kind === "always" ? "Checks every 5 minutes" : next ? `Next ${formatManilaSoon(next, now)}` : meta.title;

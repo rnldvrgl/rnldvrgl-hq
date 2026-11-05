@@ -1,5 +1,6 @@
 "use client";
 
+import { currentNames, ownerName, ownersName } from "@/lib/names";
 import { HOUSE_SLOTS, MANSION, OWNER_LOTS, homeBySlot } from "./homes";
 import { useMemo } from "react";
 import * as THREE from "three";
@@ -103,8 +104,8 @@ function buildPlaces(): Place[] {
     });
   }
   out.push({
-    id: "mansion", name: `${OWNER}'s house`, sub: "Two storeys, garage, garden",
-    blurb: `The boss's place right behind the office. ${OWNER} drives home here at the end of the day; the car sleeps in the garage.`,
+    id: "mansion", name: `${ownersName()} house`, sub: "Two storeys, garage, garden",
+    blurb: `The boss's place right behind the office. ${ownerName()} drives home here at the end of the day; the car sleeps in the garage.`,
     hours: "home", box: { x0: MANSION.x0, x1: MANSION.x1, z0: MANSION.back - 0.4, z1: MANSION.gateZ + 0.3, h: 6.4 },
   });
   return out;
@@ -113,8 +114,13 @@ function buildPlaces(): Place[] {
 const usePlace = create<{ id: string | null; open: (id: string | null) => void }>((set) => ({ id: null, open: (id) => set({ id }) }));
 /** Whether a place card is open (the floating music card steps aside for it). */
 export const usePlaceOpen = (): boolean => usePlace((s) => s.id !== null);
-let placesCache: Place[] | null = null;
-const places = () => (placesCache ??= buildPlaces());
+let placesCache: { key: string; list: Place[] } | null = null;
+/** Built once (and again after a rename, since house names include people's names). */
+const places = () => {
+  const key = JSON.stringify(currentNames());
+  if (placesCache?.key !== key) placesCache = { key, list: buildPlaces() };
+  return placesCache.list;
+};
 
 /** Invisible tap targets over every place in town. Mount inside the Canvas with the neighbourhood. */
 export function PlaceHits() {
@@ -189,7 +195,7 @@ export function PlaceCard() {
           className="mt-3 inline-flex h-9 w-full items-center justify-center gap-2 rounded-full bg-primary text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           <ShoppingBag className="size-4" aria-hidden />
-          Send {HQ.owner.name} for a snack
+          Send {ownerName()} for a snack
         </button>
       )}
     </div>
