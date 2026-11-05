@@ -87,6 +87,35 @@ export function heartShape(s: number): THREE.Shape {
   return h;
 }
 
+/** The carved face, flat, facing +z: two triangle eyes, a triangle nose, a jagged grin. */
+function jackFace(r: number): THREE.Shape[] {
+  const tri = (pts: [number, number][]) => { const sh = new THREE.Shape(); sh.moveTo(pts[0][0] * r, pts[0][1] * r); pts.slice(1).forEach(([a, b]) => sh.lineTo(a * r, b * r)); sh.closePath(); return sh; };
+  return [
+    tri([[-0.42, 0.12], [-0.12, 0.12], [-0.27, 0.4]]),
+    tri([[0.12, 0.12], [0.42, 0.12], [0.27, 0.4]]),
+    tri([[-0.07, -0.02], [0.07, -0.02], [0, 0.12]]),
+    tri([[-0.5, -0.12], [-0.3, -0.2], [-0.18, -0.12], [0, -0.22], [0.18, -0.12], [0.3, -0.2], [0.5, -0.12], [0.3, -0.42], [0, -0.48], [-0.3, -0.42]]),
+  ];
+}
+
+/**
+ * A jack-o'-lantern sitting on the ground at (x, ground, z), radius r, its face turned toward the camera
+ * (front-right). `glow`: the ribbed body and the bright face (unlit, so it reads as lit from inside);
+ * `lit`: the stem.
+ */
+export function jackOLantern(x: number, ground: number, z: number, r: number, i = 0): { glow: THREE.BufferGeometry[]; lit: Part[] } {
+  const y = ground + r * 0.8, turn = Math.PI / 4 + ((i % 3) - 1) * 0.25;
+  const glow: THREE.BufferGeometry[] = [];
+  // three overlapping lobes make the ribs
+  for (const [dx, sc, c] of [[0, 1, "#ea580c"], [-0.32, 0.8, "#c2410c"], [0.32, 0.8, "#c2410c"]] as const) {
+    const ox = Math.cos(turn) * dx * r, oz = -Math.sin(turn) * dx * r;
+    glow.push(tinted(new THREE.SphereGeometry(r * sc, 10, 7).scale(1, 0.8 / sc, 1), c, at(x + ox, y, z + oz)));
+  }
+  const fm = at(x, y, z, turn).multiply(new THREE.Matrix4().makeTranslation(0, 0, r * 1.0));
+  for (const sh of jackFace(r)) glow.push(tinted(new THREE.ShapeGeometry(sh), "#fde047", fm));
+  return { glow, lit: [{ shape: "cyl", size: [r * 0.12, r * 0.4, 6], pos: [x, y + r * 0.85, z], rot: [0.2, 0, 0.15], color: "#3f6212" }] };
+}
+
 function ornament(kind: NonNullable<Decor["ornament"]>, s: Spot, i: number, out: Built, ground: number) {
   const { x, y, z, R } = s;
   switch (kind) {
@@ -123,11 +152,12 @@ function ornament(kind: NonNullable<Decor["ornament"]>, s: Spot, i: number, out:
       break;
     }
     case "pumpkin": {
-      // a jack-o'-lantern on the ground by the gate, glowing at night
-      const px = x + (i % 2 ? 0.55 : -0.55), pz = z + 0.25, r = 0.16;
-      out.glowGeo.push(tinted(new THREE.SphereGeometry(r, 10, 7).scale(1, 0.78, 1), "#f97316", at(px, ground + r * 0.78, pz)));
-      out.lit.push({ size: [0.03, 0.08, 0.03], pos: [px, ground + r * 1.6, pz], color: "#3f6212" });
-      out.halos.push({ x: px, y: ground + r, z: pz + 0.05, R: 0.18 });
+      // a carved jack-o'-lantern on the ground by the gate, its face lit from inside at night
+      const px = x + (i % 2 ? 0.55 : -0.55), pz = z + 0.25, r = 0.17;
+      const j = jackOLantern(px, ground, pz, r, i);
+      out.glowGeo.push(...j.glow);
+      out.lit.push(...j.lit);
+      out.halos.push({ x: px, y: ground + r, z: pz + 0.05, R: 0.2 });
       break;
     }
     case "candle": {
@@ -159,7 +189,7 @@ export function Festive({ decor }: { decor: Decor }) {
       const spots = onGround ? h.parols.map((p) => ({ ...p, z: p.z + 0.15 })).concat(s.parols.filter((_, i) => i % 2 === 0)) : [...h.parols, ...s.parols];
       spots.forEach((p, i) => ornament(decor.ornament!, p, i, out, 0.02));
       if (!onGround) ornament(decor.ornament, OFFICE_FRONT, 1, out, 0.02);
-      else ornament(decor.ornament, { x: 15.3 + 0.6, y: 0, z: ROOM.D - 0.1, R: 0.3 }, 0, out, 0.02); // by the office door
+      else ornament(decor.ornament, { x: ROOM.W + 0.6, y: 0, z: ROOM.D - 0.1, R: 0.3 }, 0, out, 0.02); // by the office front
     }
     let bunting: THREE.BufferGeometry | null = null;
     let poles: THREE.BufferGeometry | null = null;

@@ -131,13 +131,13 @@ function Trees({ shadows }: { shadows: boolean }) {
 
 /* ------------------------------------------------------------------ street lamps (batched) */
 
-const POLE_H = 2.8, ARM = 0.55;
+export const POLE_H = 2.8, ARM = 0.55;
 /** A lamp: where its pole stands and which way its arm reaches (a unit step along x or z). */
-type Lamp = { x: number; z: number; ax: number; az: number; h?: number; arm?: number };
+export type Lamp = { x: number; z: number; ax: number; az: number; h?: number; arm?: number };
 const along = (z: number, dir: 1 | -1) => (x: number): Lamp => ({ x, z, ax: 0, az: dir });
 
 /** The street lamps (warm sodium-ish LED): the main road, both residential streets, up both side streets. */
-const LAMPS: readonly Lamp[] = [
+export const LAMPS: readonly Lamp[] = [
   ...[-35, -26.5, -18, -7.5, -1.2, 8, 16, OUTSIDE.x1 + 3, 31, 39.5, 48, 60, 72].map(along(SIDEWALK.z1 - 0.25, 1)),
   ...[-31, -20, -9.5, 1, 12, 24, 36, 47, 61, 73].map(along(FAR_WALK.z0 + 0.25, -1)),
   // the residential streets: lamps on their +z side, reaching over the street

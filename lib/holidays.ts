@@ -22,8 +22,13 @@ export type Decor = {
   acrossStreet: boolean;
   /** Fireworks over the town in the evening (hours, Manila). */
   fireworks: readonly [number, number] | null;
-  /** Something more for this one: heart balloons and garlands (Valentine's), the penitensya procession (Holy Week). */
-  extras?: "valentine" | "penitensya";
+  /**
+   * Something more for this one: heart balloons and garlands (Valentine's), the penitensya procession (Holy
+   * Week), ghosts, bats and trick-or-treaters (Halloween), the banner and the fruit table (New Year), the
+   * dragon dance (Chinese New Year), the flower arches, the Santacruzan and the perya (the fiesta), big flags
+   * on the lamp posts (Independence Day).
+   */
+  extras?: "valentine" | "penitensya" | "halloween" | "newyear" | "lunar" | "fiesta" | "kalayaan";
 };
 
 export type Holiday = {
@@ -112,11 +117,11 @@ export const HOLIDAYS: readonly Holiday[] = [
   },
   {
     id: "undas", name: "Halloween and Undas", when: "Oct 31 – Nov 2",
-    looks: "Jack-o'-lanterns at the gates, candles for All Saints' and All Souls'",
+    looks: "Carved jack-o'-lanterns glowing at every gate, on the shop steps and along the office front, orange and purple string lights, cobwebs in the corners, sheet ghosts floating over the yards, bats round the street lamps after dark, kids in costume trick-or-treating shop to shop; for Undas, candles and chrysanthemums at the gates, a flower and candle stall, a family walking to the cemetery with flowers",
     swatch: ["#f97316", "#7c3aed", "#facc15"], previewAt: "19:30",
     on: (p) => (p.month === 9 && p.day === 31) || (p.month === 10 && p.day <= 2),
     first: () => [9, 31],
-    decor: { ornament: "pumpkin", bunting: null, acrossStreet: false, fireworks: null },
+    decor: { ornament: "pumpkin", bunting: null, acrossStreet: false, fireworks: null, extras: "halloween" },
   },
   {
     id: "christmas", name: "Pasko (Christmas season)", when: "The ber months: Sept 16 – Jan 6",

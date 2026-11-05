@@ -18,6 +18,7 @@ import { activeHolidays, useHolidayPreview, type HolidayId } from "@/lib/holiday
 import { Festive } from "./Festive";
 import { Valentine } from "./Valentine";
 import { Penitensya } from "./Penitensya";
+import { Halloween } from "./Halloween";
 
 /**
  * Pasko and Bagong Taon in the town.
@@ -378,6 +379,7 @@ export function Holidays() {
       {festive.map((h) => <Festive key={h.id} decor={h.decor!} />)}
       {festive.some((h) => h.decor!.extras === "valentine") && <Valentine frozen={minimal} />}
       {festive.some((h) => h.decor!.extras === "penitensya") && <Penitensya frozen={minimal} />}
+      {festive.some((h) => h.decor!.extras === "halloween") && <Halloween frozen={minimal} lowPower={lowPower} />}
       {fireworks && <Fireworks lowPower={lowPower} peak={() => peakRef.current} preview={previewId === "newyear"} />}
     </group>
   );
