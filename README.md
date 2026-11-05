@@ -415,6 +415,8 @@ Any one AI key is enough for most desks. The desks that read private data (mail,
 
 **Friends tab (who's online):** every HQ in the circle, with a green dot when they have HQ open, amber when it's in the background, grey when offline. It uses Supabase Realtime presence on a private channel (`hq:lobby`) that only signed-in people can join; `multi-hq.sql` adds its policy. Free, nothing stored. If the tab says it can't see who's online, check Supabase → Realtime is enabled for the project.
 
+**Chat:** in the Friends tab, the **Lounge** is a group chat with everyone, and tapping a friend opens a direct chat. Messages are kept in `hq_messages` (added by `multi-hq.sql`; up to 1000 characters, 20 a minute per HQ). Only the server reads them and it checks you're in the room; the Realtime lobby only carries a "something new in room X" ping, never the text. A new message in a room you're not looking at shows a toast and an unread badge.
+
 **The 5-minute tick** calls itself once per HQ, in parallel, so every HQ's work gets its own function and time limit. If you create one of the optional tables later (push notifications, Spotify, names), run `supabase/multi-hq.sql` again afterwards to give it its `hq_id`.
 
 ## Spotify in the office

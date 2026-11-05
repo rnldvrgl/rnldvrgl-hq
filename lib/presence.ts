@@ -42,6 +42,15 @@ export const usePresence = create<PresenceStore>()((set) => ({
   },
 }));
 
+// the lobby also carries chat pings: "something new in room X" (no text: the text is fetched from the API,
+// which checks you're allowed to read it)
+let lobby: RealtimeChannel | null = null;
+let onPing: ((p: { room: string; from: string }) => void) | null = null;
+export const setChatPingListener = (fn: typeof onPing): void => { onPing = fn; };
+export function sendChatPing(room: string, from: string): void {
+  if (lobby) void lobby.send({ type: "broadcast", event: "chat", payload: { room, from } });
+}
+
 /** Join the lobby while the office is open (mount once). */
 export function usePresenceLink(myHq: string | undefined): void {
   useEffect(() => {
@@ -58,7 +67,12 @@ export function usePresenceLink(myHq: string | undefined): void {
       await supabase.realtime.setAuth(); // private channels check the signed-in user's token
       if (cancelled) return;
       channel = supabase.channel("hq:lobby", { config: { private: true, presence: { key: myHq } } });
+      lobby = channel;
       channel
+        .on("broadcast", { event: "chat" }, ({ payload }) => {
+          const p = payload as { room?: unknown; from?: unknown };
+          if (typeof p.room === "string" && typeof p.from === "string") onPing?.({ room: p.room, from: p.from });
+        })
         .on("presence", { event: "sync" }, () => {
           const state = channel!.presenceState<Here>();
           const here: Record<string, Here> = {};
@@ -88,6 +102,7 @@ export function usePresenceLink(myHq: string | undefined): void {
       clearInterval(refresh);
       document.removeEventListener("visibilitychange", onVisible);
       if (channel) void supabase.removeChannel(channel);
+      lobby = null;
     };
   }, [myHq]);
 }

@@ -261,6 +261,12 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["hq_secrets"]["Insert"]>;
         Relationships: [];
       };
+      hq_messages: {
+        Row: { id: string; room: string; from_hq: string; body: string; created_at: string };
+        Insert: { id?: string; room: string; from_hq: string; body: string; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["hq_messages"]["Insert"]>;
+        Relationships: [];
+      };
       hq_prefs: {
         Row: { hq_id: string; data: Json; updated_at: string };
         Insert: { hq_id: string; data: Json; updated_at?: string };

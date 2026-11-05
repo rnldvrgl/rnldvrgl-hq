@@ -134,6 +134,18 @@ alter table hq_invites enable row level security;
 alter table hq_secrets enable row level security;
 alter table hq_prefs enable row level security;
 
+-- Chat between HQs: the Lounge (everyone) and direct messages ("dm:<hq id>:<hq id>", the two ids sorted).
+-- Only the server reads and writes it (RLS on, no policies); it checks you're in the room.
+create table if not exists hq_messages (
+  id uuid primary key default gen_random_uuid(),
+  room text not null check (room = 'lounge' or room ~ '^dm:[0-9a-f-]{36}:[0-9a-f-]{36}$'),
+  from_hq uuid not null references hqs(id) on delete cascade,
+  body text not null check (char_length(body) between 1 and 1000),
+  created_at timestamptz not null default now()
+);
+create index if not exists hq_messages_room_at on hq_messages (room, created_at desc);
+alter table hq_messages enable row level security;
+
 -- Realtime: the friends' lobby (who's online). A private channel only signed-in people can join, and
 -- sign-in is invite-only, so that's your circle. Nothing is stored; presence only lives while connected.
 do $$ begin

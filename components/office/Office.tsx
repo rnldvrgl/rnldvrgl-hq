@@ -11,6 +11,7 @@ import { useOffice } from "@/lib/store";
 import { Welcome } from "./Welcome";
 import { FriendsPanel } from "./FriendsPanel";
 import { useOnlineCount, usePresenceLink } from "@/lib/presence";
+import { useChat, useUnread } from "@/lib/chat-client";
 import { useAppIcon, useHandle, usePrefs } from "@/lib/prefs-client";
 import { Glyph, iconGradient } from "@/lib/app-icon";
 import { isEmployeeId, TEAM, teamById, type AiProvider, type OfficeState } from "@/lib/team";
@@ -81,6 +82,12 @@ export default function Office({ initial }: { initial: OfficeState }) {
   // a rename redraws everything that shows people's names (it's rare, so a remount is fine)
   const teamVersion = usePrefs((s) => s.teamVersion);
   usePresenceLink(useOffice((s) => s.data.hq?.id));
+  // unread chat dots: what's new since you last looked (and every 2 minutes, in case a ping was missed)
+  useEffect(() => {
+    void useChat.getState().loadRooms();
+    const t = setInterval(() => void useChat.getState().loadRooms(), 120_000);
+    return () => clearInterval(t);
+  }, []);
   // renamed someone, or changed the team: the office redraws
   const key = `${namesVersion}-${teamVersion}`;
   return (
@@ -308,6 +315,7 @@ function DesktopOffice() {
   const header = useRef<HTMLElement>(null);
   const [tab, setTab] = useState("team");
   const online = useOnlineCount();
+  const unread = useUnread();
 
   useGSAP(() => {
     gsap.from("[data-head]", { y: -10, autoAlpha: 0, duration: 0.5, stagger: 0.06, ease: "power2.out", clearProps: "all" });
@@ -351,7 +359,8 @@ function DesktopOffice() {
                   </TabsTrigger>
                   <TabsTrigger value="friends" className="rounded-lg">
                     <Heart aria-hidden /> Friends
-                    {online > 0 && <span className="rounded-full bg-emerald-500/15 px-1.5 text-[11px] font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">{online}</span>}
+                    {unread > 0 ? <span className="rounded-full bg-primary px-1.5 text-[11px] font-semibold tabular-nums text-primary-foreground" aria-label={`${unread} unread`}>{unread}</span>
+                      : online > 0 && <span className="rounded-full bg-emerald-500/15 px-1.5 text-[11px] font-semibold tabular-nums text-emerald-700 dark:text-emerald-300" aria-label={`${online} online`}>{online}</span>}
                   </TabsTrigger>
                 </TabsList>
               </div>
@@ -393,7 +402,7 @@ function PhoneOffice() {
   const [tab, setTab] = useState<Tab>("office");
   const { working, waiting, reminders, provider } = useCounts();
 
-  const online = useOnlineCount();
+  const online = useOnlineCount() + useUnread();
   const badgeFor = (id: Tab): number => (id === "team" ? waiting : id === "reminders" ? reminders : id === "friends" ? online : 0);
 
   return (
