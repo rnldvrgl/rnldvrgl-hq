@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
-  Check, ChevronDown, Gamepad2, Laptop, ListMusic, Loader2, MicVocal, Monitor, Music, Pause, Play, Radio, RefreshCw, SkipBack, SkipForward,
+  Check, ChevronDown, Disc3, Gamepad2, Laptop, ListMusic, Loader2, MicVocal, Monitor, Music, Pause, Play, Radio, RefreshCw, SkipBack, SkipForward,
   SlidersHorizontal, Smartphone, Speaker, Tablet, Tv, Unplug, Volume1, type LucideIcon,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -21,9 +21,27 @@ const roundBtn =
  * The office's Spotify remote (top-right controls): connect your account, see what's playing, skip, pause,
  * change the volume, or start one of your playlists. With Premium the HQ tab is a Spotify device of its own.
  */
+type Tab = "playing" | "lyrics" | "library" | "sound";
+const TABS: readonly { id: Tab; label: string; icon: LucideIcon; spotify: boolean }[] = [
+  { id: "playing", label: "Playing", icon: Disc3, spotify: false },
+  { id: "lyrics", label: "Lyrics", icon: MicVocal, spotify: true },
+  { id: "library", label: "Library", icon: ListMusic, spotify: true },
+  { id: "sound", label: "Sound", icon: SlidersHorizontal, spotify: false },
+];
+
+/**
+ * The office's music (top-right controls), in four tabs so nothing scrolls inside anything else:
+ *   Playing  Spotify: connect, what's playing, play / skip, volume, the device it plays on
+ *   Lyrics   the song's lyrics, scrolling along
+ *   Library  your playlists
+ *   Sound    the office radio's style and the office sound's volumes
+ */
 export function MusicPanel({ className }: { className?: string }) {
   const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<Tab>("playing");
   const playing = useSpotify((s) => s.track?.playing ?? false);
+  const ready = useSpotify((s) => s.status === "ready");
+  const hasTrack = useSpotify((s) => !!s.track);
   const phone = useIsPhone();
 
   // pick up the shared connection on load, and when coming back to the tab (connected from another device meanwhile)
@@ -34,6 +52,9 @@ export function MusicPanel({ className }: { className?: string }) {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, []);
 
+  const tabs = TABS.filter((t) => !t.spotify || ready);
+  const current = tabs.some((t) => t.id === tab) ? tab : "playing";
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -42,15 +63,39 @@ export function MusicPanel({ className }: { className?: string }) {
           {playing && <span className="absolute top-2 right-2 size-1.5 rounded-full bg-emerald-500" aria-hidden />}
         </button>
       </PopoverTrigger>
-      {/* phones: drop down under the buttons at nearly full width (to the left there's no room, and it got cut off) */}
+      {/* phones: drop down under the buttons at nearly full width (to the left there's no room) */}
       <PopoverContent
         align="end" side={phone ? "bottom" : "left"} collisionPadding={12}
-        className={cn("glass bg-popover/95 p-3", phone ? "w-[calc(100vw-1.5rem)]" : "w-[min(20rem,calc(100vw-2rem))]")}
+        className={cn("glass flex flex-col gap-0 overflow-hidden bg-popover/95 p-0", phone ? "w-[calc(100vw-1.5rem)]" : "w-[22rem]")}
+        style={{ maxHeight: "min(80dvh, 42rem, calc(var(--radix-popover-content-available-height) - 0.5rem))" }}
       >
-        <div className="max-h-[min(78dvh,40rem,calc(var(--radix-popover-content-available-height)-1.5rem))] space-y-4 overflow-y-auto overscroll-contain pr-0.5">
-          <Body open={open} />
-          <OfficeRadio />
-          <Mixer />
+        <div role="tablist" aria-label="Music" className="m-2 mb-0 grid shrink-0 auto-cols-fr grid-flow-col gap-1 rounded-xl bg-muted/70 p-1">
+          {tabs.map((t) => (
+            <button
+              key={t.id} type="button" role="tab" aria-selected={current === t.id} onClick={() => setTab(t.id)}
+              disabled={t.id === "lyrics" && !hasTrack}
+              className={cn(
+                "flex h-8 items-center justify-center gap-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-40",
+                current === t.id ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <t.icon className="size-3.5" aria-hidden /> {t.label}
+            </button>
+          ))}
+        </div>
+        <div role="tabpanel" className={cn("min-h-0 flex-1 p-3 pr-1.5", current === "lyrics" ? "flex flex-col" : "scroll-thin")}>
+          {current === "playing" && <Body open={open} />}
+          {current === "lyrics" && <LyricsTab />}
+          {current === "library" && <Library open={open} />}
+          {current === "sound" && (
+            <div className="space-y-4 pr-1.5">
+              <OfficeRadio />
+              <section className="space-y-2.5">
+                <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground"><SlidersHorizontal className="size-3.5" aria-hidden /> Office sound volumes</p>
+                <SoundMixer compact />
+              </section>
+            </div>
+          )}
         </div>
       </PopoverContent>
     </Popover>
@@ -64,23 +109,24 @@ function Body({ open }: { open: boolean }) {
 
   if (!spotifyConfigured()) {
     return (
-      <div className="space-y-1.5 text-sm">
+      <div className="space-y-1.5 pr-1.5 text-sm">
         <p className="font-medium">Spotify isn&apos;t set up</p>
         <p className="text-xs text-muted-foreground">
           Add <code className="rounded bg-muted px-1">NEXT_PUBLIC_SPOTIFY_CLIENT_ID</code> to your environment (see README → Spotify), then reload.
+          The office radio still plays: see the Sound tab.
         </p>
       </div>
     );
   }
   if (status === "off" || status === "error") {
     return (
-      <div className="space-y-3 text-sm">
+      <div className="space-y-3 pr-1.5 text-sm">
         <div>
           <p className="font-medium">Office music from Spotify</p>
           <p className="text-xs text-muted-foreground">Connect once and every device you sign in on has it. Controls need Spotify Premium.</p>
         </div>
         {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
-        <button type="button" onClick={() => void connect()} className="h-9 w-full rounded-full bg-[#1db954] text-sm font-semibold text-black transition-opacity hover:opacity-90">
+        <button type="button" onClick={() => void connect()} className="h-10 w-full rounded-full bg-[#1db954] text-sm font-semibold text-black transition-opacity hover:opacity-90">
           Connect Spotify
         </button>
       </div>
@@ -93,30 +139,16 @@ function Body({ open }: { open: boolean }) {
 }
 
 function Connected({ open }: { open: boolean }) {
-  const { track, isPremium, error, volume, activeDevice, deviceId, playlists } = useSpotify();
-  const { toggle, next, prev, setVolume, fetchPlaylists, playPlaylist, disconnect } = useSpotify.getState();
+  const { track, isPremium, error, volume, activeDevice, deviceId } = useSpotify();
+  const { toggle, next, prev, setVolume, disconnect } = useSpotify.getState();
   const canControl = isPremium !== false;
-  const [lyrics, setLyrics] = useState(false);
-
-  useEffect(() => { if (open && playlists.length === 0) void fetchPlaylists(); }, [open, playlists.length, fetchPlaylists]);
+  void open;
 
   return (
-    <div className="space-y-3 text-sm">
+    <div className="space-y-4 pr-1.5 text-sm">
       <NowPlaying track={track} />
-      {track && (
-        <div>
-          <button
-            type="button" onClick={() => setLyrics((v) => !v)} aria-expanded={lyrics}
-            className={cn("flex items-center gap-1.5 text-xs font-medium transition-colors", lyrics ? "text-[#1db954]" : "text-muted-foreground hover:text-foreground")}
-          >
-            <MicVocal className="size-3.5" aria-hidden /> {lyrics ? "Hide lyrics" : "Show lyrics"}
-          </button>
-          {lyrics && <LyricsView track={track} className="mt-1.5" />}
-        </div>
-      )}
-      <Devices activeDevice={activeDevice} deviceId={deviceId} canControl={canControl} />
 
-      <div className="flex items-center justify-center gap-2" role="group" aria-label="Playback">
+      <div className="flex items-center justify-center gap-3" role="group" aria-label="Playback">
         <button type="button" className={roundBtn} onClick={() => void prev()} disabled={!canControl || !track} aria-label="Previous track"><SkipBack className="size-4" aria-hidden /></button>
         <button
           type="button"
@@ -130,47 +162,68 @@ function Connected({ open }: { open: boolean }) {
         <button type="button" className={roundBtn} onClick={() => void next()} disabled={!canControl || !track} aria-label="Next track"><SkipForward className="size-4" aria-hidden /></button>
       </div>
 
-      <label className="flex items-center gap-2">
+      <label className="flex items-center gap-2.5 rounded-xl bg-muted/50 px-3 py-2.5">
         <Volume1 className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-        <span className="sr-only">Volume</span>
+        <span className="sr-only">Spotify volume</span>
         <input
           type="range" min={0} max={100} step={1} value={Math.round(volume * 100)} disabled={!canControl}
           onChange={(e) => void setVolume(Number(e.target.value) / 100)}
           className="h-1.5 w-full cursor-pointer accent-[#1db954] disabled:cursor-not-allowed"
         />
+        <span className="w-8 shrink-0 text-right font-mono text-[10px] tabular-nums text-muted-foreground">{Math.round(volume * 100)}%</span>
       </label>
+
+      <Devices activeDevice={activeDevice} deviceId={deviceId} canControl={canControl} />
 
       {!canControl && <p className="text-xs text-muted-foreground">Your account is Spotify Free: you can see what&apos;s playing, but Spotify only allows changing it with Premium.</p>}
       {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
-
-      <div>
-        <p className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground"><ListMusic className="size-3.5" aria-hidden /> Your playlists</p>
-        <ul className="max-h-48 space-y-0.5 overflow-y-auto overscroll-contain pr-1">
-          {playlists.length === 0 && <li className="py-2 text-xs text-muted-foreground">No playlists yet.</li>}
-          {playlists.map((p) => (
-            <li key={p.id}>
-              <button
-                type="button" disabled={!canControl} onClick={() => void playPlaylist(p.uri)}
-                className="flex w-full items-center gap-2.5 rounded-lg p-1.5 text-left transition-colors hover:bg-muted disabled:opacity-50"
-                aria-label={`Play ${p.name}`}
-              >
-                {p.image
-                  ? <img src={p.image} alt="" className="size-8 shrink-0 rounded object-cover" />
-                  : <span className="grid size-8 shrink-0 place-items-center rounded bg-muted"><Music className="size-3.5" aria-hidden /></span>}
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-xs font-medium">{p.name}</span>
-                  <span className="block text-[11px] text-muted-foreground">{p.tracks} tracks</span>
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      </div>
 
       <button type="button" onClick={disconnect} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
         <Unplug className="size-3.5" aria-hidden /> Disconnect Spotify on all devices
       </button>
     </div>
+  );
+}
+
+/** The lyrics fill the tab: the only scrolling box in it. */
+function LyricsTab() {
+  const track = useSpotify((s) => s.track);
+  if (!track) return <p className="text-xs text-muted-foreground">Nothing playing.</p>;
+  return (
+    <>
+      <p className="mb-1 shrink-0 truncate pr-1.5 text-xs text-muted-foreground"><span className="font-semibold text-foreground">{track.title}</span> · {track.artist}</p>
+      <LyricsView track={track} className="scroll-thin h-[min(56dvh,26rem)] max-h-none min-h-0 flex-1" />
+    </>
+  );
+}
+
+function Library({ open }: { open: boolean }) {
+  const playlists = useSpotify((s) => s.playlists);
+  const canControl = useSpotify((s) => s.isPremium !== false);
+  const { fetchPlaylists, playPlaylist } = useSpotify.getState();
+  useEffect(() => { if (open && playlists.length === 0) void fetchPlaylists(); }, [open, playlists.length, fetchPlaylists]);
+  return (
+    <ul className="space-y-0.5 pr-1.5" aria-label="Your playlists">
+      {playlists.length === 0 && <li className="py-2 text-xs text-muted-foreground">No playlists yet.</li>}
+      {playlists.map((p) => (
+        <li key={p.id}>
+          <button
+            type="button" disabled={!canControl} onClick={() => void playPlaylist(p.uri)}
+            className="flex w-full items-center gap-3 rounded-xl p-1.5 text-left transition-colors hover:bg-muted disabled:opacity-50"
+            aria-label={`Play ${p.name}`}
+          >
+            {p.image
+              ? <img src={p.image} alt="" className="size-10 shrink-0 rounded-lg object-cover" />
+              : <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-muted"><Music className="size-4" aria-hidden /></span>}
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-medium">{p.name}</span>
+              <span className="block text-[11px] text-muted-foreground">{p.tracks} tracks</span>
+            </span>
+            <Play className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -284,20 +337,6 @@ function Devices({ activeDevice, deviceId, canControl }: { activeDevice: string 
   );
 }
 
-/** The office sound's volumes, folded away until opened (the full mixer with hints is in Settings → Sound). */
-function Mixer() {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="border-t border-border pt-3">
-      <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className="flex w-full items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground">
-        <SlidersHorizontal className="size-3.5" aria-hidden /> <span className="flex-1 text-left">Office sound volumes</span>
-        <ChevronDown className={cn("size-3.5 transition-transform", open && "rotate-180")} aria-hidden />
-      </button>
-      {open && <SoundMixer compact className="mt-3" />}
-    </div>
-  );
-}
-
 /** The office sound system's own music (no Spotify needed): on/off and the style. */
 function OfficeRadio() {
   const music = useSettings((s) => s.music);
@@ -305,7 +344,7 @@ function OfficeRadio() {
   const { setMusic, setMusicStyle } = useSettings.getState();
   const spotifyPlaying = useSpotify((s) => s.track?.playing ?? false);
   return (
-    <div className="space-y-2 border-t border-border pt-3 text-sm">
+    <div className="space-y-2 text-sm">
       <div className="flex items-center justify-between gap-2">
         <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground"><Radio className="size-3.5" aria-hidden /> Office radio</p>
         <button
