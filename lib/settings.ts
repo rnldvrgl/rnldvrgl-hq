@@ -23,7 +23,7 @@ export type Settings = {
   show: Record<ShowKey, boolean>;
   motion: Motion;
   routine: Record<RoutineKey, boolean>;
-  boss: { look: BossLook; wanders: boolean; office: OfficeStyle; car: CarChoice };
+  boss: { look: BossLook; wanders: boolean; office: OfficeStyle; car: CarChoice; house: HouseChoice };
   /** The office sound system's music, during office hours (only heard when sound is on). */
   music: boolean;
   /** Which music the sound system plays (all generated live, no audio files). */
@@ -106,6 +106,22 @@ const isCarChoice = (v: unknown): v is CarChoice => CAR_MODELS.some((c) => c.id 
 /** The car actually shown. */
 export const carModelOf = (boss: Settings["boss"]): CarModel => boss.car === "auto" ? (boss.look === "her" ? "mini" : "typer") : boss.car;
 
+/** The boss's house on the double lot behind the office (Neighbourhood.tsx → mansion). "auto" follows the look. */
+export type HouseStyle = "modern" | "pastel" | "heritage" | "mediterranean" | "tropical" | "japandi";
+export type HouseChoice = "auto" | HouseStyle;
+export const HOUSE_STYLES: readonly { id: HouseChoice; label: string; hint: string }[] = [
+  { id: "auto", label: "Match the boss", hint: "Modern for him, pastel for her" },
+  { id: "modern", label: "Modern", hint: "White block, timber slats, big glass" },
+  { id: "pastel", label: "Pastel dream", hint: "Blush pink, white trim, flower boxes, a rose arch" },
+  { id: "heritage", label: "Bahay na bato", hint: "Stone ground floor, wooden upstairs, capiz windows" },
+  { id: "mediterranean", label: "Mediterranean", hint: "White stucco, terracotta roof, arches" },
+  { id: "tropical", label: "Tropical resort", hint: "Wood and stone, a pool and palms" },
+  { id: "japandi", label: "Japandi", hint: "Charcoal wood, low roof, zen garden" },
+];
+const isHouseChoice = (v: unknown): v is HouseChoice => HOUSE_STYLES.some((h) => h.id === v);
+/** The house actually shown. */
+export const houseStyleOf = (boss: Settings["boss"]): HouseStyle => boss.house === "auto" ? (boss.look === "her" ? "pastel" : "modern") : boss.house;
+
 /** The corner office's interior. "auto" follows the boss's look: executive for him, cozy for her. */
 export type OfficeStyle = BossOffice;
 export const OFFICE_STYLES: readonly { id: OfficeStyle; label: string; hint: string }[] = [
@@ -150,7 +166,7 @@ export const DEFAULT_SETTINGS: Settings = {
   show: { neighbourhood: true, traffic: true, vendors: true, pets: true, weather: true, streetLights: true, smoke: true, bubbles: true, trees: true, holidays: true, homeNames: true },
   motion: "full",
   routine: { standup: true, meeting: true, lunch: true, trashDrop: true, trashRun: true, commute: true, janitor: true, idleBreaks: true, errorHelp: true },
-  boss: { look: HQ.owner.look, wanders: true, office: HQ.owner.office, car: "auto" },
+  boss: { look: HQ.owner.look, wanders: true, office: HQ.owner.office, car: "auto", house: "auto" },
   music: true,
   musicStyle: "lofi",
   volumes: DEFAULT_VOLUMES,
@@ -175,7 +191,7 @@ function read(): Settings {
       show: { ...DEFAULT_SETTINGS.show, ...v.show },
       motion: v.motion === "minimal" ? "minimal" : "full",
       routine: { ...DEFAULT_SETTINGS.routine, ...v.routine },
-      boss: { ...DEFAULT_SETTINGS.boss, ...v.boss, car: isCarChoice(v.boss?.car) ? v.boss.car : DEFAULT_SETTINGS.boss.car },
+      boss: { ...DEFAULT_SETTINGS.boss, ...v.boss, car: isCarChoice(v.boss?.car) ? v.boss.car : DEFAULT_SETTINGS.boss.car, house: isHouseChoice(v.boss?.house) ? v.boss.house : DEFAULT_SETTINGS.boss.house },
       music: v.music ?? DEFAULT_SETTINGS.music,
       musicStyle: isMusicStyle(v.musicStyle) ? v.musicStyle : DEFAULT_SETTINGS.musicStyle,
       volumes: Object.fromEntries(
