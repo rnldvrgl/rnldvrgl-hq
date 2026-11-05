@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
+    "db:backup": "node scripts/db-backup.mjs",
+    "db:restore": "node scripts/db-restore.mjs",
     "ui": "shadcn add button badge card sheet select input label separator scroll-area tabs sonner --yes"
   },
   "dependencies": {
