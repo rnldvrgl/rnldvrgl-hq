@@ -22,9 +22,18 @@ export const NAME_MAX = 24;
 let owner: string = HQ.owner.name;
 let applied = "";
 
+/**
+ * On the server, names come from the request's HQ (each HQ has its own), not from the shared module state:
+ * names-server.ts registers this. In the browser it stays null and the applied names are used.
+ */
+let resolver: (() => Partial<Record<NameKey, string>> | null) | null = null;
+export const registerNameResolver = (fn: typeof resolver): void => { resolver = fn; };
+
 /** The boss's first name ("Ronald"), and with the possessive ("Ronald's"). */
-export const ownerName = (): string => owner;
-export const ownersName = (): string => possessive(owner);
+export const ownerName = (): string => resolver?.()?.owner ?? owner;
+export const ownersName = (): string => possessive(ownerName());
+/** An employee's name now (the server: this HQ's). */
+export const nameOf = (id: EmployeeId): string => resolver?.()?.[id] ?? TEAM.find((m) => m.id === id)!.name;
 
 /** A usable name, or null: trimmed, 1–24 characters, letters, spaces, dots, hyphens and apostrophes. */
 export function cleanName(v: unknown): string | null {

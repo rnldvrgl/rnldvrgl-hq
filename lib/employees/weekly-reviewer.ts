@@ -1,4 +1,5 @@
 import "server-only";
+import { nameOf } from "@/lib/names";
 import { hqId } from "@/lib/hq-context";
 import { ask } from "@/lib/ai";
 import { db } from "@/lib/supabase/admin";
@@ -19,7 +20,7 @@ export async function weeklyReviewer(): Promise<WorkResult> {
 
   const perEmployee: Record<string, { done: number; errors: number }> = {};
   for (const r of runs.data ?? []) {
-    const k = isEmployeeId(r.employee_id) ? teamById[r.employee_id].name : r.employee_id;
+    const k = isEmployeeId(r.employee_id) ? nameOf(r.employee_id) : r.employee_id;
     perEmployee[k] ??= { done: 0, errors: 0 };
     if (r.status === "error") perEmployee[k].errors++; else perEmployee[k].done++;
   }

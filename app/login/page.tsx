@@ -15,12 +15,13 @@ import { cn } from "@/lib/utils";
 import { unlock } from "@/components/SessionLock";
 
 const ERRORS: Record<string, string> = {
-  owner: "HQ only opens for its owner. Sign in with the owner's email.",
+  owner: "HQ is invite-only. Sign in with the email your HQ was made for, or ask a friend with an HQ for an invite link.",
   link: "That sign-in link didn't work. Type the 6-digit code from the email instead.",
 };
 /** Not errors: why you're seeing the sign-in page. */
 const NOTES: Record<string, string> = {
   again: "You closed HQ, so it signed you out. Sign in again.",
+  invited: "Your HQ is ready. Enter the 6-digit code we just emailed you.",
 };
 
 /** Turn Supabase's error codes into plain sentences. */
@@ -30,16 +31,16 @@ function friendly(message: string): string {
   if (/only request this after|security purposes/i.test(message)) return "Wait 60 seconds before asking for another code.";
   if (/rate limit|too many/i.test(message)) return "Too many tries. Wait a few minutes and try again.";
   if (/invalid login credentials/i.test(message)) return "Wrong email or password.";
-  if (/signups not allowed/i.test(message)) return "That email isn't registered. Use the owner's email.";
+  if (/signups not allowed|user not found/i.test(message)) return "That email doesn't have an HQ. Open your invite link first.";
   return message;
 }
 
 function LoginForm() {
   const params = useSearchParams();
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() => params.get("email") ?? "");
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
-  const [step, setStep] = useState<"password" | "email" | "code">("password");
+  const [step, setStep] = useState<"password" | "email" | "code">(() => (params.get("step") === "code" ? "code" : "password"));
   const [busy, setBusy] = useState(false);
   const [showPw, setShowPw] = useState(false);
   const note = NOTES[params.get("note") ?? ""] ?? "";
@@ -64,7 +65,8 @@ function LoginForm() {
     setErr(""); setBusy(true);
     const { error } = await browserClient().auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      // nobody signs up here: accounts come from invites (app/invite)
+      options: { shouldCreateUser: false, emailRedirectTo: `${window.location.origin}/auth/callback` },
     });
     setBusy(false);
     if (error) return setErr(friendly(error.message));
@@ -149,7 +151,7 @@ function LoginForm() {
           </div>
 
           <header className="mb-6 grid gap-1.5">
-            <h1 className="text-balance text-2xl font-semibold tracking-tight sm:text-[1.75rem]">{greet}, {OWNER}</h1>
+            <h1 className="text-balance text-2xl font-semibold tracking-tight sm:text-[1.75rem]">{greet}</h1>
             <p className="text-sm text-muted-foreground">
               {step === "code" ? <>We sent a code to <span className="font-medium text-foreground">{email}</span>.</> : HQ.login.tagline}
             </p>
@@ -251,7 +253,7 @@ function LoginForm() {
           </div>
 
           <p className="mt-6 flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
-            <Lock className="size-3.5 shrink-0" aria-hidden /> Private office. Only {OWNER} can sign in.
+            <Lock className="size-3.5 shrink-0" aria-hidden /> Private offices. Invite only.
           </p>
         </section>
       </div>

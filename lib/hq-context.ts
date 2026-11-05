@@ -17,6 +17,8 @@ export type HqCtx = {
   email: string;
   /** This HQ's decrypted secrets (AI keys, Google refresh token, GitHub token…). */
   secrets: Record<string, string>;
+  /** This HQ's renames (Settings → Names), once loaded: the AI's briefs use them. */
+  names?: Record<string, string>;
 };
 
 const store = new AsyncLocalStorage<HqCtx>();
@@ -33,3 +35,6 @@ export function hqCtx(): HqCtx {
 
 /** The current HQ's id, for `.eq("hq_id", hqId())` and inserts. */
 export const hqId = (): string => hqCtx().id;
+
+/** The HQ for this request, or null outside one. */
+export const hqCtxOrNull = (): HqCtx | null => store.getStore() ?? null;

@@ -28,7 +28,8 @@ export async function middleware(req: NextRequest) {
   const { data } = await supabase.auth.getUser();
 
   const path = req.nextUrl.pathname;
-  const isPublic = path.startsWith("/login") || path.startsWith("/auth") || path === "/api/tick" || path === "/api/reminders/sync";
+  const isPublic = path.startsWith("/login") || path.startsWith("/auth") || path.startsWith("/invite/") || path === "/api/invites/accept"
+    || path === "/api/tick" || path === "/api/reminders/sync";
   if (!data.user && !isPublic) {
     if (path.startsWith("/api/")) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
     const url = req.nextUrl.clone();

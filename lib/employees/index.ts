@@ -1,4 +1,5 @@
 import { syncNames } from "@/lib/names-server";
+import { nameOf } from "@/lib/names";
 import { hqId } from "@/lib/hq-context";
 import "server-only";
 import { db } from "@/lib/supabase/admin";
@@ -123,7 +124,7 @@ export async function runEmployee(id: EmployeeId, trigger: RunTrigger): Promise<
 async function notify(id: EmployeeId, what: string, detail: string | null): Promise<void> {
   const meta = teamById[id];
   await pushToOwner({
-    title: `${meta.name} ${what}`,
+    title: `${nameOf(id)} ${what}`,
     body: (detail || meta.title).slice(0, 180),
     url: `/?desk=${id}`,
     tag: `desk-${id}`,

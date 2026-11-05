@@ -1,7 +1,8 @@
 import "server-only";
 import { hqId } from "@/lib/hq-context";
 import { db } from "@/lib/supabase/admin";
-import { applyNames, cleanName, NAME_KEYS, type Names } from "@/lib/names";
+import { BASE_NAMES, cleanName, NAME_KEYS, registerNameResolver, type Names } from "@/lib/names";
+import { hqCtxOrNull } from "@/lib/hq-context";
 
 /** The saved renames (table office_names). Empty if the table isn't there yet. */
 export async function loadNames(): Promise<Names> {
@@ -12,10 +13,18 @@ export async function loadNames(): Promise<Names> {
   return out;
 }
 
-/** Load and apply the saved names before anything uses them (state, employee runs). */
+// names on the server are per HQ: read from the request's HQ context
+registerNameResolver(() => (hqCtxOrNull()?.names as Names | undefined) ?? null);
+
+/** Load this HQ's names into its context before anything uses them (state, employee runs). */
 export async function syncNames(): Promise<Names> {
-  const names = await loadNames().catch(() => ({}));
-  applyNames(names);
+  const names: Names = await loadNames().catch(() => ({}));
+  const ctx = hqCtxOrNull();
+  if (ctx) {
+    const merged: Record<string, string> = { ...BASE_NAMES };
+    for (const k of NAME_KEYS) { const c = cleanName(names[k]); if (c) merged[k] = c; }
+    ctx.names = merged;
+  }
   return names;
 }
 
