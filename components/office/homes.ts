@@ -62,7 +62,7 @@ const homeAt = (slot: HouseSlot, who: Who, name: string, color: string): Home =>
 const OWNER_LOT = 7.2;
 /** The boss's big house takes two lots side by side (Mansion in Neighbourhood.tsx). */
 export const OWNER_LOTS = [7.2, 14.8] as const;
-const TEAM_LOTS = [-0.4, -15.6, 22.4, 30, 37.6, -23.2, -30.8, -38.4];
+const TEAM_LOTS = [-0.4, -8, 22.4, 30, 37.6, -23.2, -30.8, -38.4];
 
 const slotAt = (x: number) => HOUSE_SLOTS.find((s) => s.row === 0 && Math.abs(s.x - x) < 0.01)!;
 

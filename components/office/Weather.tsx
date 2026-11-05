@@ -4,7 +4,7 @@ import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { useOffice } from "@/lib/store";
-import { OUTSIDE, ROOM } from "./palette";
+import { OUTSIDE, DEN, ROOM } from "./palette";
 import { getGlowTexture, light } from "./Lighting";
 import { BACK_STREETS, BACK_X, FAR_WALK, GROUND, ROAD, ROAD_X, SIDE_STREETS, SIDEWALK, underRoof } from "./world";
 import { useSettings } from "@/lib/settings";
@@ -32,7 +32,7 @@ const puddleY = (z: number) => (z > ROAD.z0 && z < ROAD.z1) || BACK_STREETS.some
 /** The rain box around the view centre, updated every frame. */
 const AREA = { x0: -7, x1: OUTSIDE.x1 + 9, z0: -5, z1: ROAD.z1 + 1 };
 /** Inside the walls (plus a little overhang) stays dry. */
-const indoors = (x: number, z: number) => x > -0.15 && x < ROOM.W + 0.15 && z > -0.15 && z < ROOM.D + 0.15;
+const indoors = (x: number, z: number) => x > DEN.x0 - 0.15 && x < ROOM.W + 0.15 && z > -0.15 && z < ROOM.D + 0.15;
 const outside = (x: number, z: number) => x < AREA.x0 || x > AREA.x1 || z < AREA.z0 || z > AREA.z1;
 
 function randomOutdoor(): [number, number] {

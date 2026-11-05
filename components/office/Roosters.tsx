@@ -29,7 +29,7 @@ const yard = (lotX: number) => {
 };
 
 const BIRDS: readonly Bird[] = (() => {
-  const a = yard(-15.6), b = yard(45.2 - 7.6 * 1), c = yard(-0.4);
+  const a = yard(-23.2), b = yard(37.6), c = yard(-0.4);
   return [
     // on the front fence of the house left of Maya's, looking at the street
     { rooster: 0, x: c.x + 4.2, z: c.gateZ, y: 1.17, roam: 0.5, face: -Math.PI / 2, seed: 1 },
@@ -43,7 +43,7 @@ const BIRDS: readonly Bird[] = (() => {
   ];
 })();
 /** The A-frame coop (kulungan) in the first yard. */
-const COOP = (() => { const a = yard(-15.6); return { x: a.x + 1.0, z: a.gateZ + 0.05 }; })();
+const COOP = (() => { const a = yard(-23.2); return { x: a.x + 1.0, z: a.gateZ + 0.05 }; })();
 
 /** A bird in its own frame, facing +x, feet at 0. */
 function bodyParts(rooster: boolean): Part[] {

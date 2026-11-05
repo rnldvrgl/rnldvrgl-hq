@@ -7,7 +7,7 @@ import { RoundedBox, Text } from "@react-three/drei";
 import { sceneNow } from "@/lib/store";
 import { manilaMinutes, TRASH_AT, hm } from "@/lib/office-clock";
 import type { EmployeeId } from "@/lib/team";
-import { DUMPSTER, ENTRANCE, OFFICE, OUTSIDE, ROOM, SCENE_FONT, type Palette } from "./palette";
+import { DEN, DUMPSTER, ENTRANCE, OFFICE, OUTSIDE, ROOM, SCENE_FONT, type Palette } from "./palette";
 
 import { actWindows, trashRoute } from "./routes";
 import { Dining, FrontZone } from "./FrontZone";
@@ -371,9 +371,9 @@ export function Amenities({ pal, shadows, assignee }: Common & { assignee: Emplo
             <Car shadows={shadows} />
             <Carport shadows={shadows} />
             <VapeArea pal={pal} shadows={shadows} />
-            {/* split ACs high on the left wall, blowing across the team */}
-            <AirCon pal={pal} shadows={shadows} position={[0.12, 2.3, 2.1]} rotY={Math.PI / 2} on={floorAcOn} />
-            <AirCon pal={pal} shadows={shadows} position={[0.12, 2.3, 6.3]} rotY={Math.PI / 2} on={floorAcOn} />
+            {/* split ACs high on the Den's outer wall (blowing across it and the team), one in the meeting room */}
+            <AirCon pal={pal} shadows={shadows} position={[DEN.x0 + 0.12, 2.3, 2.1]} rotY={Math.PI / 2} on={floorAcOn} />
+            <AirCon pal={pal} shadows={shadows} position={[DEN.x0 + 0.12, 2.3, 9.4]} rotY={Math.PI / 2} on={floorAcOn} />
             <AirCon pal={pal} shadows={shadows} position={[0.12, 2.3, 9.9]} rotY={Math.PI / 2} on={floorAcOn} />
         </group>
     );

@@ -91,6 +91,11 @@ export const SHIRTS = ["#e0a43a", "#4a8fd8", "#2f9e8f", "#d46a6a", "#8a6fd1", "#
  * The front zone (z > FRONT_Z) has a glass meeting room, the stand-up circle and the lounge.
  */
 export const ROOM = { W: 15.3, D: 11.2, H: 2.7 } as const;
+/**
+ * The Den: the cozy wing on the left (x0..x1 = 0), open to the office through a passage in a low bookcase
+ * divider: library wall, fireplace, sofas, bean bags, a hammock, a reading nook (Den.tsx).
+ */
+export const DEN = { x0: -6.4, x1: 0 } as const;
 /** Where the desk floor ends and the front zone (meeting room, stand-up area, lounge) begins. */
 export const FRONT_Z = 8.3;
 export const DESK = { W: 1.7, D: 0.85, H: 0.74 } as const;
@@ -123,9 +128,9 @@ export const MEETING = { x1: 4.4, z0: 8.65 } as const;
 /** Lounge in the front-right. */
 export const LOUNGE = { x: 12.9, z: 9.9 } as const;
 /** Whole diorama (room + outside), for camera framing and limits. */
-export const SCENE = { x0: 0, x1: OUTSIDE.x1, z0: 0, z1: ROOM.D } as const;
+export const SCENE = { x0: DEN.x0, x1: OUTSIDE.x1, z0: 0, z1: ROOM.D } as const;
 /** Middle of the room volume: what the camera orbits by default. */
-export const CENTER = { x: SCENE.x1 / 2, y: ROOM.H / 2, z: ROOM.D / 2 } as const;
+export const CENTER = { x: (SCENE.x0 + SCENE.x1) / 2, y: ROOM.H / 2, z: ROOM.D / 2 } as const;
 /** Seat height of the office chairs (employees sit with their hips here). */
 export const SEAT_Y = 0.5;
 

@@ -248,12 +248,12 @@ type Est = {
 
 export const EST: readonly Est[] = [
   // left of the side street, going away from the office
-  { x0: -12.0, x1: -7.2, depth: 5.5, h: 3.2, floors: 2, kind: "sari", wall: "#f1d9a8", trim: "#7c4a2d", awning: "#2563eb", upper: "#e9e2cf", sign: "sari" },
-  { x0: -22.8, x1: -12.8, depth: 8, h: 3.9, floors: 1, kind: "food", wall: "#f8fafc", trim: "#e31837", awning: "#ffc522", sign: "jollibee", allNight: true },
-  { x0: -29.4, x1: -23.6, depth: 6, h: 3.4, floors: 1, kind: "mart", wall: "#f8fafc", trim: "#1d4ed8", awning: "#e4002b", sign: "mercury", allNight: true },
-  { x0: -35.0, x1: -30.2, depth: 5.5, h: 3.2, floors: 2, kind: "row", wall: "#d7e6f3", trim: "#3f6b8f", awning: "#0ea5e9", upper: "#cfe0ef", sign: "labada" },
-  { x0: -41.2, x1: -35.8, depth: 6, h: 3.3, floors: 1, kind: "mart", wall: "#f8fafc", trim: "#008163", awning: "#f47920", sign: "seven", allNight: true },
-  { x0: -46.8, x1: -42.0, depth: 5.5, h: 3.2, floors: 2, kind: "row", wall: "#efe4d2", trim: "#6b4a33", awning: "#c2410c", upper: "#e6d9c3", sign: "kapihan" },
+  { x0: -18.4, x1: -13.6, depth: 5.5, h: 3.2, floors: 2, kind: "sari", wall: "#f1d9a8", trim: "#7c4a2d", awning: "#2563eb", upper: "#e9e2cf", sign: "sari" },
+  { x0: -29.2, x1: -19.2, depth: 8, h: 3.9, floors: 1, kind: "food", wall: "#f8fafc", trim: "#e31837", awning: "#ffc522", sign: "jollibee", allNight: true },
+  { x0: -35.8, x1: -30.0, depth: 6, h: 3.4, floors: 1, kind: "mart", wall: "#f8fafc", trim: "#1d4ed8", awning: "#e4002b", sign: "mercury", allNight: true },
+  { x0: -41.4, x1: -36.6, depth: 5.5, h: 3.2, floors: 2, kind: "row", wall: "#d7e6f3", trim: "#3f6b8f", awning: "#0ea5e9", upper: "#cfe0ef", sign: "labada" },
+  { x0: -47.6, x1: -42.2, depth: 6, h: 3.3, floors: 1, kind: "mart", wall: "#f8fafc", trim: "#008163", awning: "#f47920", sign: "seven", allNight: true },
+  { x0: -53.2, x1: -48.4, depth: 5.5, h: 3.2, floors: 2, kind: "row", wall: "#efe4d2", trim: "#6b4a33", awning: "#c2410c", upper: "#e6d9c3", sign: "kapihan" },
   // right of the office yard
   { x0: YARD_X1 + 0.8, x1: YARD_X1 + 6.4, depth: 6, h: 3.2, floors: 2, kind: "row", wall: "#f6dfa8", trim: "#92400e", awning: "#d97706", upper: "#f1e7cf", sign: "panaderia" },
   { x0: YARD_X1 + 7.0, x1: YARD_X1 + 12.6, depth: 6, h: 3.3, floors: 1, kind: "row", wall: "#f4c9a8", trim: "#9a3412", awning: "#ea580c", sign: "carinderia" },

@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { useOffice } from "@/lib/store";
 import { useSettings, useShow } from "@/lib/settings";
-import { OUTSIDE, ROOM, type Palette } from "./palette";
+import { DEN, OUTSIDE, ROOM, type Palette } from "./palette";
 import { getGlowTexture, light } from "./Lighting";
 import { streetLightLevel } from "./StreetLamp";
 import { canvasTexture, mergeParts, mergePlaced, placed, type Part } from "./batch";
@@ -40,9 +40,9 @@ const NEAR_TREES: readonly TreeSpot[] = [
   // the office yard to the right of the patio
   [OUTSIDE.x1 + 1.4, 2.2, 1.1], [OUTSIDE.x1 + 2.6, 4.9, 0.9], [OUTSIDE.x1 + 1.5, 9.6, 1.0], [OUTSIDE.x1 + 4.4, 1.0, 0.8], [OUTSIDE.x1 + 4.7, 3.4, 0.95],
   // behind and left of the building
-  [-2.2, 1.5, 1.15], [-2.4, 6.5, 1], [3.0, -2.4, 1.1], [9.5, -2.6, 0.95], [15.5, -2.2, 1.2], [-2.3, 10.2, 0.85], [21.5, -2.4, 1],
+  [DEN.x0 - 2.0, 1.5, 1.15], [DEN.x0 - 2.2, 6.5, 1], [3.0, -2.4, 1.1], [9.5, -2.6, 0.95], [15.5, -2.2, 1.2], [DEN.x0 - 2.1, 10.2, 0.85], [21.5, -2.4, 1], [-3.4, -2.3, 1.05],
   // a strip of trees between the office lot and the houses behind it
-  [0.5, -3.7, 1.05], [6.2, -3.9, 1.2], [12.6, -3.6, 1], [18.6, -4.0, 1.15], [25.2, -3.6, 1], [-10, -3.8, 1.1], [-17, -3.6, 0.95], [-24, -3.9, 1.1],
+  [0.5, -3.7, 1.05], [6.2, -3.9, 1.2], [12.6, -3.6, 1], [18.6, -4.0, 1.15], [25.2, -3.6, 1], [-7.6, -3.8, 1.1], [-17, -3.6, 0.95], [-24, -3.9, 1.1],
   [33, -3.8, 1.05], [40, -3.6, 1], [46.5, -3.9, 1.15],
   // backyards between the two residential streets
   [-30, -16.2, 1], [-12, -16.0, 1.1], [7, -16.3, 0.95], [22, -16.1, 1.1], [41, -16.2, 1], [60, -16.0, 1.05],
@@ -138,8 +138,8 @@ const along = (z: number, dir: 1 | -1) => (x: number): Lamp => ({ x, z, ax: 0, a
 
 /** The street lamps (warm sodium-ish LED): the main road, both residential streets, up both side streets. */
 const LAMPS: readonly Lamp[] = [
-  ...[-29, -20.5, -11.5, -1.2, 8, 16, OUTSIDE.x1 + 3, 31, 39.5, 48, 60, 72].map(along(SIDEWALK.z1 - 0.25, 1)),
-  ...[-25, -13, 1, 12, 24, 36, 47, 61, 73].map(along(FAR_WALK.z0 + 0.25, -1)),
+  ...[-35, -26.5, -18, -7.5, -1.2, 8, 16, OUTSIDE.x1 + 3, 31, 39.5, 48, 60, 72].map(along(SIDEWALK.z1 - 0.25, 1)),
+  ...[-31, -20, -9.5, 1, 12, 24, 36, 47, 61, 73].map(along(FAR_WALK.z0 + 0.25, -1)),
   // the residential streets: lamps on their +z side, reaching over the street
   ...[-34, -18, -1.5, 14, 30, 46, 62].map(along(BACK_STREETS[0].z1 + 0.25, -1)),
   ...[-26, -9, 8, 25, 42, 59].map(along(BACK_STREETS[1].z1 + 0.25, -1)),
@@ -413,11 +413,11 @@ export function Grounds({ pal, shadows }: { pal: Palette; shadows: boolean }) {
     { size: [roadW, 0.1, FAR_WALK.z1 - FAR_WALK.z0], pos: [roadCx, -0.05, (FAR_WALK.z0 + FAR_WALK.z1) / 2], color: pal.concrete },
     { size: [roadW, 0.08, 0.12], pos: [roadCx, -0.03, FAR_WALK.z0], color: "#d6d3cc" },
     // the office lot: a low concrete curb around building + patio, so the property reads as one clean rectangle
-    { size: [OUTSIDE.x1 + 0.5, 0.07, 0.18], pos: [(OUTSIDE.x1 - 0.5) / 2, -0.06, -0.34], color: "#c9c6bf" },
-    { size: [0.18, 0.07, ROOM.D + 0.43], pos: [-0.34, -0.06, (ROOM.D - 0.43) / 2], color: "#c9c6bf" },
+    { size: [OUTSIDE.x1 - DEN.x0 + 0.5, 0.07, 0.18], pos: [(OUTSIDE.x1 + DEN.x0 - 0.5) / 2, -0.06, -0.34], color: "#c9c6bf" },
+    { size: [0.18, 0.07, ROOM.D + 0.43], pos: [DEN.x0 - 0.34, -0.06, (ROOM.D - 0.43) / 2], color: "#c9c6bf" },
     { size: [0.18, 0.07, ROOM.D + 0.43], pos: [OUTSIDE.x1 + 0.09, -0.06, (ROOM.D - 0.43) / 2], color: "#c9c6bf" },
     // hedge line along the left of the building
-    ...Array.from({ length: 9 }, (_, i): Part => ({ shape: "cyl", size: [0.36, 0.34, 7], pos: [-0.9, 0.08, 0.6 + i * 1.2], color: "#4a7f50" })),
+    ...Array.from({ length: 9 }, (_, i): Part => ({ shape: "cyl", size: [0.36, 0.34, 7], pos: [DEN.x0 - 0.9, 0.08, 0.6 + i * 1.2], color: "#4a7f50" })),
     // the yard's low fence between the office and the next shop
     ...Array.from({ length: 12 }, (_, i): Part => ({ size: [0.06, 0.6, 0.06], pos: [YARD_X1, 0.18, 0.4 + i * 0.95], color: "#8a6a4a" })),
     { size: [0.04, 0.06, ROOM.D - 0.4], pos: [YARD_X1, 0.38, ROOM.D / 2 + 0.1], color: "#8a6a4a" },

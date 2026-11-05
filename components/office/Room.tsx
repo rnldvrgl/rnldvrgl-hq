@@ -3,9 +3,10 @@
 import { Suspense, useMemo } from "react";
 import * as THREE from "three";
 import { RoundedBox, Text } from "@react-three/drei";
-import { ROOM, OFFICE, FRONT_Z, PAL, SCENE_FONT, type Palette } from "./palette";
+import { DEN, ROOM, OFFICE, FRONT_Z, MEETING, PAL, SCENE_FONT, type Palette } from "./palette";
 import { Plant, TallPlant } from "./Furniture";
 import { Cozy } from "./Cozy";
+import { Den } from "./Den";
 import { teamStreak } from "./Celebration";
 import { useSceneNow } from "./scene-clock-ui";
 import { HQ } from "@/hq.config";
@@ -83,15 +84,16 @@ type RoomProps = { pal: Palette; shadows: boolean; done: number; waiting: number
  */
 export function Room({ pal, shadows, done, waiting, trashName }: RoomProps) {
   const { W, D, H } = ROOM;
-  const planks = usePlankTexture(W, D);
+  const FW = W - DEN.x0;
+  const planks = usePlankTexture(FW, D);
   const tileW = W - OFFICE.x0, tileD = FRONT_Z - OFFICE.z1;
   const tiles = useTileTexture(tileW, tileD);
 
   return (
     <group>
       {/* floor slab with the plank texture, and a tiled pantry/entrance area */}
-      <mesh position={[W / 2, -0.06, D / 2]} receiveShadow={shadows}>
-        <boxGeometry args={[W, 0.12, D]} />
+      <mesh position={[(W + DEN.x0) / 2, -0.06, D / 2]} receiveShadow={shadows}>
+        <boxGeometry args={[FW, 0.12, D]} />
         <meshStandardMaterial attach="material-0" color={pal.trim} />
         <meshStandardMaterial attach="material-1" color={pal.trim} />
         <meshStandardMaterial attach="material-2" map={planks} roughness={0.75} />
@@ -107,14 +109,13 @@ export function Room({ pal, shadows, done, waiting, trashName }: RoomProps) {
       <BackWall pal={pal} shadows={shadows} />
       <FrontWall pal={pal} />
       <LeftWall pal={pal} shadows={shadows} />
+      <Divider pal={pal} shadows={shadows} />
       <Corners pal={pal} shadows={shadows} />
+      <Den pal={pal} shadows={shadows} />
 
       <Dashboard pal={pal} done={done} waiting={waiting} trashName={trashName} />
       <Clock pal={pal} />
 
-      {/* floating shelves on the left wall: books, a plant, a trophy */}
-      <Shelf pal={pal} shadows={shadows} z={1.35} y={1.45} />
-      <Shelf pal={pal} shadows={shadows} z={6.0} y={1.45} plantFirst />
 
       {/* tall plants in the corners and by the windows */}
       <TallPlant pal={pal} shadows={shadows} position={[0.42, 0, 0.42]} />
@@ -131,23 +132,25 @@ export function Room({ pal, shadows, done, waiting, trashName }: RoomProps) {
  * here, but the town behind is houses now, not open sky, so a window would show the wrong view).
  */
 function BackWall({ pal, shadows }: { pal: Palette; shadows: boolean }) {
-  const { W, H } = ROOM;
+  const { H } = ROOM;
   const z = -WALL_T / 2;
+  // from the Den's outer wall to the office's right wall
+  const W = ROOM.W - DEN.x0, cx = (ROOM.W + DEN.x0) / 2;
   return (
     <group>
-      <mesh position={[W / 2, H / 2, z]} receiveShadow={shadows}>
+      <mesh position={[cx, H / 2, z]} receiveShadow={shadows}>
         <boxGeometry args={[W + WALL_T * 2, H, WALL_T]} />
         <meshStandardMaterial color={pal.wall} />
       </mesh>
       <Print pal={pal} x={1.75} w={1.5} h={1.05} art={["#e11d48", "#f59e0b", "#2563eb"]} />
       <Print pal={pal} x={9.5} w={1.3} h={0.95} art={["#0f766e", "#facc15", "#f97316"]} />
       {/* top cap: the cut line of the diorama */}
-      <mesh position={[W / 2, H + 0.025, z]}>
+      <mesh position={[cx, H + 0.025, z]}>
         <boxGeometry args={[W + WALL_T * 2, 0.05, WALL_T + 0.02]} />
         <meshStandardMaterial color={pal.trim} />
       </mesh>
       {/* baseboard */}
-      <mesh position={[W / 2, 0.05, 0.008]}>
+      <mesh position={[cx, 0.05, 0.008]}>
         <boxGeometry args={[W, 0.1, 0.016]} />
         <meshStandardMaterial color={pal.baseboard} />
       </mesh>
@@ -196,11 +199,12 @@ function Print({ pal, x, w, h, art }: { pal: Palette; x: number; w: number; h: n
  * a low base wall, floor-to-ceiling panes with slim black mullions, and a top rail.
  */
 function FrontWall({ pal }: { pal: Palette }) {
-  const { W, D, H } = ROOM;
+  const { D, H } = ROOM;
+  const W = ROOM.W - DEN.x0;
   const BASE = 0.32;
   const panes = Math.round(W / 1.55);
   return (
-    <group>
+    <group position={[DEN.x0, 0, 0]}>
       <mesh position={[W / 2, BASE / 2, D + 0.04]}>
         <boxGeometry args={[W + 0.08, BASE, 0.1]} />
         <meshStandardMaterial color={pal.wallSide} />
@@ -234,7 +238,8 @@ function FrontWall({ pal }: { pal: Palette }) {
 function Corners({ pal, shadows }: { pal: Palette; shadows: boolean }) {
   const { W, D, H } = ROOM;
   const C = 0.2;
-  const at: [number, number][] = [[-WALL_T / 2, -WALL_T / 2], [W + WALL_T / 2 - 0.04, -WALL_T / 2], [-WALL_T / 2, D + 0.04], [W + 0.02, D + 0.04]];
+  const X0 = DEN.x0 - WALL_T / 2;
+  const at: [number, number][] = [[X0, -WALL_T / 2], [W + WALL_T / 2 - 0.04, -WALL_T / 2], [X0, D + 0.04], [W + 0.02, D + 0.04]];
   return (
     <group>
       {at.map(([x, z]) => (
@@ -247,11 +252,11 @@ function Corners({ pal, shadows }: { pal: Palette; shadows: boolean }) {
   );
 }
 
-/** The left wall (x = 0): deep green accent paint, baseboard and top cap. */
+/** The outer left wall (the Den's, at DEN.x0): deep green accent paint, baseboard and top cap. */
 function LeftWall({ pal, shadows }: { pal: Palette; shadows: boolean }) {
   const { D, H } = ROOM;
   return (
-    <group>
+    <group position={[DEN.x0, 0, 0]}>
       <mesh position={[-WALL_T / 2, H / 2, D / 2]} receiveShadow={shadows}>
         <boxGeometry args={[WALL_T, H, D]} />
         <meshStandardMaterial color={pal.wallSide} />
@@ -268,6 +273,65 @@ function LeftWall({ pal, shadows }: { pal: Palette; shadows: boolean }) {
         <boxGeometry args={[0.016, 0.1, D]} />
         <meshStandardMaterial color={pal.baseboard} />
       </mesh>
+    </group>
+  );
+}
+
+/**
+ * Between the office and the Den (x = 0): a low oak bookcase with plants on top, open in the middle where the
+ * aisles run through; full height along the meeting room (its glass is on the other three sides).
+ */
+function Divider({ pal, shadows }: { pal: Palette; shadows: boolean }) {
+  const { D, H } = ROOM;
+  const LOW = 1.05;
+  const BOOKS = ["#c2410c", "#1f3a52", "#e0a43a", "#2f9e8f", "#8a6fd1", "#f4f1ea", "#be123c", "#3f6212"];
+  const runs: [number, number][] = [[0.15, 3.55], [8.05, MEETING.z0 - 0.05]];
+  return (
+    <group>
+      {runs.map(([a, b]) => (
+        <group key={a}>
+          <mesh position={[-0.17, LOW / 2, (a + b) / 2]} castShadow={shadows} receiveShadow={shadows}>
+            <boxGeometry args={[0.36, LOW, b - a]} />
+            <meshStandardMaterial color={pal.wood} />
+          </mesh>
+          {/* the shelves' books, seen from both sides */}
+          {Array.from({ length: Math.floor((b - a) / 0.12) }, (_, i) => (
+            <group key={i}>
+              {[0.25, 0.68].map((y) => (
+                <mesh key={y} position={[-0.17, y + ((i * 7) % 5) * 0.01, a + 0.08 + i * 0.12]}>
+                  <boxGeometry args={[0.38, 0.26 + ((i * 3) % 4) * 0.02, 0.09]} />
+                  <meshStandardMaterial color={BOOKS[(i + (y > 0.5 ? 3 : 0)) % BOOKS.length]} />
+                </mesh>
+              ))}
+            </group>
+          ))}
+          <mesh position={[-0.17, LOW + 0.02, (a + b) / 2]}>
+            <boxGeometry args={[0.4, 0.04, b - a + 0.04]} />
+            <meshStandardMaterial color={pal.trim} />
+          </mesh>
+        </group>
+      ))}
+      {[0.6, 2.1, 3.2, 8.3].map((z) => <Plant key={z} pal={pal} shadows={shadows} position={[-0.17, LOW + 0.04, z]} scale={0.4} />)}
+      {/* the meeting room's wall on the Den side */}
+      <mesh position={[-WALL_T / 2, H / 2, (MEETING.z0 + D) / 2]} receiveShadow={shadows}>
+        <boxGeometry args={[WALL_T, H, D - MEETING.z0]} />
+        <meshStandardMaterial color={pal.wallSide} />
+      </mesh>
+      <mesh position={[0.004, H / 2, (MEETING.z0 + D) / 2]} rotation={[0, Math.PI / 2, 0]}>
+        <planeGeometry args={[D - MEETING.z0 - 0.1, H]} />
+        <meshStandardMaterial color={pal.accentWall} roughness={0.95} />
+      </mesh>
+      {/* an arch over the passage, so it reads as a doorway into the Den */}
+      <mesh position={[-0.17, H - 0.15, 5.8]}>
+        <boxGeometry args={[0.36, 0.3, 4.5]} />
+        <meshStandardMaterial color={pal.trim} />
+      </mesh>
+      {[3.55, 8.05].map((z) => (
+        <mesh key={z} position={[-0.17, H / 2, z]} castShadow={shadows}>
+          <boxGeometry args={[0.36, H, 0.2]} />
+          <meshStandardMaterial color={pal.trim} />
+        </mesh>
+      ))}
     </group>
   );
 }
@@ -458,7 +522,7 @@ function Clock({ pal }: { pal: Palette }) {
   const hour = -((h + m / 60) / 12) * TAU;
 
   return (
-    <group position={[0.02, 1.95, 4.25]} rotation={[0, Math.PI / 2, 0]}>
+    <group position={[DEN.x0 + 0.02, 2.05, 7.6]} rotation={[0, Math.PI / 2, 0]}>
       <mesh rotation={[Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[0.36, 0.36, 0.05, 40]} />
         <meshStandardMaterial color={pal.trim} />

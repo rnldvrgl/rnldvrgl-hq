@@ -44,7 +44,7 @@ type Walker = {
   height: number;
 };
 
-const X_RANGE = { x0: -40, x1: 76 } as const;
+const X_RANGE = { x0: -46, x1: 76 } as const;
 /** The school gate (Republic Central Colleges, across the street): students go in there in the morning and come out after class. */
 const GATE = { x: SCHOOL.gateX, z: FAR_WALK.z1 + 0.75 } as const;
 const schoolIn = (h: number) => h >= 6 && h < 7.9;

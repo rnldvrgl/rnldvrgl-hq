@@ -19,7 +19,7 @@ export const ROAD_X = { x0: -160, x1: 180 } as const;
 export const LANE = { near: ROAD.z0 + 1.55, far: ROAD.z0 + 4.55 } as const;
 
 /** Side streets off the main road, running back past both residential streets (left of the office, and past McDonald's). */
-export const SIDE_STREET = { x0: -6.4, x1: -3.2, z0: -60 } as const;
+export const SIDE_STREET = { x0: -12.8, x1: -9.6, z0: -60 } as const;
 export const SIDE_STREET_2 = { x0: 52.2, x1: 55.4, z0: -60 } as const;
 export const SIDE_STREETS = [SIDE_STREET, SIDE_STREET_2] as const;
 

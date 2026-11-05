@@ -167,7 +167,7 @@ const POOLS: readonly (readonly [number, number, number])[] = [
 ];
 
 /** Ceiling lights that actually light things (kept to a few: each light costs on phones). */
-const LAMP_LIGHTS: readonly (readonly [number, number])[] = [[3.0, 3.9], [7.8, 5.6], [12.8, 8.0]];
+const LAMP_LIGHTS: readonly (readonly [number, number])[] = [[3.0, 3.9], [7.8, 5.6], [12.8, 8.0], [-3.2, 5.6]]; // the last one warms the Den
 
 export function Lighting({ shadows }: { shadows: boolean }) {
   const ambient = useRef<THREE.AmbientLight>(null);
