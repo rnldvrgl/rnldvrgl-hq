@@ -696,7 +696,7 @@ function school(t: Town): void {
   }
   for (let k = 0; k <= 6; k++) S.push({ size: [0.24, FL * 3, 0.24], pos: [ax1 + 1.4, (FL * 3) / 2 - 0.1, az0 + (k * ad) / 6], color: wall });
   // roof: GI gable, the name along its parapet facing the courtyard
-  S.push({ shape: "gable", size: [ad + 0.4, 1.3, aw + 2.2], pos: [acx + 0.75, FL * 3 - 0.1, acz], rotY: Math.PI / 2, color: trim });
+  S.push({ shape: "gable", size: [ad + 0.4, 1.3, aw + 2.2], pos: [acx + 0.75, FL * 3 - 0.1, acz], rotY: Math.PI / 2, color: "#a8442f" });
   t.signs.push({ id: "rcc", x: ax1 + 1.56, y: FL * 3 - 0.55, z: acz, w: 8.4, h: 0.62, sideX: true });
 
   // wing B across the back, two storeys; windows on its road side (the corridor faces the road)
@@ -712,14 +712,15 @@ function school(t: Town): void {
     S.push({ size: [bw, 0.2, 0.1], pos: [bcx, (f + 1) * FL - 0.1, bz1 + 0.05], color: trim });
   }
   S.push({ size: [bw + 0.2, 0.5, bz1 - bz0 + 0.2], pos: [bcx, FL * 2, bcz], color: trim });
+  S.push({ size: [bw - 0.2, 0.04, bz1 - bz0 - 0.2], pos: [bcx, FL * 2 + 0.26, bcz], color: "#9ca3af" });
   t.signs.push({ id: "rcc", x: bcx, y: FL * 2, z: bz1 + 0.12, w: 7.2, h: 0.5 });
   t.signs.push({ id: "rcc", x: bcx, y: FL * 2, z: bz0 - 0.12, w: 7.2, h: 0.5, back: true });
 
   // the covered court in the quadrangle: posts, a curved roof, a stage at the back
   const cx0 = bx0 + 1.5, cx1 = bx1 - 0.5, cz0 = z0 + 3.4, cz1 = bz0 - 1.4;
   for (const px of [cx0, (cx0 + cx1) / 2, cx1]) for (const pz of [cz0, cz1]) S.push({ size: [0.22, 4.8, 0.22], pos: [px, 2.3, pz], color: "#6b7280" });
-  S.push({ size: [cx1 - cx0 + 0.6, 0.08, cz1 - cz0 + 0.6], pos: [(cx0 + cx1) / 2, 4.75, (cz0 + cz1) / 2], rot: [0, 0, 0], color: "#1e3a8a" });
-  S.push({ shape: "gable", size: [cx1 - cx0 + 0.6, 0.7, cz1 - cz0 + 0.6], pos: [(cx0 + cx1) / 2, 4.8, (cz0 + cz1) / 2], color: "#1e3a8a" });
+  S.push({ size: [cx1 - cx0 + 0.6, 0.08, cz1 - cz0 + 0.6], pos: [(cx0 + cx1) / 2, 4.75, (cz0 + cz1) / 2], color: "#7c8da6" });
+  S.push({ shape: "gable", size: [cx1 - cx0 + 0.6, 0.7, cz1 - cz0 + 0.6], pos: [(cx0 + cx1) / 2, 4.8, (cz0 + cz1) / 2], color: "#8fa0b8" });
   S.push({ size: [cx1 - cx0 - 0.4, 0.02, cz1 - cz0 - 0.4], pos: [(cx0 + cx1) / 2, -0.07, (cz0 + cz1) / 2], color: "#3b7a6a" });
   S.push({ size: [4.5, 0.6, 1.4], pos: [(cx0 + cx1) / 2, 0.2, cz1 - 0.8], color: "#d6d3cc" });
   t.pools.push([(cx0 + cx1) / 2, (cz0 + cz1) / 2, cx1 - cx0, cz1 - cz0]);

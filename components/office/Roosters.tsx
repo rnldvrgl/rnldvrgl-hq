@@ -9,8 +9,8 @@ import { mergeParts, type Part } from "./batch";
 import { HOUSE_SLOTS } from "./homes";
 
 /**
- * The manok in the yards behind the office: three roosters (one strutting on a fence, two in yards, one of
- * them by its A-frame coop) and a few hens pecking around them. At dawn the roosters stretch up, flap and crow,
+ * The manok on the street behind the office: three roosters (one strutting on a fence, two out front of their
+ * houses by the road, one of them by its A-frame coop) and a few hens pecking around them. At dawn the roosters stretch up, flap and crow,
  * on the same schedule the sound plays (lib/rooster.ts). Each bird is two merged meshes: its body (with legs,
  * wings and tail) and its head, which bobs to peck and lifts to crow.
  */
@@ -33,22 +33,22 @@ const BIRDS: readonly Bird[] = (() => {
   return [
     // on the front fence of the house left of Maya's, looking at the street
     { rooster: 0, x: c.x + 4.2, z: c.gateZ, y: 1.17, roam: 0.5, face: -Math.PI / 2, seed: 1 },
-    // in the yard with the coop
-    { rooster: 1, x: a.x + 3.6, z: a.gateZ - 0.9, y: 0, roam: 0.9, face: 0.4, seed: 2 },
-    { rooster: null, x: a.x + 2.6, z: a.gateZ - 0.6, y: 0, roam: 0.7, face: -0.3, seed: 3 },
-    { rooster: null, x: a.x + 4.4, z: a.gateZ - 1.3, y: 0, roam: 0.6, face: 2.2, seed: 4 },
-    // a yard further along
-    { rooster: 2, x: b.x + 3.4, z: b.gateZ - 0.8, y: 0, roam: 1.0, face: -0.6, seed: 5 },
-    { rooster: null, x: b.x + 4.6, z: b.gateZ - 1.2, y: 0, roam: 0.6, face: 1.4, seed: 6 },
+    // out front of the fence by the street, where the fighting cocks are tied by their A-frame coop
+    { rooster: 1, x: a.x + 3.6, z: a.gateZ + 0.3, y: 0, roam: 0.6, face: -0.4, seed: 2 },
+    { rooster: null, x: a.x + 2.4, z: a.gateZ + 0.25, y: 0, roam: 0.5, face: -1.2, seed: 3 },
+    { rooster: null, x: a.x + 4.4, z: a.gateZ + 0.35, y: 0, roam: 0.4, face: -2.2, seed: 4 },
+    // in front of another house further along
+    { rooster: 2, x: b.x + 3.6, z: b.gateZ + 0.3, y: 0, roam: 0.7, face: -0.6, seed: 5 },
+    { rooster: null, x: b.x + 4.8, z: b.gateZ + 0.3, y: 0, roam: 0.5, face: -1.6, seed: 6 },
   ];
 })();
 /** The A-frame coop (kulungan) in the first yard. */
-const COOP = (() => { const a = yard(-15.6); return { x: a.x + 5.2, z: a.gateZ - 0.75 }; })();
+const COOP = (() => { const a = yard(-15.6); return { x: a.x + 1.0, z: a.gateZ + 0.05 }; })();
 
 /** A bird in its own frame, facing +x, feet at 0. */
 function bodyParts(rooster: boolean): Part[] {
-  const body = rooster ? "#9a3412" : "#a16207";
-  const wing = rooster ? "#7c2d12" : "#854d0e";
+  const body = rooster ? "#c2410c" : "#c08a3e";
+  const wing = rooster ? "#9a3412" : "#a16207";
   const s = rooster ? 1 : 0.85;
   const p: Part[] = [
     { size: [0.3 * s, 0.2 * s, 0.18 * s], pos: [0, 0.24 * s, 0], color: body },
@@ -56,7 +56,7 @@ function bodyParts(rooster: boolean): Part[] {
     { size: [0.2 * s, 0.13 * s, 0.03], pos: [-0.01, 0.25 * s, 0.1 * s], color: wing },
     { size: [0.2 * s, 0.13 * s, 0.03], pos: [-0.01, 0.25 * s, -0.1 * s], color: wing },
     // the neck: golden hackles on a rooster
-    { size: [0.1 * s, 0.16 * s, 0.11 * s], pos: [0.12 * s, 0.35 * s, 0], color: rooster ? "#d97706" : body },
+    { size: [0.1 * s, 0.16 * s, 0.11 * s], pos: [0.12 * s, 0.35 * s, 0], color: rooster ? "#f59e0b" : body },
     // legs
     { size: [0.02, 0.14, 0.02], pos: [0.01, 0.07, 0.04], color: "#eab308" },
     { size: [0.02, 0.14, 0.02], pos: [0.01, 0.07, -0.04], color: "#eab308" },
@@ -65,7 +65,7 @@ function bodyParts(rooster: boolean): Part[] {
   ];
   if (rooster) {
     // the sickle tail: long dark-green feathers arching up and back
-    const tail = ["#14532d", "#111827", "#166534", "#052e16"];
+    const tail = ["#15803d", "#1f2937", "#16a34a", "#14532d"];
     tail.forEach((c, k) => p.push({ size: [0.04, 0.34 - k * 0.04, 0.02], pos: [-0.17 - k * 0.025, 0.42 - k * 0.03, (k - 1.5) * 0.025], rot: [0, 0, 0.55 + k * 0.15], color: c }));
   } else {
     p.push({ size: [0.08, 0.12, 0.1], pos: [-0.15 * s, 0.32 * s, 0], rot: [0, 0, 0.5], color: wing });
@@ -77,7 +77,7 @@ function bodyParts(rooster: boolean): Part[] {
 function headParts(rooster: boolean): Part[] {
   const s = rooster ? 1 : 0.85;
   const p: Part[] = [
-    { size: [0.09 * s, 0.09 * s, 0.08 * s], pos: [0.03, 0.03, 0], color: rooster ? "#d97706" : "#a16207" },
+    { size: [0.09 * s, 0.09 * s, 0.08 * s], pos: [0.03, 0.03, 0], color: rooster ? "#f59e0b" : "#c08a3e" },
     { size: [0.05, 0.02, 0.025], pos: [0.095 * s, 0.025, 0], color: "#f59e0b" },
     { size: [0.02, 0.02, 0.085 * s], pos: [0.06 * s, 0.045, 0], color: "#111827" },
     { size: [0.025, rooster ? 0.06 : 0.03, 0.02], pos: [0.075 * s, -0.025, 0], color: "#dc2626" },
@@ -90,9 +90,10 @@ function headParts(rooster: boolean): Part[] {
 
 function coopParts(): Part[] {
   const wood = "#8a6a4a", slat = "#a16207";
-  const p: Part[] = [{ size: [1.0, 0.04, 0.8], pos: [COOP.x, -0.08, COOP.z], color: "#6b4a33" }];
-  for (const side of [-1, 1]) p.push({ size: [1.0, 0.03, 0.55], pos: [COOP.x, 0.3, COOP.z + side * 0.2], rot: [side * 0.85, 0, 0], color: wood });
-  for (let k = 0; k < 6; k++) p.push({ size: [0.02, 0.62, 0.02], pos: [COOP.x - 0.45 + k * 0.18, 0.22, COOP.z + 0.38], rot: [0.6, 0, 0], color: slat });
+  // a little A-frame of bamboo slats against the fence (0.5 m deep, so it fits between the fence and the street)
+  const p: Part[] = [{ size: [0.9, 0.03, 0.42], pos: [COOP.x, -0.08, COOP.z + 0.21], color: "#6b4a33" }];
+  for (const side of [-1, 1]) p.push({ size: [0.9, 0.03, 0.34], pos: [COOP.x, 0.22, COOP.z + 0.21 + side * 0.11], rot: [side * 0.95, 0, 0], color: wood });
+  for (let k = 0; k < 6; k++) p.push({ size: [0.02, 0.4, 0.02], pos: [COOP.x - 0.4 + k * 0.16, 0.16, COOP.z + 0.36], rot: [0.75, 0, 0], color: slat });
   return p;
 }
 

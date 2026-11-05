@@ -1,24 +1,25 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { sceneNow } from "@/lib/store";
 import { PAL } from "./palette";
 import { FAR_WALK } from "./world";
+import { PROCESSION, processionState, processionX } from "./procession";
 import { getGlowTexture } from "./Lighting";
 import { streetLightLevel } from "./StreetLamp";
 import { mergeParts, type Part } from "./batch";
 
 /**
- * Holy Week, Kapampangan style: the penitensya walking slowly down the far side of the main street, as in
+ * Holy Week, Kapampangan style: the penitensya walking slowly down the far lane of the main street, as in
  * the towns around Angeles and San Fernando. In front, the carroza (a float on wheels) carrying the Santo
  * Entierro under white flowers and candles, pushed by two men; behind it, magdarame (penitents with their
  * faces covered by a cloth and a crown of vines, beating their backs with bundles of bamboo strips) and
  * cross-bearers in maroon robes dragging heavy wooden crosses; at the end, women in black holding candles.
  * And a pabasa (the Passion chanted all day and night) under a tent by the barangay hall.
  *
- * The procession walks a loop down the street on the scene clock. Each figure is two merged meshes (its body
+ * The procession walks a loop down the street on the scene clock (procession.ts), and the cars behind it crawl. Each figure is two merged meshes (its body
  * and its moving arm), the candles one glowing mesh with halos.
  */
 
@@ -35,9 +36,7 @@ const COLUMN: readonly Fig[] = [
   { role: "devotee", dx: 10.3, dz: -0.3, seed: 8 }, { role: "devotee", dx: 10.5, dz: 0.3, seed: 9 }, { role: "devotee", dx: 11.4, dz: 0, seed: 10 },
 ];
 
-const SPEED = 0.4; // a slow, solemn walk
-const RANGE = { x0: -42, x1: 80 } as const;
-const LANE_Z = (FAR_WALK.z0 + FAR_WALK.z1) / 2;
+const LANE_Z = PROCESSION.z;
 
 /** One person in their own frame, facing -x (the way the procession walks), feet at 0. */
 function figure(role: Role, seed: number): { body: Part[]; arm: Part[] } {
@@ -112,7 +111,8 @@ function carroza(): { solid: Part[]; flames: [number, number, number][] } {
 
 /** The pabasa: a tent by the barangay hall, a table with the book, benches, chanters, a lamp. */
 function pabasa(): Part[] {
-  const x = 42.6, z = FAR_WALK.z1 + 3.2, S: Part[] = [];
+  // in front of the barangay hall, right of its flagpole
+  const x = 51.6, z = FAR_WALK.z1 + 1.6, S: Part[] = [];
   for (const dx of [-1.3, 1.3]) for (const dz of [-1, 1]) S.push({ size: [0.06, 2.2, 0.06], pos: [x + dx, 1.0, z + dz], color: "#9ca3af" });
   S.push({ shape: "gable", size: [3.0, 0.6, 2.4], pos: [x, 2.1, z], color: "#f5f5f4" });
   S.push({ size: [1.4, 0.06, 0.7], pos: [x, 0.72, z], color: "#6b4a33" });
@@ -134,6 +134,8 @@ export function Penitensya({ frozen }: { frozen: boolean }) {
   const flameMat = useRef<THREE.MeshBasicMaterial>(null);
   const haloMat = useRef<THREE.MeshBasicMaterial>(null);
   const glowTex = useMemo(() => getGlowTexture(), []);
+  // while it's out, the cars in its lane follow behind it
+  useEffect(() => { processionState.active = true; return () => { processionState.active = false; }; }, []);
 
   const geo = useMemo(() => {
     const c = carroza();
@@ -153,9 +155,7 @@ export function Penitensya({ frozen }: { frozen: boolean }) {
 
   useFrame(({ clock }) => {
     const t = frozen ? 0 : clock.elapsedTime;
-    const sec = sceneNow().getTime() / 1000;
-    const len = RANGE.x1 - RANGE.x0 + 14;
-    const x = RANGE.x1 - ((sec * SPEED) % len);
+    const x = processionX(sceneNow().getTime() / 1000);
     if (root.current) root.current.position.set(x, 0, LANE_Z);
     COLUMN.forEach((f, i) => {
       const g = figs.current[i], a = arms.current[i];
@@ -182,7 +182,7 @@ export function Penitensya({ frozen }: { frozen: boolean }) {
   return (
     <group>
       {geo.pabasa && <mesh geometry={geo.pabasa}><meshStandardMaterial vertexColors roughness={0.85} /></mesh>}
-      <group ref={root} position={[RANGE.x1, 0, LANE_Z]}>
+      <group ref={root} position={[PROCESSION.x1, 0, LANE_Z]}>
         {geo.carroza && <mesh geometry={geo.carroza}><meshStandardMaterial vertexColors roughness={0.5} metalness={0.25} /></mesh>}
         {geo.flamesCar && <mesh geometry={geo.flamesCar}><meshBasicMaterial ref={flameMat} color="#ffd27a" toneMapped={false} /></mesh>}
         {geo.halosCar.map((p, i) => (

@@ -3,9 +3,10 @@
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
-import { useOffice } from "@/lib/store";
+import { sceneNow, useOffice } from "@/lib/store";
 import { getGlowTexture } from "./Lighting";
 import { streetLightLevel } from "./StreetLamp";
+import { processionRearX, processionState } from "./procession";
 import { mergeParts, mergePlaced, placed, type Part } from "./batch";
 import { BACK_LANE, LANE } from "./world";
 import { JUNCTIONS, mainLamp, signalClock } from "./signals";
@@ -184,6 +185,7 @@ function drive(cars: Car[], road: Road, dt: number, t: number) {
   const r = ROADS[road];
   const span = r.x1 - r.x0;
   const lines = stopLines(road);
+  const procT = sceneNow().getTime() / 1000;
   // order along the lane, so each car knows who is in front (the first one's leader is the last, wrapped)
   const order = [...cars].sort((a, b) => a.s - b.s);
   for (let i = 0; i < order.length; i++) {
@@ -192,6 +194,11 @@ function drive(cars: Car[], road: Road, dt: number, t: number) {
     const frontS = c.s + c.front;
     let room = Infinity;
     if (lead !== c) room = mod(lead.s + lead.rear - frontS, span) - GAP;
+    // behind the Holy Week procession in the far lane: follow it at walking pace
+    if (road === "far" && processionState.active) {
+      const d = mod(r.x1 - processionRearX(procT) - frontS, span);
+      if (d < 60) room = Math.min(room, d - GAP);
+    }
     for (const ln of lines) {
       const d = mod(ln.s - frontS, span);
       if (d > 45) continue;

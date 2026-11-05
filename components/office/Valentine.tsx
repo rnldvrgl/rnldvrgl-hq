@@ -49,17 +49,17 @@ export function Valentine({ frozen }: { frozen: boolean }) {
   // garlands across the street, and the frame's stand
   const garland = useMemo(() => {
     const { lines, poles } = acrossStreet();
-    const geos: THREE.BufferGeometry[] = [];
+    const geos: THREE.BufferGeometry[] = [], hearts: THREE.BufferGeometry[] = [];
     let k = 0;
     const p = new THREE.Vector3();
     for (const ln of lines) {
-      const len = ln.a.distanceTo(ln.b), n = Math.floor(len / 0.45);
+      const len = ln.a.distanceTo(ln.b), n = Math.floor(len / 0.55);
       const rot = Math.atan2(-(ln.b.z - ln.a.z), ln.b.x - ln.a.x);
       for (let i = 1; i < n; i++) {
         const t = i / n;
         p.lerpVectors(ln.a, ln.b, t);
-        p.y -= Math.sin(Math.PI * t) * ln.sag + 0.16;
-        geos.push(tinted(new THREE.ShapeGeometry(heartShape(0.13)), PINKS[k++ % PINKS.length], at(p.x, p.y, p.z, rot)));
+        p.y -= Math.sin(Math.PI * t) * ln.sag + 0.24;
+        hearts.push(tinted(new THREE.ShapeGeometry(heartShape(0.22)), PINKS[k++ % PINKS.length], at(p.x, p.y, p.z, rot)));
       }
       // the string
       for (let i = 0; i < n; i++) {
@@ -76,8 +76,9 @@ export function Valentine({ frozen }: { frozen: boolean }) {
       { size: [0.08, FRAME.y + FRAME.s * 0.2, 0.08], pos: [FRAME.x, (FRAME.y - FRAME.s * 0.9) / 2 + 0.1, FRAME.z - 0.05], color: "#7f1d1d" },
       { size: [1.6, 0.4, 0.45], pos: [FRAME.x, 0.12, FRAME.z + 0.9], color: "#be123c" },
     ];
-    return joinGeometries([mergeParts([...poles, ...stand]), ...geos]);
+    return { solid: joinGeometries([mergeParts([...poles, ...stand]), ...geos]), hearts: joinGeometries(hearts) };
   }, []);
+  const heartMat = useRef<THREE.MeshBasicMaterial>(null);
 
   // the frame: warm bulbs along the heart's outline, and their halos
   const frame = useMemo(() => {
@@ -123,12 +124,14 @@ export function Valentine({ frozen }: { frozen: boolean }) {
     }
     const k = streetLightLevel();
     if (bulbMat.current) bulbMat.current.color.setScalar(0.7 + 0.8 * k);
+    if (heartMat.current) heartMat.current.color.setScalar(0.8 + 0.4 * k);
     if (haloMat.current) haloMat.current.opacity = 0.15 + k * 0.6;
   });
 
   return (
     <group>
-      {garland && <mesh geometry={garland}><meshStandardMaterial vertexColors roughness={0.7} side={THREE.DoubleSide} /></mesh>}
+      {garland.solid && <mesh geometry={garland.solid}><meshStandardMaterial vertexColors roughness={0.7} side={THREE.DoubleSide} /></mesh>}
+      {garland.hearts && <mesh geometry={garland.hearts}><meshBasicMaterial ref={heartMat} vertexColors side={THREE.DoubleSide} toneMapped={false} /></mesh>}
       <instancedMesh ref={balloons} args={[balloonGeo, undefined, list.length]} frustumCulled={false}>
         <meshStandardMaterial roughness={0.25} metalness={0.15} />
       </instancedMesh>
