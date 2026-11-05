@@ -10,6 +10,7 @@ export type BossLook = "him" | "her";
 export type BossOffice = "auto" | "executive" | "gaming" | "cozy" | "minimal" | "studio" | "heritage";
 export type StyleName = "slate" | "blush" | "mango";
 export type LoginBackdrop = "street" | "aurora";
+export type AskAgain = "phones" | "always" | "never";
 
 export const HQ = {
   /** The owner: shown on the office sign, the header and in prompts ("sign as …"). */
@@ -37,6 +38,12 @@ export const HQ = {
      * moon, lit windows at night); "aurora" is soft colour fields in the app's colour style.
      */
     backdrop: "street" as LoginBackdrop,
+    /**
+     * When to ask you to sign in again after closing the app (or the tab) and coming back:
+     * "phones" asks on phones and tablets only, "always" on every device, "never" keeps you signed in
+     * for weeks like before. Each new open asks again, which is handy for using a passkey.
+     */
+    askAgain: "phones" as AskAgain,
   },
 
   /** Default colour style of the app (Settings → Appearance can change it per device). "blush" is the rosé look. */

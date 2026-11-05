@@ -36,5 +36,6 @@ export async function GET(req: Request) {
   } else {
     return fail("the link had no sign-in token");
   }
-  return NextResponse.redirect(new URL("/", url.origin));
+  // ?signedin tells the session lock (components/SessionLock.tsx) this tab just signed in
+  return NextResponse.redirect(new URL("/?signedin=1", url.origin));
 }

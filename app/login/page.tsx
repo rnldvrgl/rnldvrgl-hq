@@ -12,10 +12,15 @@ import { HQ, OWNER } from "@/hq.config";
 import { BrandIcon } from "@/lib/brand-icon";
 import { TEAM } from "@/lib/team";
 import { cn } from "@/lib/utils";
+import { unlock } from "@/components/SessionLock";
 
 const ERRORS: Record<string, string> = {
   owner: "HQ only opens for its owner. Sign in with the owner's email.",
   link: "That sign-in link didn't work. Type the 6-digit code from the email instead.",
+};
+/** Not errors: why you're seeing the sign-in page. */
+const NOTES: Record<string, string> = {
+  again: "You closed HQ, so it signed you out. Sign in again.",
 };
 
 /** Turn Supabase's error codes into plain sentences. */
@@ -37,6 +42,7 @@ function LoginForm() {
   const [step, setStep] = useState<"password" | "email" | "code">("password");
   const [busy, setBusy] = useState(false);
   const [showPw, setShowPw] = useState(false);
+  const note = NOTES[params.get("note") ?? ""] ?? "";
   const [err, setErr] = useState(() => {
     const reason = params.get("reason");
     const base = ERRORS[params.get("error") ?? ""] ?? "";
@@ -71,6 +77,7 @@ function LoginForm() {
     const { error } = await browserClient().auth.signInWithPassword({ email, password });
     setBusy(false);
     if (error) return setErr(friendly(error.message));
+    unlock();
     window.location.assign("/");
   }
 
@@ -80,6 +87,7 @@ function LoginForm() {
     const { error } = await browserClient().auth.verifyOtp({ email, token: code.trim(), type: "email" });
     setBusy(false);
     if (error) return setErr(friendly(error.message));
+    unlock();
     window.location.assign("/"); // full reload so the server sees the new session cookie
   }
 
@@ -95,6 +103,7 @@ function LoginForm() {
       if (/abort|cancel|not allowed|NotAllowedError/i.test(error.message)) return;
       return setErr(/passkey|webauthn|credential/i.test(error.message) ? `${friendly(error.message)} Add a passkey in Settings → Account first.` : friendly(error.message));
     }
+    unlock();
     window.location.assign("/");
   }
 
@@ -237,6 +246,7 @@ function LoginForm() {
                 </div>
               </form>
             )}
+            {note && !err && <p className="rounded-xl border border-border bg-muted/60 px-3 py-2 text-sm text-muted-foreground" role="status">{note}</p>}
             {err && <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{err}</p>}
           </div>
 
