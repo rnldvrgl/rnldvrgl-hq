@@ -386,6 +386,29 @@ HQ is built to be cloned for another person (a different boss, team names, city 
 3. Give them their own accounts: a new Supabase project (step 2), their own AI keys (step 3), Resend with their email (step 4), their Google and GitHub keys (steps 5 and 6), and a new Vercel project (step 8) with all of those as environment variables. Nothing is shared between copies.
 4. The office runs on Philippine time. Another time zone needs `MANILA_OFFSET_MS` in `lib/time.ts` and `Asia/Manila` in the clock formatting and the weather URL changed.
 
+## Friends: an HQ each (invite-only)
+
+One deployment hosts many HQs: yours (the founder HQ) and one per friend you invite. Each HQ has its own office, team, reminders, jobs, names and settings, and its own keys and connections. Nobody can see another HQ's data, and friends never touch your keys, mail or calendar.
+
+**Set up once:**
+1. Back up your database (Supabase → Database → Backups), then run `supabase/multi-hq.sql` in the SQL Editor (after `schema.sql`). It adds an `hq_id` to every table and moves all your existing rows into your HQ. It's safe to re-run. **Deploy the new code only after running it**: the app now filters every query by HQ.
+2. Add `HQ_SECRET_KEY` to `.env.local` and Vercel: any long random string (`openssl rand -base64 32`). It encrypts each HQ's keys in the `hq_secrets` table. Keep it safe: if it changes, saved keys can't be read and have to be added again.
+3. In Google Cloud (the OAuth client from the Google steps above), add `https://YOUR-APP.vercel.app/api/connect/google/callback` (and `http://localhost:3000/api/connect/google/callback`) under **Authorized redirect URIs**. While the app is in Testing, add each friend's Google account under **Audience → Test users** (up to 100).
+4. Email: Resend only delivers to addresses other than yours once you've verified a domain (Resend → Domains) and set `EMAIL_FROM` to it. Until then, friends' reminder and brief emails won't arrive (everything in the office still works).
+
+**Inviting:** Settings → Friends → **Make link** (optionally for one email). The link works once, for 7 days. Your friend opens it, enters their email, gets their HQ, and signs in with a 6-digit code sent to that email. Public sign-up stays off: accounts only come from invites.
+
+**Hiring in a friend's HQ:** employees start work once their HQ has connected what they need (Settings → Connections). Until then their desk shows **Not hired yet**, with what's missing.
+
+| Employee | Needs |
+|---|---|
+| Chief of Staff, Inbox Triage, Scheduler | an AI key + Google |
+| Dev Assistant | an AI key + GitHub |
+| Job Hunter, Researcher, Weekly Reviewer | an AI key |
+| Reminder Bot | nothing |
+
+Any one AI key is enough. Gemini (Google AI Studio) and Groq have free tiers, so a friend's HQ costs you nothing. Keys are stored encrypted; Settings only ever shows their last 4 characters. Your HQ keeps using your environment variables, and anything you save in Connections takes precedence over them.
+
 ## Spotify in the office
 
 The **Music** button (top-right of the office, under the sound button) is a Spotify remote: see what's playing on any of your devices (song, artist, cover, progress), pause or skip, change the volume, start one of your playlists, **choose where it plays** (this HQ tab, your phone, a speaker or TV with Spotify Connect, like the Spotify app's device picker; tap **Playing on … → Device**), or read the **lyrics**, which scroll along with the song. While Spotify plays, the office speakers' woofers pump along and HQ's own office radio goes quiet.

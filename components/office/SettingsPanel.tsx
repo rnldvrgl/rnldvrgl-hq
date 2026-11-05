@@ -16,6 +16,8 @@ import {
 } from "@/lib/settings";
 import { STYLES } from "@/lib/theme";
 import { Passkeys } from "./Passkeys";
+import { Connections } from "./Connections";
+import { Friends } from "./Friends";
 import { SoundMixer } from "./SoundMixer";
 import { ThemePicker, useStyleChoice } from "@/components/ThemePicker";
 import { useIsDesktop } from "@/hooks/use-media";
@@ -52,7 +54,13 @@ export function SettingsPanel({ open, onOpenChange }: { open: boolean; onOpenCha
           <Boss />
                     <Sound />
                     <Holidays onPreview={() => onOpenChange(false)} />
-                    <Section title="Account" hint="Passkeys sign you in without a password or an email code.">
+                    <Section title="Connections" hint="This HQ's own AI keys and accounts. Employees start work once what they need is connected.">
+            <Connections />
+          </Section>
+          <Section title="Friends" hint="HQ is invite-only. Each friend gets their own HQ; chat and voice between HQs come next.">
+            <Friends />
+          </Section>
+          <Section title="Account" hint="Passkeys sign you in without a password or an email code.">
                         <Passkeys />
                         <SignOut />
                     </Section>

@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "sonner";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
@@ -42,6 +43,17 @@ export default function Office({ initial }: { initial: OfficeState }) {
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [refresh]);
+  // Back from connecting Google (Settings → Connections): say how it went, tidy the URL.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const c = url.searchParams.get("connections");
+    if (!c) return;
+    if (c === "google-connected") toast.success("Google connected. Your Google employees are hired.");
+    else if (c === "google-cancelled") toast.message("Google wasn't connected.");
+    else toast.error("Couldn't connect Google. Try again from Settings → Connections.");
+    url.searchParams.delete("connections");
+    window.history.replaceState(null, "", url.pathname + url.search);
+  }, []);
   // Esc closes the open desk.
   // A push notification opens /?desk=<id>: open that desk, then tidy the URL.
   useEffect(() => {

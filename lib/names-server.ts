@@ -20,6 +20,12 @@ registerNameResolver(() => (hqCtxOrNull()?.names as Names | undefined) ?? null);
 export async function syncNames(): Promise<Names> {
   const names: Names = await loadNames().catch(() => ({}));
   const ctx = hqCtxOrNull();
+  // a friend's HQ: the boss is them, named from their email until they rename themselves
+  if (ctx && !ctx.founder && !names.owner) {
+    const local = ctx.email.split("@")[0].replace(/[._-]+/g, " ").replace(/\d+/g, "").trim().split(" ")[0] ?? "";
+    const pretty = cleanName(local.charAt(0).toUpperCase() + local.slice(1));
+    if (pretty) names.owner = pretty;
+  }
   if (ctx) {
     const merged: Record<string, string> = { ...BASE_NAMES };
     for (const k of NAME_KEYS) { const c = cleanName(names[k]); if (c) merged[k] = c; }
