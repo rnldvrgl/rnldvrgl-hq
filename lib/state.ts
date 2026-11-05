@@ -55,7 +55,7 @@ export async function loadOfficeState(): Promise<OfficeState> {
   return {
     names,
     hiring: Object.fromEntries(TEAM.map((t) => [t.id, missing(t.id, has)])) as OfficeState["hiring"],
-    hq: { founder: hqCtx().founder, handle: defaultHandle(hqCtx().names?.owner ?? names.owner ?? HQ.owner.name, HQ.owner.handle) },
+    hq: { id: hqCtx().id, founder: hqCtx().founder, handle: defaultHandle(hqCtx().names?.owner ?? names.owner ?? HQ.owner.name, HQ.owner.handle) },
     prefs,
     ai: { provider: activeProvider(), backupAllowsPrivate: backupAllowsPrivate() },
     employees: TEAM.map((t) => {

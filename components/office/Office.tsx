@@ -4,11 +4,13 @@ import { toast } from "sonner";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
-import { Activity, Bell, BellRing, Building2, History, Sparkles, Users, WifiOff, type LucideIcon } from "lucide-react";
+import { Activity, Bell, BellRing, Building2, Heart, History, Sparkles, Users, WifiOff, type LucideIcon } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useOffice } from "@/lib/store";
 import { Welcome } from "./Welcome";
+import { FriendsPanel } from "./FriendsPanel";
+import { useOnlineCount, usePresenceLink } from "@/lib/presence";
 import { useAppIcon, useHandle, usePrefs } from "@/lib/prefs-client";
 import { Glyph, iconGradient } from "@/lib/app-icon";
 import { isEmployeeId, TEAM, teamById, type AiProvider, type OfficeState } from "@/lib/team";
@@ -78,6 +80,7 @@ export default function Office({ initial }: { initial: OfficeState }) {
 
   // a rename redraws everything that shows people's names (it's rare, so a remount is fine)
   const teamVersion = usePrefs((s) => s.teamVersion);
+  usePresenceLink(useOffice((s) => s.data.hq?.id));
   // renamed someone, or changed the team: the office redraws
   const key = `${namesVersion}-${teamVersion}`;
   return (
@@ -304,6 +307,7 @@ function DesktopOffice() {
   const { working, waiting, reminders, provider } = useCounts();
   const header = useRef<HTMLElement>(null);
   const [tab, setTab] = useState("team");
+  const online = useOnlineCount();
 
   useGSAP(() => {
     gsap.from("[data-head]", { y: -10, autoAlpha: 0, duration: 0.5, stagger: 0.06, ease: "power2.out", clearProps: "all" });
@@ -345,6 +349,10 @@ function DesktopOffice() {
                     <Bell aria-hidden /> Reminders
                     {reminders > 0 && <span className="rounded-full bg-primary/12 px-1.5 text-[11px] font-semibold tabular-nums text-primary">{reminders}</span>}
                   </TabsTrigger>
+                  <TabsTrigger value="friends" className="rounded-lg">
+                    <Heart aria-hidden /> Friends
+                    {online > 0 && <span className="rounded-full bg-emerald-500/15 px-1.5 text-[11px] font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">{online}</span>}
+                  </TabsTrigger>
                 </TabsList>
               </div>
               <TabsContent value="team" className="min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-5 pb-5">
@@ -356,6 +364,9 @@ function DesktopOffice() {
                   <Reminders />
                 </div>
               </TabsContent>
+              <TabsContent value="friends" className="min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-5 pb-5">
+                <FriendsPanel />
+              </TabsContent>
             </Tabs>
           )}
         </aside>
@@ -366,11 +377,12 @@ function DesktopOffice() {
 
 /* ------------------------------------------------------------------ phone / tablet (<1024px) */
 
-type Tab = "office" | "team" | "reminders";
+type Tab = "office" | "team" | "reminders" | "friends";
 const TABS: { id: Tab; label: string; icon: LucideIcon }[] = [
   { id: "office", label: "Office", icon: Building2 },
   { id: "team", label: "Team", icon: Users },
   { id: "reminders", label: "Reminders", icon: Bell },
+  { id: "friends", label: "Friends", icon: Heart },
 ];
 
 /**
@@ -381,7 +393,8 @@ function PhoneOffice() {
   const [tab, setTab] = useState<Tab>("office");
   const { working, waiting, reminders, provider } = useCounts();
 
-  const badgeFor = (id: Tab): number => (id === "team" ? waiting : id === "reminders" ? reminders : 0);
+  const online = useOnlineCount();
+  const badgeFor = (id: Tab): number => (id === "team" ? waiting : id === "reminders" ? reminders : id === "friends" ? online : 0);
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden">
@@ -419,10 +432,19 @@ function PhoneOffice() {
             <Reminders />
           </Scroll>
         )}
+        {tab === "friends" && (
+          <Scroll>
+            <div>
+              <h2 className="text-xl font-semibold">Friends</h2>
+              <p className="text-sm text-muted-foreground">Everyone in your circle, and who&apos;s around right now.</p>
+            </div>
+            <FriendsPanel />
+          </Scroll>
+        )}
       </main>
 
       <div className="shrink-0 px-3 pt-1 pb-[max(10px,env(safe-area-inset-bottom,0px))]">
-        <nav className={cn("grid grid-cols-3 gap-1 rounded-2xl p-1.5", GLASS)} aria-label="Sections">
+        <nav className={cn("grid grid-cols-4 gap-1 rounded-2xl p-1.5", GLASS)} aria-label="Sections">
           {TABS.map(({ id, label, icon: Icon }) => {
             const count = badgeFor(id);
             const active = tab === id;
@@ -442,7 +464,7 @@ function PhoneOffice() {
                   {count > 0 && (
                     <span className={cn(
                       "absolute -right-2.5 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full px-1 text-[10px] font-semibold tabular-nums ring-2 ring-card",
-                      id === "team" ? "bg-needs text-white" : "bg-primary text-primary-foreground",
+                      id === "team" ? "bg-needs text-white" : id === "friends" ? "bg-emerald-500 text-white" : "bg-primary text-primary-foreground",
                     )}>
                       {count}
                     </span>

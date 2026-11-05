@@ -413,6 +413,8 @@ Any one AI key is enough for most desks. The desks that read private data (mail,
 
 **Each HQ is its own:** a friend signs in at the same address as you (your Vercel URL) with their own email, and lands in their own HQ: their name in the header and the tab, their employees, their settings. Settings → Appearance sets the HQ's name and app icon, Settings → Team picks which employees it has (the others get no desk, house or runs; useful when someone doesn't use GitHub or Google). These, the colour style and the boss/routine/hours/music settings are saved in the `hq_prefs` table, so they follow the owner to every device; performance, what's drawn and the volumes stay per device. Visiting each other's HQs comes with the friends features (presence, chat, voice).
 
+**Friends tab (who's online):** every HQ in the circle, with a green dot when they have HQ open, amber when it's in the background, grey when offline. It uses Supabase Realtime presence on a private channel (`hq:lobby`) that only signed-in people can join; `multi-hq.sql` adds its policy. Free, nothing stored. If the tab says it can't see who's online, check Supabase → Realtime is enabled for the project.
+
 **The 5-minute tick** calls itself once per HQ, in parallel, so every HQ's work gets its own function and time limit. If you create one of the optional tables later (push notifications, Spotify, names), run `supabase/multi-hq.sql` again afterwards to give it its `hq_id`.
 
 ## Spotify in the office

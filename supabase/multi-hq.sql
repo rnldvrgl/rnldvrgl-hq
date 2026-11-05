@@ -134,4 +134,15 @@ alter table hq_invites enable row level security;
 alter table hq_secrets enable row level security;
 alter table hq_prefs enable row level security;
 
+-- Realtime: the friends' lobby (who's online). A private channel only signed-in people can join, and
+-- sign-in is invite-only, so that's your circle. Nothing is stored; presence only lives while connected.
+do $$ begin
+  if to_regclass('realtime.messages') is not null then
+    drop policy if exists "hq lobby read" on realtime.messages;
+    create policy "hq lobby read" on realtime.messages for select to authenticated using (realtime.topic() = 'hq:lobby');
+    drop policy if exists "hq lobby write" on realtime.messages;
+    create policy "hq lobby write" on realtime.messages for insert to authenticated with check (realtime.topic() = 'hq:lobby');
+  end if;
+end $$;
+
 commit;
