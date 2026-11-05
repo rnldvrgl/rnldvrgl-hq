@@ -28,6 +28,8 @@ const API = "https://api.spotify.com/v1";
 const POLL_MS = 5000;
 
 export type SpotifyTrack = { id: string; title: string; artist: string; album: string; art: string | null; durationMs: number; progressMs: number; playing: boolean };
+/** A Spotify Connect device you can play on: a phone, speaker, TV, computer, or an HQ tab. */
+export type SpotifyDevice = { id: string; name: string; type: string; active: boolean; restricted: boolean; volume: number | null };
 export type SpotifyPlaylist = { id: string; uri: string; name: string; image: string | null; tracks: number };
 
 type SpotifyState = {
@@ -37,6 +39,10 @@ type SpotifyState = {
   deviceId: string | null;
   /** The device Spotify is playing on right now (could be your phone). */
   activeDevice: string | null;
+  /** Spotify's id of the device that's playing (to tick it in the device list). */
+  activeDeviceId: string | null;
+  /** Where Spotify could play, from the last fetchDevices(). */
+  devices: SpotifyDevice[];
   isPremium: boolean | null;
   volume: number;
   error: string | null;
@@ -49,6 +55,9 @@ type SpotifyState = {
   playPlaylist: (uri: string) => Promise<void>;
   setVolume: (v: number) => Promise<void>;
   fetchPlaylists: () => Promise<void>;
+  fetchDevices: () => Promise<void>;
+  /** Move the music to another device (like the Spotify app's device picker). */
+  playOn: (deviceId: string) => Promise<void>;
 };
 
 /* ------------------------------------------------------------------ tokens (shared by every device, kept on the server) */
@@ -142,6 +151,8 @@ type SdkPlayer = {
   disconnect: () => void;
   addListener: (ev: string, cb: (arg: { device_id?: string; message?: string }) => void) => void;
   setVolume: (v: number) => Promise<void>;
+  /** iOS / Safari: unlock audio from a tap, so the tab can start playing. */
+  activateElement?: () => Promise<void>;
 };
 type SpotifyWindow = Window & {
   Spotify?: { Player: new (o: { name: string; getOAuthToken: (cb: (t: string) => void) => void; volume: number }) => SdkPlayer };
@@ -201,7 +212,7 @@ async function startPlayer(): Promise<void> {
 type PlayerResponse = {
   is_playing: boolean;
   progress_ms: number | null;
-  device?: { name: string; volume_percent: number | null };
+  device?: { id: string | null; name: string; volume_percent: number | null };
   item?: { id?: string; name: string; duration_ms: number; artists?: { name: string }[]; album?: { name: string; images?: { url: string }[] }; show?: { name: string }; images?: { url: string }[] } | null;
 };
 
@@ -218,6 +229,7 @@ async function poll(): Promise<void> {
       status: "ready",
       error: null,
       activeDevice: r?.device?.name ?? null,
+      activeDeviceId: r?.device?.id ?? null,
       ...(r?.device?.volume_percent != null ? { volume: r.device.volume_percent / 100 } : {}),
       track: item ? {
         id: item.id ?? `${item.name}|${item.duration_ms}`,
@@ -271,6 +283,8 @@ export const useSpotify = create<SpotifyState>((set, get) => ({
   track: null,
   deviceId: null,
   activeDevice: null,
+  activeDeviceId: null,
+  devices: [],
   isPremium: null,
   volume: 0.6,
   error: null,
@@ -299,7 +313,7 @@ export const useSpotify = create<SpotifyState>((set, get) => ({
     player = null;
     cached = null;
     void fetch("/api/spotify", { method: "DELETE" }).catch(() => {});
-    set({ status: "off", track: null, deviceId: null, activeDevice: null, isPremium: null, playlists: [], error: null });
+    set({ status: "off", track: null, deviceId: null, activeDevice: null, activeDeviceId: null, devices: [], isPremium: null, playlists: [], error: null });
   },
 
   toggle: () => control(async () => {
@@ -325,6 +339,30 @@ export const useSpotify = create<SpotifyState>((set, get) => ({
     // this tab is the device: set it locally (instant); otherwise ask Spotify to change the playing device
     if (player && !get().activeDevice) { await player.setVolume(vol).catch(() => {}); return; }
     await control(() => api(`/me/player/volume?volume_percent=${Math.round(vol * 100)}`, { method: "PUT" }));
+  },
+
+  fetchDevices: async () => {
+    try {
+      const r = await api<{ devices: { id: string | null; name: string; type: string; is_active: boolean; is_restricted: boolean; volume_percent: number | null }[] }>("/me/player/devices");
+      const devices = (r?.devices ?? [])
+        .filter((d): d is typeof d & { id: string } => !!d.id)
+        .map((d) => ({ id: d.id, name: d.name, type: d.type, active: d.is_active, restricted: d.is_restricted, volume: d.volume_percent }));
+      // this tab's own player always shows up, even before Spotify lists it
+      const own = get().deviceId;
+      if (own && !devices.some((d) => d.id === own)) devices.push({ id: own, name: `${HQ.appName} · ${deviceName()}`, type: "Computer", active: false, restricted: false, volume: null });
+      set({ devices });
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : "Couldn't load your Spotify devices." });
+    }
+  },
+
+  playOn: async (id) => {
+    if (id === get().activeDeviceId) return;
+    // playing here: unlock audio while we're still inside the tap (iOS needs that)
+    if (id === get().deviceId) await player?.activateElement?.().catch(() => {});
+    await control(() => api("/me/player", { method: "PUT", body: JSON.stringify({ device_ids: [id], play: true }) }));
+    set({ activeDeviceId: id, devices: get().devices.map((d) => ({ ...d, active: d.id === id })) });
+    setTimeout(() => { void get().fetchDevices(); }, 1200);
   },
 
   fetchPlaylists: async () => {

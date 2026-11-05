@@ -1,12 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ListMusic, Loader2, MicVocal, Music, Pause, Play, Radio, SkipBack, SkipForward, Unplug, Volume1 } from "lucide-react";
+import {
+  Check, ChevronDown, Gamepad2, Laptop, ListMusic, Loader2, MicVocal, Monitor, Music, Pause, Play, Radio, RefreshCw, SkipBack, SkipForward,
+  SlidersHorizontal, Smartphone, Speaker, Tablet, Tv, Unplug, Volume1, type LucideIcon,
+} from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { liveProgressMs, resumeSpotify, spotifyConfigured, useSpotify, type SpotifyTrack } from "@/lib/spotify";
+import { liveProgressMs, resumeSpotify, spotifyConfigured, useSpotify, type SpotifyDevice, type SpotifyTrack } from "@/lib/spotify";
+import { useIsPhone } from "@/hooks/use-media";
 import { cn } from "@/lib/utils";
 import { MUSIC_STYLES, useSettings } from "@/lib/settings";
 import { LyricsView } from "./Lyrics";
+import { SoundMixer } from "./SoundMixer";
 
 const fmt = (ms: number) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
 const roundBtn =
@@ -19,6 +24,7 @@ const roundBtn =
 export function MusicPanel({ className }: { className?: string }) {
   const [open, setOpen] = useState(false);
   const playing = useSpotify((s) => s.track?.playing ?? false);
+  const phone = useIsPhone();
 
   // pick up the shared connection on load, and when coming back to the tab (connected from another device meanwhile)
   useEffect(() => {
@@ -36,10 +42,15 @@ export function MusicPanel({ className }: { className?: string }) {
           {playing && <span className="absolute top-2 right-2 size-1.5 rounded-full bg-emerald-500" aria-hidden />}
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" side="left" className="glass w-[min(20rem,calc(100vw-2rem))] bg-popover/95 p-3">
-        <div className="max-h-[min(75dvh,40rem)] space-y-4 overflow-y-auto overscroll-contain">
+      {/* phones: drop down under the buttons at nearly full width (to the left there's no room, and it got cut off) */}
+      <PopoverContent
+        align="end" side={phone ? "bottom" : "left"} collisionPadding={12}
+        className={cn("glass bg-popover/95 p-3", phone ? "w-[calc(100vw-1.5rem)]" : "w-[min(20rem,calc(100vw-2rem))]")}
+      >
+        <div className="max-h-[min(78dvh,40rem,calc(var(--radix-popover-content-available-height)-1.5rem))] space-y-4 overflow-y-auto overscroll-contain pr-0.5">
           <Body open={open} />
           <OfficeRadio />
+          <Mixer />
         </div>
       </PopoverContent>
     </Popover>
@@ -103,9 +114,7 @@ function Connected({ open }: { open: boolean }) {
           {lyrics && <LyricsView track={track} className="mt-1.5" />}
         </div>
       )}
-      <p className="text-[11px] text-muted-foreground" aria-live="polite">
-        {activeDevice ? `Playing on ${activeDevice}` : deviceId ? "Nothing playing · press play to start here" : "Nothing playing right now"}
-      </p>
+      <Devices activeDevice={activeDevice} deviceId={deviceId} canControl={canControl} />
 
       <div className="flex items-center justify-center gap-2" role="group" aria-label="Playback">
         <button type="button" className={roundBtn} onClick={() => void prev()} disabled={!canControl || !track} aria-label="Previous track"><SkipBack className="size-4" aria-hidden /></button>
@@ -203,6 +212,88 @@ function NowPlaying({ track }: { track: SpotifyTrack | null }) {
           <span>{fmt(progress)}</span><span>{fmt(track.durationMs)}</span>
         </div>
       </div>
+    </div>
+  );
+}
+
+const DEVICE_ICON: Record<string, LucideIcon> = {
+  computer: Laptop, smartphone: Smartphone, tablet: Tablet, speaker: Speaker, tv: Tv, avr: Speaker, stb: Tv,
+  audiodongle: Speaker, castvideo: Tv, castaudio: Speaker, game_console: Gamepad2, automobile: Speaker,
+};
+const deviceIcon = (d: SpotifyDevice): LucideIcon => DEVICE_ICON[d.type.toLowerCase()] ?? Monitor;
+
+/**
+ * Where the music plays, like the Spotify app's device picker: this HQ tab, your phone, a speaker or TV with
+ * Spotify Connect… Only devices that are on and have Spotify open (or awake) show up; that's Spotify's rule.
+ */
+function Devices({ activeDevice, deviceId, canControl }: { activeDevice: string | null; deviceId: string | null; canControl: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const devices = useSpotify((s) => s.devices);
+  const activeId = useSpotify((s) => s.activeDeviceId);
+  const { fetchDevices, playOn } = useSpotify.getState();
+  const refresh = async () => { setBusy(true); await fetchDevices(); setBusy(false); };
+  useEffect(() => { if (open) void refresh(); }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const summary = activeDevice ? `Playing on ${activeDevice}` : deviceId ? "Nothing playing · press play to start here" : "Nothing playing right now";
+  return (
+    <div className="rounded-xl border border-border">
+      <button
+        type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} disabled={!canControl}
+        className="flex w-full items-center gap-2 px-2.5 py-2 text-left text-xs disabled:opacity-70"
+      >
+        <Speaker className={cn("size-4 shrink-0", activeDevice ? "text-[#1db954]" : "text-muted-foreground")} aria-hidden />
+        <span className="min-w-0 flex-1 truncate" aria-live="polite">{summary}</span>
+        {canControl && <span className="shrink-0 font-medium text-muted-foreground">Device</span>}
+        {canControl && <ChevronDown className={cn("size-3.5 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} aria-hidden />}
+      </button>
+      {open && (
+        <div className="border-t border-border p-1">
+          <ul className="grid gap-0.5" aria-label="Play on">
+            {devices.map((d) => {
+              const Icon = deviceIcon(d);
+              const active = d.id === activeId || (!activeId && d.active);
+              return (
+                <li key={d.id}>
+                  <button
+                    type="button" disabled={d.restricted} onClick={() => void playOn(d.id)} aria-pressed={active}
+                    className={cn("flex min-h-10 w-full items-center gap-2.5 rounded-lg px-2 text-left transition-colors hover:bg-muted disabled:opacity-50", active && "text-[#1db954]")}
+                  >
+                    <Icon className="size-4 shrink-0" aria-hidden />
+                    <span className="min-w-0 flex-1 leading-tight">
+                      <span className="block truncate text-xs font-medium">{d.name}</span>
+                      <span className="block text-[10px] text-muted-foreground">
+                        {d.id === deviceId ? "This device" : d.restricted ? "Can't be controlled from here" : d.type}
+                      </span>
+                    </span>
+                    {active && <Check className="size-4 shrink-0" aria-hidden />}
+                  </button>
+                </li>
+              );
+            })}
+            {devices.length === 0 && !busy && (
+              <li className="px-2 py-2 text-[11px] text-muted-foreground">No devices found. Open Spotify on your phone, computer or speaker, then refresh.</li>
+            )}
+          </ul>
+          <button type="button" onClick={() => void refresh()} disabled={busy} className="flex w-full items-center gap-1.5 px-2 py-1.5 text-[11px] text-muted-foreground hover:text-foreground">
+            <RefreshCw className={cn("size-3", busy && "animate-spin")} aria-hidden /> {busy ? "Looking for devices…" : "Refresh"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The office sound's volumes, folded away until opened (the full mixer with hints is in Settings → Sound). */
+function Mixer() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border-t border-border pt-3">
+      <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className="flex w-full items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground">
+        <SlidersHorizontal className="size-3.5" aria-hidden /> <span className="flex-1 text-left">Office sound volumes</span>
+        <ChevronDown className={cn("size-3.5 transition-transform", open && "rotate-180")} aria-hidden />
+      </button>
+      {open && <SoundMixer compact className="mt-3" />}
     </div>
   );
 }
