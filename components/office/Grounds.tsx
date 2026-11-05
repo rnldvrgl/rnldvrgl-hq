@@ -10,6 +10,7 @@ import { getGlowTexture, light } from "./Lighting";
 import { streetLightLevel } from "./StreetLamp";
 import { mergeParts, mergePlaced, placed, type Part } from "./batch";
 import { BACK_STREETS, BACK_X, FAR_WALK, GROUND, ROAD, ROAD_X, SIDE_STREETS, SIDEWALK, YARD_X1 } from "./world";
+import { JUNCTIONS } from "./signals";
 
 export { GROUND, SIDEWALK, ROAD, ROAD_X } from "./world";
 
@@ -218,8 +219,8 @@ function Markings({ pal }: { pal: Palette }) {
     const atSide = (x: number, pad: number) => SIDE_STREETS.some((st) => x > st.x0 - pad && x < st.x1 + pad);
     const atBack = (z: number, pad: number) => BACK_STREETS.some((b) => z > b.z0 - pad && z < b.z1 + pad);
     for (let x = ROAD_X.x0 + 3; x < ROAD_X.x1 - 3; x += 2.4) {
-      // the centre line breaks at each junction, where cars turn in and out of the side street
-      if (atSide(x, 0.6)) continue;
+      // the centre line breaks at each junction, where cars turn in and out of the side street, and at the zebras
+      if (atSide(x, 0.6) || JUNCTIONS.some((j) => x > j.crossX - j.crossW / 2 - 0.8 && x < j.crossX + j.crossW / 2 + 0.8)) continue;
       d.push([x, roadCz, 1.1, 0.12]);
     }
     for (const st of SIDE_STREETS) {
@@ -231,6 +232,13 @@ function Markings({ pal }: { pal: Palette }) {
       // a stop line before the crossing, and the centre line, broken at the crossroads with the residential streets
       d.push([(st.x0 + cx) / 2, SIDEWALK.z0 - 0.35, (st.x1 - st.x0) / 2 - 0.15, 0.16]);
       for (let z = st.z0 + 2; z < SIDEWALK.z0 - 1.6; z += 2.4) if (!atBack(z, 0.8)) d.push([cx, z, 0.12, 1.1]);
+    }
+    // the signalised crossings over the main road (see signals.ts): bars along the traffic, stepped across the road,
+    // and a stop line for each lane before them
+    for (const j of JUNCTIONS) {
+      for (let z = ROAD.z0 + 0.35; z < ROAD.z1 - 0.3; z += 0.6) d.push([j.crossX, z, j.crossW, 0.32, 0.007]);
+      d.push([j.stopNear, (ROAD.z0 + roadCz) / 2, 0.18, roadCz - ROAD.z0 - 0.2, 0.007]);
+      d.push([j.stopFar, (roadCz + ROAD.z1) / 2, 0.18, ROAD.z1 - roadCz - 0.2, 0.007]);
     }
     // residential streets: a centre line, broken at the side streets
     for (const b of BACK_STREETS) {

@@ -8,14 +8,20 @@ import { getGlowTexture } from "./Lighting";
 import { streetLightLevel } from "./StreetLamp";
 import { mergeParts, mergePlaced, placed, type Part } from "./batch";
 import { BACK_LANE, LANE } from "./world";
+import { JUNCTIONS, mainLamp, signalClock } from "./signals";
 
 /**
  * Traffic: jeepneys, tricycles, cars and a van on the main street, and tricycles and motorbikes on the two
  * residential streets behind the office. Every vehicle has headlights and tail lights that come on at dusk
  * (with a glow and a pool of light on the road ahead), so nothing ever drives in the dark unlit.
  *
+ * They drive by the rules: on the main road they stop at the red light (signals.ts), stop on amber when
+ * they can do it comfortably (and go through when they're too close), ease off and queue behind the car in
+ * front without ever touching it, and pull away again on green. The residential streets have no lights:
+ * there they just keep their distance.
+ *
  * Cheap to draw: each vehicle is one merged vertex-coloured body, one lights mesh and one glow mesh, all
- * sharing three materials; the only per-frame work is moving a dozen groups along a line.
+ * sharing three materials; the per-frame work is a few lines of arithmetic per vehicle.
  */
 
 export type Kind = "sedan" | "hatch" | "van" | "tricycle" | "jeepney" | "suv" | "moto";
@@ -153,24 +159,70 @@ const FULL: readonly Spec[] = [
 
 type Mats = { body: THREE.Material; lights: THREE.Material; glow: THREE.Material };
 
-function Vehicle({ spec, mats, glowGeo }: { spec: Spec; mats: Mats; glowGeo: (front: number, small: boolean) => THREE.BufferGeometry | null }) {
-  const ref = useRef<THREE.Group>(null);
+/* ------------------------------------------------------------------ driving */
+
+/** Comfortable braking, the hardest braking, pulling away (m/s²); the gap kept to the car in front (m). */
+const BRAKE = 2.6, BRAKE_MAX = 7, ACCEL = 1.6, GAP = 1.4;
+
+/** One vehicle's state along its lane: s = metres travelled since the lane's start (wraps), v = speed. */
+type Car = { spec: Spec; s: number; v: number; v0: number; front: number; rear: number; group: THREE.Group | null };
+
+/** Each lane's stop lines, in its own s (only the main road has lights). */
+function stopLines(road: Road): { s: number; junction: (typeof JUNCTIONS)[number] }[] {
+  if (road !== "near" && road !== "far") return [];
+  const r = ROADS[road];
+  return JUNCTIONS.map((j) => ({ s: road === "near" ? j.stopNear - r.x0 : r.x1 - j.stopFar, junction: j }));
+}
+
+const mod = (a: number, n: number) => ((a % n) + n) % n;
+
+/**
+ * Move every car on one lane by dt: as fast as it likes (v0), but never faster than lets it stop behind the
+ * car in front, or at a red / amber stop line it hasn't passed yet.
+ */
+function drive(cars: Car[], road: Road, dt: number, t: number) {
+  const r = ROADS[road];
+  const span = r.x1 - r.x0;
+  const lines = stopLines(road);
+  // order along the lane, so each car knows who is in front (the first one's leader is the last, wrapped)
+  const order = [...cars].sort((a, b) => a.s - b.s);
+  for (let i = 0; i < order.length; i++) {
+    const c = order[i];
+    const lead = order[(i + 1) % order.length];
+    const frontS = c.s + c.front;
+    let room = Infinity;
+    if (lead !== c) room = mod(lead.s + lead.rear - frontS, span) - GAP;
+    for (const ln of lines) {
+      const d = mod(ln.s - frontS, span);
+      if (d > 45) continue;
+      const lamp = mainLamp(ln.junction, t);
+      // red: stop unless already over the line; amber: stop only if it can do so comfortably
+      const mustStop = lamp === "red" ? d > -0.2 : lamp === "amber" ? d > (c.v * c.v) / (2 * BRAKE) : false;
+      if (mustStop) room = Math.min(room, d - 0.25);
+    }
+    room = Math.max(0, room);
+    // the fastest speed from which it can still stop in the room it has
+    const safe = Math.sqrt(2 * BRAKE * room);
+    const want = Math.min(c.v0, safe);
+    c.v = want > c.v ? Math.min(want, c.v + ACCEL * dt) : Math.max(want, c.v - BRAKE_MAX * dt);
+    c.s += Math.min(c.v * dt, room);
+  }
+  for (const c of cars) {
+    const g = c.group;
+    if (!g) continue;
+    const along = mod(c.s, span);
+    g.position.set(r.dir > 0 ? r.x0 + along : r.x1 - along, 0, r.z);
+  }
+}
+
+function Vehicle({ spec, mats, glowGeo, onGroup }: { spec: Spec; mats: Mats; glowGeo: (front: number, small: boolean) => THREE.BufferGeometry | null; onGroup: (g: THREE.Group | null) => void }) {
   const built = useMemo(() => {
     const v = vehicle(spec.kind, spec.color, spec.accent);
     return { body: mergeParts(v.body), lights: mergeParts(v.lights), glow: glowGeo(v.front, spec.kind === "moto" || spec.kind === "tricycle") };
   }, [spec, glowGeo]);
   const road = ROADS[spec.road];
-  const span = road.x1 - road.x0;
-
-  useFrame(({ clock }) => {
-    const g = ref.current;
-    if (!g) return;
-    const along = (clock.elapsedTime * road.speed + spec.offset) % span;
-    g.position.set(road.dir > 0 ? road.x0 + along : road.x1 - along, 0, road.z);
-  });
-
   return (
-    <group ref={ref} rotation={[0, road.dir > 0 ? 0 : Math.PI, 0]} position={[0, 0, road.z]}>
+    <group ref={onGroup} rotation={[0, road.dir > 0 ? 0 : Math.PI, 0]} position={[0, 0, road.z]}>
       {built.body && <mesh geometry={built.body} material={mats.body} />}
       {built.lights && <mesh geometry={built.lights} material={mats.lights} />}
       {built.glow && <mesh geometry={built.glow} material={mats.glow} />}
@@ -178,9 +230,31 @@ function Vehicle({ spec, mats, glowGeo }: { spec: Spec; mats: Mats; glowGeo: (fr
   );
 }
 
+/** Front and rear of a vehicle kind, for keeping gaps (cached: vehicle() builds the parts). */
+const extents = new Map<string, { front: number; rear: number }>();
+function extentOf(spec: Spec) {
+  const key = spec.kind;
+  let e = extents.get(key);
+  if (!e) { const v = vehicle(spec.kind, spec.color, spec.accent); e = { front: v.front, rear: v.rear }; extents.set(key, e); }
+  return e;
+}
+
 export function Traffic() {
   const lowPower = useOffice((s) => s.lowPower);
   const specs = useMemo(() => (lowPower ? FULL.filter((_, i) => i % 2 === 0) : FULL), [lowPower]);
+  // the cars' state, per lane: built once per set of vehicles, then moved every frame
+  const lanes = useMemo(() => {
+    const by = new Map<Road, Car[]>();
+    specs.forEach((spec, i) => {
+      const e = extentOf(spec);
+      // each driver has their own pace: within ±12 % of the road's speed
+      const v0 = ROADS[spec.road].speed * (0.88 + ((i * 37) % 25) / 100);
+      const car: Car = { spec, s: spec.offset, v: v0, v0, front: e.front, rear: e.rear, group: null };
+      by.set(spec.road, [...(by.get(spec.road) ?? []), car]);
+    });
+    return by;
+  }, [specs]);
+  const cars = useMemo(() => [...lanes.values()].flat(), [lanes]);
   const glow = useMemo(() => getGlowTexture(), []);
   const mats = useMemo<Mats>(() => ({
     body: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.2 }),
@@ -206,7 +280,9 @@ export function Traffic() {
     };
   }, []);
 
-  useFrame(() => {
+  useFrame((_, delta) => {
+    const dt = Math.min(0.1, delta), t = signalClock();
+    for (const [road, list] of lanes) drive(list, road, dt, t);
     const k = streetLightLevel();
     // lenses read as lit by day too (they're bright plastic), and blaze at night
     (mats.lights as THREE.MeshBasicMaterial).color.setScalar(0.75 + k * 1.6);
@@ -215,7 +291,7 @@ export function Traffic() {
 
   return (
     <group>
-      {specs.map((s, i) => <Vehicle key={`${s.kind}${i}`} spec={s} mats={mats} glowGeo={glowGeo} />)}
+      {cars.map((c, i) => <Vehicle key={`${c.spec.kind}${i}`} spec={c.spec} mats={mats} glowGeo={glowGeo} onGroup={(g) => { c.group = g; }} />)}
     </group>
   );
 }
