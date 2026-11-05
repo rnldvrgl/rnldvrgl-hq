@@ -62,7 +62,7 @@ function buntingGeometry(lines: { a: THREE.Vector3; b: THREE.Vector3; sag: numbe
 const strandLine = (s: Strand, lift: number) => ({ a: new THREE.Vector3(s.x0, s.y + lift, s.z), b: new THREE.Vector3(s.x1, s.y + lift, s.z), sag: s.sag + 0.06 });
 
 /** Strings across the main street every 7 m through the middle of town, tied to bamboo poles on both sides. */
-function acrossStreet(): { lines: { a: THREE.Vector3; b: THREE.Vector3; sag: number }[]; poles: Part[] } {
+export function acrossStreet(): { lines: { a: THREE.Vector3; b: THREE.Vector3; sag: number }[]; poles: Part[] } {
   const lines: { a: THREE.Vector3; b: THREE.Vector3; sag: number }[] = [], poles: Part[] = [];
   const zNear = SIDEWALK.z0 + 0.35, zFar = FAR_WALK.z1 - 0.35, top = 3.6;
   for (let x = -24; x <= 48; x += 7) {
@@ -79,7 +79,7 @@ function acrossStreet(): { lines: { a: THREE.Vector3; b: THREE.Vector3; sag: num
 
 type Built = { lit: Part[]; litGeo: THREE.BufferGeometry[]; glow: Part[]; glowGeo: THREE.BufferGeometry[]; halos: Spot[] };
 
-function heartShape(s: number): THREE.Shape {
+export function heartShape(s: number): THREE.Shape {
   const h = new THREE.Shape();
   h.moveTo(0, -s);
   h.bezierCurveTo(s * 1.2, -s * 0.2, s * 1.1, s * 0.9, 0, s * 0.45);

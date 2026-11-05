@@ -22,6 +22,8 @@ export type Decor = {
   acrossStreet: boolean;
   /** Fireworks over the town in the evening (hours, Manila). */
   fireworks: readonly [number, number] | null;
+  /** Something more for this one: heart balloons and garlands (Valentine's), the penitensya procession (Holy Week). */
+  extras?: "valentine" | "penitensya";
 };
 
 export type Holiday = {
@@ -78,19 +80,19 @@ export const HOLIDAYS: readonly Holiday[] = [
   },
   {
     id: "valentines", name: "Valentine's Day", when: "Feb 14",
-    looks: "Hearts in the shop fronts and the office glass, pink and red bunting",
+    looks: "Hearts at every shop and gate, heart garlands across the street, heart balloons bobbing out front, a lit heart frame in the park",
     swatch: ["#ec4899", "#ef4444", "#fbcfe8"], previewAt: "17:30",
     on: (p) => p.month === 1 && p.day >= 13 && p.day <= 14,
     first: () => [1, 13],
-    decor: { ornament: "heart", bunting: ["#ec4899", "#ef4444", "#fbcfe8"], acrossStreet: false, fireworks: null },
+    decor: { ornament: "heart", bunting: ["#ec4899", "#ef4444", "#fbcfe8"], acrossStreet: false, fireworks: null, extras: "valentine" },
   },
   {
     id: "holyweek", name: "Holy Week", when: "Maundy Thursday – Easter Sunday",
-    looks: "Quiet purple and white bunting, candles at the gates",
-    swatch: ["#7c3aed", "#f5f5f4", "#facc15"], previewAt: "19:00",
+    looks: "The penitensya: hooded penitents with whips and wooden crosses walking behind the carroza of the Santo Entierro, devotees with candles, purple and white bunting, a pabasa by the hall",
+    swatch: ["#7c3aed", "#f5f5f4", "#facc15"], previewAt: "17:40",
     on: (p) => near(p, EASTER[p.year], 3, 0),
     first: (y) => { const e = EASTER[y]; if (!e) return null; const d = new Date(Date.UTC(y, e[0], e[1] - 3)); return [d.getUTCMonth(), d.getUTCDate()]; },
-    decor: { ornament: "candle", bunting: ["#7c3aed", "#f5f5f4"], acrossStreet: false, fireworks: null },
+    decor: { ornament: "candle", bunting: ["#7c3aed", "#f5f5f4"], acrossStreet: false, fireworks: null, extras: "penitensya" },
   },
   {
     id: "fiesta", name: "Flores de Mayo fiesta", when: "May",

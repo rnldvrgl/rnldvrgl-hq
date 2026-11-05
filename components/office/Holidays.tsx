@@ -15,6 +15,8 @@ import { joinGeometries, mergeParts, mergePlaced, placed, type Part } from "./ba
 import { useSceneNow } from "./scene-clock-ui";
 import { activeHolidays, useHolidayPreview, type HolidayId } from "@/lib/holidays";
 import { Festive } from "./Festive";
+import { Valentine } from "./Valentine";
+import { Penitensya } from "./Penitensya";
 
 /**
  * Pasko and Bagong Taon in the town.
@@ -345,6 +347,8 @@ export function Holidays() {
     <group>
       {season && <Season />}
       {festive.map((h) => <Festive key={h.id} decor={h.decor!} />)}
+      {festive.some((h) => h.decor!.extras === "valentine") && <Valentine frozen={minimal} />}
+      {festive.some((h) => h.decor!.extras === "penitensya") && <Penitensya frozen={minimal} />}
       {fireworks && <Fireworks lowPower={lowPower} peak={() => peakRef.current} preview={previewId === "newyear"} />}
     </group>
   );
