@@ -14,7 +14,7 @@ export function SoundMixer({ compact = false, className }: { compact?: boolean; 
   const { setVolume, resetVolumes } = useSettings.getState();
   const changed = MIX_CHANNELS.some((c) => volumes[c.key] !== 100);
   return (
-    <div className={cn("grid", compact ? "gap-2" : "gap-3", className)}>
+    <div className={cn("grid min-w-0 grid-cols-[minmax(0,1fr)]", compact ? "gap-2" : "gap-3", className)}>
       {MIX_CHANNELS.map((c) => (
         <Channel key={c.key} k={c.key} label={c.label} hint={compact ? undefined : c.hint} value={volumes[c.key]} onChange={(v) => setVolume(c.key, v)} strong={c.key === "all"} />
       ))}
@@ -34,15 +34,15 @@ function Channel({ k, label, hint, value, onChange, strong }: { k: MixKey; label
   const Icon = value === 0 ? VolumeX : value < 50 ? Volume : value <= 100 ? Volume1 : Volume2;
   const id = `mix-${k}`;
   return (
-    <div className={cn("grid gap-1", strong && "border-b border-border pb-2")}>
+    <div className={cn("grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1", strong && "border-b border-border pb-2")}>
       <div className="flex items-baseline justify-between gap-2">
-        <label htmlFor={id} className={cn("min-w-0 truncate text-xs", strong ? "font-semibold" : "font-medium")}>
+        <label htmlFor={id} className={cn("block min-w-0 flex-1 truncate text-xs", strong ? "font-semibold" : "font-medium")}>
           {label}
           {hint && <span className="ml-1.5 font-normal text-muted-foreground">{hint}</span>}
         </label>
         <span className="shrink-0 font-mono text-[10px] tabular-nums text-muted-foreground">{value}%</span>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex min-w-0 items-center gap-2">
         <button
           type="button"
           onClick={() => {
@@ -60,7 +60,7 @@ function Channel({ k, label, hint, value, onChange, strong }: { k: MixKey; label
           type="range" min={0} max={MIX_MAX} step={5} value={value}
           onChange={(e) => onChange(Number(e.target.value))}
           aria-valuetext={`${value} percent`}
-          className="h-1.5 w-full cursor-pointer accent-primary"
+          className="h-1.5 w-full min-w-0 flex-1 cursor-pointer accent-primary"
         />
       </div>
     </div>

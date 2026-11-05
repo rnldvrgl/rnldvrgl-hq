@@ -38,7 +38,7 @@ export function SettingsPanel({ open, onOpenChange }: { open: boolean; onOpenCha
                     <SheetTitle>Office settings</SheetTitle>
                     <SheetDescription>Saved on this device (Names are saved for every device). Lower-end phones: try Battery saver.</SheetDescription>
                 </SheetHeader>
-                <div className="grid min-w-0 gap-4 px-4 pt-4 pb-6 [&>*]:min-w-0">
+                <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 px-4 pt-4 pb-6 [&>*]:min-w-0">
                     <Appearance />
                     <Performance />
                     <Section title="Show in the office" hint="Turn layers off to draw less.">
@@ -66,7 +66,7 @@ export function SettingsPanel({ open, onOpenChange }: { open: boolean; onOpenCha
 /** One card of settings: a heading, a line on what it does, then its controls. */
 function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
     return (
-        <section className="grid min-w-0 gap-3 rounded-2xl border border-border bg-card/50 p-3.5 [&>*]:min-w-0">
+        <section className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 rounded-2xl border border-border bg-card/50 p-3.5 [&>*]:min-w-0">
             <div className="px-0.5">
                 <h3 className="text-sm font-semibold">{title}</h3>
                 {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
@@ -254,7 +254,7 @@ function Performance() {
                 <input
                     id="walkers" type="range" min={0} max={WALKERS_MAX} step={1} value={walkers}
                     onChange={(e) => setWalkers(Number(e.target.value))}
-                    className="h-1.5 w-full cursor-pointer accent-primary"
+                    className="h-1.5 w-full min-w-0 cursor-pointer accent-primary"
                 />
                 <p className="text-xs text-muted-foreground">Students, office workers, joggers… at the busiest hour; fewer at night. Lower it on slow phones (0 turns them off).</p>
             </div>
@@ -495,7 +495,7 @@ function Sound() {
                 </div>
             )}
             <SwitchRow label="Who-needs-you chimes" hint="Each employee has their own little tune when they need you" checked={chimes} onChange={setChimes} />
-            <div className="grid gap-2 px-2.5 pt-2">
+            <div className="grid grid-cols-[minmax(0,1fr)] gap-2 px-2.5 pt-2">
                 <p className="text-sm font-medium">Volume</p>
                 <SoundMixer />
             </div>

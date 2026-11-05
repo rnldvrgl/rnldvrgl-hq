@@ -163,13 +163,13 @@ function Connected({ open }: { open: boolean }) {
         <button type="button" className={roundBtn} onClick={() => void next()} disabled={!canControl || !track} aria-label="Next track"><SkipForward className="size-4" aria-hidden /></button>
       </div>
 
-      <label className="flex items-center gap-2.5 rounded-xl bg-muted/50 px-3 py-2.5">
+      <label className="flex min-w-0 items-center gap-2.5 rounded-xl bg-muted/50 px-3 py-2.5">
         <Volume1 className="size-4 shrink-0 text-muted-foreground" aria-hidden />
         <span className="sr-only">Spotify volume</span>
         <input
           type="range" min={0} max={100} step={1} value={Math.round(volume * 100)} disabled={!canControl}
           onChange={(e) => void setVolume(Number(e.target.value) / 100)}
-          className="h-1.5 w-full cursor-pointer accent-[#1db954] disabled:cursor-not-allowed"
+          className="h-1.5 w-0 min-w-0 flex-1 cursor-pointer accent-[#1db954] disabled:cursor-not-allowed"
         />
         <span className="w-8 shrink-0 text-right font-mono text-[10px] tabular-nums text-muted-foreground">{Math.round(volume * 100)}%</span>
       </label>
