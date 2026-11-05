@@ -4,13 +4,17 @@ import { useRef, useState } from "react";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { toast } from "sonner";
-import { Play, Pause, CheckCheck, X, ShieldCheck, Loader2 } from "lucide-react";
+import { Play, Pause, CheckCheck, X, ShieldCheck, Loader2, House, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useOffice, useEmployee } from "@/lib/store";
-import { teamById, type EmployeeId } from "@/lib/team";
+import { TEAM, teamById, type EmployeeId } from "@/lib/team";
+import { isWeekday, manilaMinutes } from "@/lib/office-clock";
+import { activityOf } from "./Employee3D";
+import { sendCommute, useCommute } from "./commuteOverride";
+import { useSceneNow } from "./scene-clock-ui";
 import { describeSchedule, formatManila } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { ICONS, LAMP, STATUS_LABEL, type LampKey } from "./icons";
@@ -26,6 +30,26 @@ export { Reminders };
 gsap.registerPlugin(useGSAP);
 
 const fail = (e: unknown, fallback: string) => toast.error(e instanceof Error ? e.message : fallback);
+
+/** Send this employee home now, or call them in to the office (until the schedule catches up). */
+function CommuteButton({ id }: { id: EmployeeId }) {
+  const meta = teamById[id];
+  const emp = useEmployee(id);
+  useCommute((s) => s.overrides[id]);
+  const now = useSceneNow(1000);
+  if (!emp?.enabled) return null;
+  const index = TEAM.findIndex((m) => m.id === id);
+  const a = activityOf(manilaMinutes(now), isWeekday(now), meta, index, emp.status, emp.enabled, null);
+  const away = a.kind === "away" || (a.kind === "route" && a.purpose === "leaving");
+  return (
+    <Button variant="outline" onClick={() => {
+      sendCommute(id, away ? "office" : "home");
+      toast.success(away ? `${meta.name} is heading to the office.` : `${meta.name} is heading home.`);
+    }}>
+      {away ? <><Building2 aria-hidden /> Call to the office</> : <><House aria-hidden /> Send home</>}
+    </Button>
+  );
+}
 
 /** Everything about one employee. Used inside the desktop side card and the phone bottom sheet. */
 export function DeskPanel({ id, onClose }: { id: EmployeeId; onClose?: () => void }) {
@@ -103,6 +127,7 @@ export function DeskPanel({ id, onClose }: { id: EmployeeId; onClose?: () => voi
           onClick={() => act(() => setEnabled(id, !emp.enabled), emp.enabled ? `${meta.name} is paused.` : `${meta.name} is back at the desk.`)}>
           <Pause /> {emp.enabled ? "Pause" : "Resume"}
         </Button>
+        <CommuteButton id={id} />
         {(emp.status === "needs_you" || emp.status === "error") && (
           <Button variant="outline" disabled={busy} onClick={() => act(() => acknowledge(id), "Marked as read.")}>
             <CheckCheck /> Mark read

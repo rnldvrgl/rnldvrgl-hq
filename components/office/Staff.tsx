@@ -14,6 +14,7 @@ import { Bubble } from "./Bubble";
 import { OWNER_CHAIR, WET_SIGN, bossErrandRoute, janitorAt, ownerStandupAt, ownerTourAt, sample, type Route } from "./routes";
 import { VaporPuffs, vapePose } from "./Employee3D";
 import { bossDay } from "./bossCommute";
+import { overrideAt, useCommute } from "./commuteOverride";
 import { useSceneNow } from "./scene-clock-ui";
 import { HQ, type BossLook } from "@/hq.config";
 
@@ -48,7 +49,8 @@ function ownerOuting(now: Date): Outing | "home" | null {
   const { routine, boss } = useSettings.getState();
   const min = manilaMinutes(now);
   // the commute by car: walking to or from it, in it (not drawn: Car.tsx drives), or home for the night
-  const day = routine.commute ? bossDay(min, workHours("boss")) : null;
+  const manual = overrideAt("owner", now.getTime());
+  const day = routine.commute || manual ? bossDay(min, workHours("boss"), manual) : null;
   if (day && (day.kind === "home" || day.kind === "car")) return "home";
   if (day?.kind === "walk") return { route: day.route, t: day.t, coffee: false, standup: false, errand: null, commute: day.reverse ? "arriving" : "leaving" };
   const errand = errandAt(useOffice.getState().bossErrand);
@@ -91,6 +93,7 @@ export function Owner({ shadows, reducedMotion }: { pal: Palette; shadows: boole
   useSettings((s) => s.boss.wanders);
   useSettings((s) => s.hours);
   useSettings((s) => s.routine.commute);
+  useCommute((s) => s.overrides.owner);
 
   useFrame(({ clock }) => {
     const g = group.current, r = rig.current;

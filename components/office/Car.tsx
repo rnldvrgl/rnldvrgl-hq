@@ -17,6 +17,7 @@ import { manilaMinutes } from "@/lib/office-clock";
 import { carModelOf, useSettings, workHours, type CarModel } from "@/lib/settings";
 import { PARKING } from "./palette";
 import { bossDay, carPoseOf, type BossDay } from "./bossCommute";
+import { overrideAt } from "./commuteOverride";
 
 export { PARKING } from "./palette";
 
@@ -350,7 +351,9 @@ function TypeRKit({ spec, shadows }: { spec: Spec; shadows: boolean }) {
 /** The boss's day as far as the car's concerned (off with Settings → Daily routine → Commute). */
 function dayNow(): BossDay {
   const { routine } = useSettings.getState();
-  return routine.commute ? bossDay(manilaMinutes(sceneNow()), workHours("boss")) : { kind: "office" };
+  const now = sceneNow();
+  const manual = overrideAt("owner", now.getTime());
+  return routine.commute || manual ? bossDay(manilaMinutes(now), workHours("boss"), manual) : { kind: "office" };
 }
 
 /**

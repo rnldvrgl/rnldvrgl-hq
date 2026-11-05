@@ -95,24 +95,45 @@ export type BossDay =
   /** At home for the night, the car in the garage. */
   | { kind: "home" };
 
-/** Where the boss and the car are at `min` (Manila minutes), given arriving at `back` and leaving at `from`. */
-export function bossDay(min: number, hours: { back: number; from: number }): BossDay {
+/** `t` seconds into going home: walk out, get in, drive to the garage; then home. */
+function leaving(t: number): BossDay {
+  const walk = ownerToCar("car"), W = walk.duration;
+  if (t < W) return { kind: "walk", route: walk, t, reverse: false };
+  if (t < W + GET_IN) return { kind: "car", car: { ...PARKED_OFFICE, engine: t - W > 1 }, leg: "home" };
+  const d = t - W - GET_IN;
+  if (d < HOME.duration) return { kind: "car", car: poseOn(HOME, d), leg: "home" };
+  return { kind: "home" };
+}
+
+/** `t` seconds into coming in: drive from the garage, get out, walk in to the desk; then at the office. */
+function arriving(t: number): BossDay {
+  const walk = ownerToCar("car"), W = walk.duration;
+  if (t < WORK.duration) return { kind: "car", car: poseOn(WORK, t), leg: "work" };
+  const g = t - WORK.duration;
+  if (g < GET_IN) return { kind: "car", car: { ...PARKED_OFFICE, engine: g < 1 }, leg: "work" };
+  const w = g - GET_IN;
+  if (w < W) return { kind: "walk", route: walk, t: W - w, reverse: true };
+  return { kind: "office" };
+}
+
+/** Seconds the whole drive in takes (to start it so the boss sits down on the hour). */
+const ARRIVE_S = () => WORK.duration + GET_IN + ownerToCar("car").duration;
+const LEAVE_S = () => ownerToCar("car").duration + GET_IN + HOME.duration;
+
+/**
+ * Where the boss and the car are at `min` (Manila minutes), given arriving at `back` and leaving at `from`.
+ * `override`: sent home or called in by hand (commuteOverride.ts), `t` seconds ago.
+ */
+export function bossDay(min: number, hours: { back: number; from: number }, override?: { mode: "home" | "office"; t: number } | null): BossDay {
+  if (override) {
+    if (override.mode === "home") return leaving(override.t);
+    return arriving(override.t);
+  }
   const T = min * 60;
-  const walk = ownerToCar("car");
-  const W = walk.duration;
-  // leaving: walk out, get in, drive home
-  const out = hours.from * 60;
-  if (T >= out && T < out + W) return { kind: "walk", route: walk, t: T - out, reverse: false };
-  if (T >= out + W && T < out + W + GET_IN) return { kind: "car", car: { ...PARKED_OFFICE, engine: T - out - W > 1 }, leg: "home" };
-  const d0 = out + W + GET_IN;
-  if (T >= d0 && T < d0 + HOME.duration) return { kind: "car", car: poseOn(HOME, T - d0), leg: "home" };
-  // arriving: drive in, get out, walk in to sit down exactly at `back`
-  const inAt = hours.back * 60;
-  const w0 = inAt - W, a1 = w0 - GET_IN, a0 = a1 - WORK.duration;
-  if (T >= w0 && T < inAt) return { kind: "walk", route: walk, t: W - (T - w0), reverse: true };
-  if (T >= a1 && T < w0) return { kind: "car", car: { ...PARKED_OFFICE, engine: T - a1 < 1 }, leg: "work" };
-  if (T >= a0 && T < a1) return { kind: "car", car: poseOn(WORK, T - a0), leg: "work" };
-  return T >= d0 + HOME.duration || T < a0 ? { kind: "home" } : { kind: "office" };
+  const out = hours.from * 60, a0 = hours.back * 60 - ARRIVE_S();
+  if (T >= out && T < out + LEAVE_S()) return leaving(T - out);
+  if (T >= a0 && T < hours.back * 60) return arriving(T - a0);
+  return T >= out || T < a0 ? { kind: "home" } : { kind: "office" };
 }
 
 /** Where the car is for a given day state. */

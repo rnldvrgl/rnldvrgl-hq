@@ -414,7 +414,8 @@ function buildCommute(m: EmployeeMeta): Route {
 }
 
 const commutes = new Map<EmployeeId, Route>();
-function commute(m: EmployeeMeta): Route {
+/** An employee's walk from the desk to their front door (walked backwards to come in). */
+export function commute(m: EmployeeMeta): Route {
   let r = commutes.get(m.id);
   if (!r) { r = buildCommute(m); commutes.set(m.id, r); }
   return r;

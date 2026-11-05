@@ -3,7 +3,7 @@
 import { useState } from "react";
 import {
   BatteryLow, Check, ChevronDown, Cloud, CloudLightning, CloudRain, CloudSun, Coffee, Crown, Footprints, LocateFixed, Minus, Plus,
-  PartyPopper, Radio, RotateCw, Settings2, X, ShoppingBag, Sun, Wind, Zap, Armchair, type LucideIcon,
+  PartyPopper, Radio, RotateCw, Settings2, X, ShoppingBag, Sun, Wind, Zap, Armchair, type LucideIcon, Building2, House,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useOffice, WEATHER_KINDS, type BossErrandKind, type WeatherKind } from "@/lib/store";
@@ -15,6 +15,8 @@ import { cn } from "@/lib/utils";
 import { PHASE_ICON, PHASE_LABEL, phaseOf, useSceneNow } from "./scene-clock-ui";
 import { HQ } from "@/hq.config";
 import { holidayById, useHolidayPreview } from "@/lib/holidays";
+import { sendCommute, useCommute } from "./commuteOverride";
+import { ownerIsHome } from "./Staff";
 
 const CLOCK = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit", hour12: true });
 
@@ -255,6 +257,9 @@ function BossMenu() {
   const errand = useOffice((s) => s.bossErrand);
   const sendBoss = useOffice((s) => s.sendBoss);
   const choose = (k: BossErrandKind | null) => { sendBoss(k); setOpen(false); };
+  useCommute((s) => s.overrides.owner);
+  const now = useSceneNow(1000);
+  const home = ownerIsHome(now);
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -272,6 +277,11 @@ function BossMenu() {
           ))}
           <li className="mt-1 border-t border-border pt-1">
             <MenuItem icon={Armchair} label="Back to the desk" active={false} onClick={() => choose(null)} />
+          </li>
+          <li>
+            {home
+              ? <MenuItem icon={Building2} label="Come to the office" hint="Drives in from home now" active={false} onClick={() => { sendCommute("owner", "office"); setOpen(false); }} />
+              : <MenuItem icon={House} label="Go home" hint="Walks to the car and drives home now" active={false} onClick={() => { sendBoss(null); sendCommute("owner", "home"); setOpen(false); }} />}
           </li>
         </ul>
       </PopoverContent>

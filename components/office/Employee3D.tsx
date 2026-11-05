@@ -13,10 +13,11 @@ import { Person, applyPose, REST, type Look, type HairStyle, type Pose, type Per
 import { Bubble, type Tone } from "./Bubble";
 import { ICONS } from "./icons";
 import {
-  actWindows, chairOf, commuteAt, deskCenterX, dropRoute, dropRunT, lunchRoute, lunchRunT, sample, standupRoute, standupRunT,
+  actWindows, chairOf, commute, commuteAt, deskCenterX, dropRoute, dropRunT, lunchRoute, lunchRunT, sample, standupRoute, standupRunT,
   trashRoute, trashRunT, meetingRoute, meetingRunT, placeRoute, placeSpot, sample as sampleRoute, type Place, type Route, type Sample,
 } from "./routes";
 import { launchDelivery } from "./Deliveries";
+import { overrideAt, useCommute } from "./commuteOverride";
 import { useSceneNow } from "./scene-clock-ui";
 import { OWNER, OWNERS } from "@/hq.config";
 import { clockLabel, useSettings, workHours } from "@/lib/settings";
@@ -40,6 +41,14 @@ type Activity =
  */
 export function activityOf(min: number, weekday: boolean, meta: EmployeeMeta, index: number, status: EmployeeStatus, enabled: boolean, duty: EmployeeId | null): Activity {
   if (!enabled) return { kind: "away", why: "paused" };
+  // sent home or called in by hand (the desk panel): walk now, stay until the schedule catches up
+  const o = overrideAt(meta.id, sceneNow().getTime());
+  if (o) {
+    const r = commute(meta);
+    if (o.mode === "home") return o.t <= r.duration ? { kind: "route", route: r, t: o.t, reverse: false, purpose: "leaving" } : { kind: "away", why: "home" };
+    if (o.t <= r.duration) return { kind: "route", route: r, t: r.duration - o.t, reverse: true, purpose: "arriving" };
+    return { kind: "seat" };
+  }
   const on = useSettings.getState().routine;
   const route = (purpose: Purpose, r: Route, t: number): Activity => ({ kind: "route", route: r, t, reverse: false, purpose });
   if (duty === meta.id && on.trashRun) {
@@ -136,6 +145,7 @@ export function Employee3D({ meta, index, pal, shadows, reducedMotion, duty }: P
   const enabled = emp?.enabled ?? true;
   useSettings((s) => s.routine); // re-render the bubble when the daily routine changes
   useSettings((s) => s.hours);
+  useCommute((s) => s.overrides[meta.id]);
   const status: EmployeeStatus = emp?.status ?? "idle";
   const shirt = SHIRTS[meta.color - 1];
 
