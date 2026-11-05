@@ -411,6 +411,8 @@ One deployment hosts many HQs: yours (the founder HQ) and one per friend you inv
 
 Any one AI key is enough for most desks. The desks that read private data (mail, calendar, private repos) need Claude, or the HQ's own permission for the free AI to read it (a switch in Connections). **About you** is each friend's CV, filled in under Connections: the Job Hunter and cover letters use it, never yours (yours stays `data/master-profile.json`). Gemini (Google AI Studio) and Groq have free tiers, so a friend's HQ costs you nothing. Keys are stored encrypted; Settings only ever shows their last 4 characters. Your HQ keeps using your environment variables, and anything you save in Connections takes precedence over them.
 
+**Each HQ is its own:** a friend signs in at the same address as you (your Vercel URL) with their own email, and lands in their own HQ: their name in the header and the tab, their employees, their settings. Settings → Appearance sets the HQ's name and app icon, Settings → Team picks which employees it has (the others get no desk, house or runs; useful when someone doesn't use GitHub or Google). These, the colour style and the boss/routine/hours/music settings are saved in the `hq_prefs` table, so they follow the owner to every device; performance, what's drawn and the volumes stay per device. Visiting each other's HQs comes with the friends features (presence, chat, voice).
+
 **The 5-minute tick** calls itself once per HQ, in parallel, so every HQ's work gets its own function and time limit. If you create one of the optional tables later (push notifications, Spotify, names), run `supabase/multi-hq.sql` again afterwards to give it its `hq_id`.
 
 ## Spotify in the office
