@@ -65,7 +65,7 @@ function HqName() {
 }
 
 /** The icon in the header, the browser tab and on the Home Screen. */
-function AppIconPicker() {
+export function AppIconPicker() {
   const icon = useAppIcon();
   const handle = useHandle();
   const set = (patch: Partial<typeof icon>) => usePrefs.getState().set({ icon: { ...icon, ...patch } });

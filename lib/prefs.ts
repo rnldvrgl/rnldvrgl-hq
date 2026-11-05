@@ -30,6 +30,8 @@ export type Prefs = {
   team?: EmployeeId[];
   style?: StyleName;
   theme?: "light" | "dark" | "system";
+  /** The welcome setup has been finished or skipped (a new friend's HQ shows it once). */
+  setup?: boolean;
   /** The synced part of lib/settings.ts (boss, routine, hours, music, musicStyle, chimes). Validated there. */
   office?: Record<string, unknown>;
 };
@@ -68,6 +70,7 @@ export function cleanPrefs(v: unknown): Prefs {
   }
   if (STYLE_IDS.some((s) => s === v.style)) out.style = v.style as StyleName;
   if (v.theme === "light" || v.theme === "dark" || v.theme === "system") out.theme = v.theme;
+  if (v.setup === true) out.setup = true;
   if (isObj(v.office) && JSON.stringify(v.office).length < 8000) out.office = v.office;
   return out;
 }

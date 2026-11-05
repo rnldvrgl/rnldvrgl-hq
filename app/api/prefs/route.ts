@@ -10,7 +10,7 @@ export const POST = hqRoute(async (req: Request) => {
   const patch = typeof body === "object" && body && "patch" in body && typeof body.patch === "object" && body.patch && !Array.isArray(body.patch)
     ? (body.patch as Record<string, unknown>) : null;
   if (!patch) return NextResponse.json({ error: "Nothing to save." }, { status: 400 });
-  const allowed = ["handle", "icon", "team", "style", "theme", "office"];
+  const allowed = ["handle", "icon", "team", "style", "theme", "office", "setup"];
   const bad = Object.keys(patch).find((k) => !allowed.includes(k));
   if (bad) return NextResponse.json({ error: `Unknown setting: ${bad}` }, { status: 400 });
   if (Array.isArray(patch.team) && patch.team.length === 0) return NextResponse.json({ error: "Keep at least one employee." }, { status: 400 });

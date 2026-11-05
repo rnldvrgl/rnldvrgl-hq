@@ -8,6 +8,7 @@ import { Activity, Bell, BellRing, Building2, History, Sparkles, Users, WifiOff,
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useOffice } from "@/lib/store";
+import { Welcome } from "./Welcome";
 import { useAppIcon, useHandle, usePrefs } from "@/lib/prefs-client";
 import { Glyph, iconGradient } from "@/lib/app-icon";
 import { isEmployeeId, TEAM, teamById, type AiProvider, type OfficeState } from "@/lib/team";
@@ -79,7 +80,12 @@ export default function Office({ initial }: { initial: OfficeState }) {
   const teamVersion = usePrefs((s) => s.teamVersion);
   // renamed someone, or changed the team: the office redraws
   const key = `${namesVersion}-${teamVersion}`;
-  return isDesktop ? <DesktopOffice key={key} /> : <PhoneOffice key={key} />;
+  return (
+    <>
+      {isDesktop ? <DesktopOffice key={key} /> : <PhoneOffice key={key} />}
+      <Welcome />
+    </>
+  );
 }
 
 /** Settings → Sound → chimes: each employee's own little tune the moment they start needing you (sound on only). */

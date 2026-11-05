@@ -34,7 +34,7 @@ export function TeamPage() {
  * Pick the employees this HQ has. Each card says what they need; the office then only has desks, homes and
  * runs for the ones picked (the room keeps its size, the extra desks go).
  */
-function WhoWorksHere() {
+export function WhoWorksHere() {
   const team = useTeamIds();
   const hiring = useOffice((s) => s.data.hiring);
   const go = useSettingsNav((s) => s.go);
