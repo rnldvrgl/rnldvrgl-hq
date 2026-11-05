@@ -15,14 +15,17 @@ import { joinGeometries, mergeParts, mergePlaced, placed, type Part } from "./ba
 import { useSceneNow } from "./scene-clock-ui";
 import { fireworkSound } from "@/lib/ambience";
 import { activeHolidays, useHolidayPreview, type HolidayId } from "@/lib/holidays";
+import dynamic from "next/dynamic";
 import { Festive } from "./Festive";
-import { Valentine } from "./Valentine";
-import { Penitensya } from "./Penitensya";
-import { Halloween } from "./Halloween";
-import { NewYear } from "./NewYear";
-import { Lunar } from "./Lunar";
-import { Fiesta } from "./Fiesta";
-import { Kalayaan } from "./Kalayaan";
+
+// each holiday's own scenery is only downloaded when that holiday is on (or previewed)
+const Valentine = dynamic(() => import("./Valentine").then((m) => m.Valentine), { ssr: false });
+const Penitensya = dynamic(() => import("./Penitensya").then((m) => m.Penitensya), { ssr: false });
+const Halloween = dynamic(() => import("./Halloween").then((m) => m.Halloween), { ssr: false });
+const NewYear = dynamic(() => import("./NewYear").then((m) => m.NewYear), { ssr: false });
+const Lunar = dynamic(() => import("./Lunar").then((m) => m.Lunar), { ssr: false });
+const Fiesta = dynamic(() => import("./Fiesta").then((m) => m.Fiesta), { ssr: false });
+const Kalayaan = dynamic(() => import("./Kalayaan").then((m) => m.Kalayaan), { ssr: false });
 
 /**
  * Pasko and Bagong Taon in the town.

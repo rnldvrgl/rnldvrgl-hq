@@ -1,4 +1,5 @@
 "use client";
+import { isOnTeam } from "@/lib/prefs-client";
 
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
@@ -527,7 +528,9 @@ function house(t: Town, x: number, gateZ: number, i: number, sari: boolean, own?
 function houses(t: Town): void {
   for (const s of HOUSE_SLOTS) {
     if (s.row === 0 && OWNER_LOTS.some((x) => Math.abs(x - s.x) < 0.01)) continue; // the boss's double lot
-    const own = homeBySlot(s.i);
+    // an employee who isn't on this HQ's team doesn't live here: their lot gets an ordinary house
+    const owner = homeBySlot(s.i);
+    const own = owner && (owner.who === "owner" || isOnTeam(owner.who)) ? owner : undefined;
     house(t, s.x, s.gateZ, s.i, !own && (s.i === 4 || s.i === 13), own);
   }
   // a basketball hoop on the residential street (a plywood board nailed to a post)
