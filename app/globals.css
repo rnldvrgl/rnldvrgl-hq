@@ -114,111 +114,290 @@
 }
 
 /*
- * Blush: the same glass, in rosé and plum (Settings → Appearance; default in hq.config.ts → style).
- * Light is a dusty-rose mist (never candy pink), Dark a deep plum (never black).
+ * Six colour styles over the same glass (Settings → Appearance; default in hq.config.ts → style), each in Light
+ * and Dark. The base tokens above are shared; each style sets its own colours. Ids are also in lib/theme.ts.
  */
-[data-style="blush"][data-theme="light"], [data-style="blush"]:not([data-theme="dark"]) {
-  --background: #efe2e6;
-  --foreground: #2d2230;
-  --card: rgb(253 247 249 / 0.58);
-  --card-foreground: #2d2230;
-  --popover: rgb(251 244 247 / 0.9);
-  --popover-foreground: #2d2230;
-  --primary: #8a3f62;
-  --primary-foreground: #fff5f8;
-  --secondary: rgb(255 255 255 / 0.5);
-  --secondary-foreground: #2d2230;
-  --muted: rgb(255 255 255 / 0.42);
-  --muted-foreground: #7a6371;
-  --accent: rgb(214 120 160 / 0.15);
-  --accent-foreground: #9b3b6a;
-  --border: rgb(150 100 125 / 0.22);
-  --input: rgb(150 100 125 / 0.26);
-  --ring: #d0799f;
-  --glass-shadow: 0 1px 2px rgb(80 30 60 / 0.06), 0 18px 44px -22px rgb(80 30 60 / 0.36);
-  --st-working: #7c5fd6;
-  --logo-a: #b0577f; --logo-b: #6e2d4c;
-  --blob-a: rgb(236 176 200 / 0.55);
-  --blob-b: rgb(206 186 236 / 0.45);
-  --blob-c: rgb(250 214 196 / 0.5);
-}
-[data-style="blush"][data-theme="dark"] {
-  --background: #2e2230;
-  --foreground: #f3e8ee;
-  --card: rgb(80 58 80 / 0.5);
-  --card-foreground: #f3e8ee;
-  --popover: rgb(60 43 60 / 0.92);
-  --popover-foreground: #f3e8ee;
-  --primary: #f5d0e0;
-  --primary-foreground: #3a2333;
-  --secondary: rgb(255 255 255 / 0.08);
-  --secondary-foreground: #f3e8ee;
-  --muted: rgb(255 255 255 / 0.07);
-  --muted-foreground: #c8b0be;
-  --accent: rgb(240 150 190 / 0.16);
-  --accent-foreground: #f6c2d8;
-  --border: rgb(255 255 255 / 0.1);
-  --input: rgb(255 255 255 / 0.14);
-  --ring: #f0a3c4;
-  --st-working: #a78bfa;
-  --logo-a: #9a4d72; --logo-b: #4a1f37;
-  --blob-a: rgb(150 70 115 / 0.45);
-  --blob-b: rgb(98 72 150 / 0.38);
-  --blob-c: rgb(150 90 80 / 0.32);
+
+/* Ocean: deep-sea blue glass with an aqua edge. Light is a cool sea mist, Dark a deep navy. */
+
+[data-style="ocean"][data-theme="light"], [data-style="ocean"]:not([data-theme="dark"]) {
+  --background: #dde6f0;
+  --foreground: #142033;
+  --card: rgb(245 249 253 / 0.58);
+  --card-foreground: #142033;
+  --popover: rgb(242 247 252 / 0.9);
+  --popover-foreground: #142033;
+  --primary: #1f5fd1;
+  --primary-foreground: #f4f8ff;
+  --secondary-foreground: #142033;
+  --muted-foreground: #55657c;
+  --accent: rgb(31 95 209 / 0.12);
+  --accent-foreground: #1d4fae;
+  --ring: #4f86ec;
+  --border: rgb(70 100 140 / 0.2);
+  --input: rgb(70 100 140 / 0.25);
+  --glass-shadow: 0 1px 2px rgb(20 40 80 / 0.06), 0 18px 44px -22px rgb(20 40 80 / 0.36);
+  --st-working: #2a7fd4;
+  --logo-a: #2f6fe0; --logo-b: #14305f;
+  --blob-a: rgb(130 170 240 / 0.55);
+  --blob-b: rgb(120 210 220 / 0.45);
+  --blob-c: rgb(190 200 245 / 0.45);
 }
 
-/*
- * Mango: warm glass in ripe-mango gold and kapeng barako brown. Light is a sunlit cream (never yellow),
- * Dark a roasted-coffee brown (never black).
- */
-[data-style="mango"][data-theme="light"], [data-style="mango"]:not([data-theme="dark"]) {
-  --background: #f1e8d6;
-  --foreground: #2b2318;
-  --card: rgb(255 251 242 / 0.58);
-  --card-foreground: #2b2318;
-  --popover: rgb(253 248 238 / 0.9);
-  --popover-foreground: #2b2318;
-  --primary: #8a4b12;
-  --primary-foreground: #fff8ec;
-  --secondary: rgb(255 255 255 / 0.5);
-  --secondary-foreground: #2b2318;
-  --muted: rgb(255 255 255 / 0.42);
-  --muted-foreground: #74644d;
-  --accent: rgb(232 163 58 / 0.16);
-  --accent-foreground: #94520f;
-  --border: rgb(140 105 55 / 0.22);
-  --input: rgb(140 105 55 / 0.26);
-  --ring: #e8a33a;
-  --glass-shadow: 0 1px 2px rgb(80 50 10 / 0.06), 0 18px 44px -22px rgb(80 50 10 / 0.34);
-  --st-working: #2f7fa8;
-  --logo-a: #e8a33a; --logo-b: #7a3f0e;
-  --blob-a: rgb(246 196 104 / 0.55);
-  --blob-b: rgb(150 205 180 / 0.4);
-  --blob-c: rgb(240 170 130 / 0.45);
+[data-style="ocean"][data-theme="dark"] {
+  --background: #16202e;
+  --foreground: #e6edf7;
+  --card: rgb(40 56 78 / 0.5);
+  --card-foreground: #e6edf7;
+  --popover: rgb(30 42 60 / 0.92);
+  --popover-foreground: #e6edf7;
+  --primary: #7fb0ff;
+  --primary-foreground: #0f1e36;
+  --secondary-foreground: #e6edf7;
+  --muted-foreground: #9fb0c8;
+  --accent: rgb(110 160 255 / 0.16);
+  --accent-foreground: #b5d0ff;
+  --ring: #7fb0ff;
+  --st-working: #6bb4ff;
+  --logo-a: #3a6fc8; --logo-b: #10223f;
+  --blob-a: rgb(50 90 170 / 0.45);
+  --blob-b: rgb(30 110 120 / 0.38);
+  --blob-c: rgb(80 70 150 / 0.32);
 }
-[data-style="mango"][data-theme="dark"] {
-  --background: #2a241c;
-  --foreground: #f5ecdc;
-  --card: rgb(78 64 46 / 0.5);
-  --card-foreground: #f5ecdc;
-  --popover: rgb(58 48 35 / 0.92);
-  --popover-foreground: #f5ecdc;
-  --primary: #f7cf86;
-  --primary-foreground: #3a2a12;
-  --secondary: rgb(255 255 255 / 0.08);
-  --secondary-foreground: #f5ecdc;
-  --muted: rgb(255 255 255 / 0.07);
-  --muted-foreground: #c9b89c;
-  --accent: rgb(240 170 70 / 0.16);
-  --accent-foreground: #f7cf86;
-  --border: rgb(255 255 255 / 0.1);
-  --input: rgb(255 255 255 / 0.14);
-  --ring: #f0b04a;
+
+/* Rosé: dusty rose and wine. Light is a soft rose mist (never candy pink), Dark a deep wine. */
+
+[data-style="rose"][data-theme="light"], [data-style="rose"]:not([data-theme="dark"]) {
+  --background: #f2e4e7;
+  --foreground: #2e1f26;
+  --card: rgb(253 247 249 / 0.58);
+  --card-foreground: #2e1f26;
+  --popover: rgb(251 244 247 / 0.9);
+  --popover-foreground: #2e1f26;
+  --primary: #b8456f;
+  --primary-foreground: #fff4f7;
+  --secondary-foreground: #2e1f26;
+  --muted-foreground: #7b6170;
+  --accent: rgb(200 80 120 / 0.13);
+  --accent-foreground: #a33a62;
+  --ring: #e07a9f;
+  --border: rgb(150 95 120 / 0.22);
+  --input: rgb(150 95 120 / 0.26);
+  --glass-shadow: 0 1px 2px rgb(80 30 60 / 0.06), 0 18px 44px -22px rgb(80 30 60 / 0.36);
+  --st-working: #7c5fd6;
+  --logo-a: #d0698f; --logo-b: #7a2b4b;
+  --blob-a: rgb(240 170 195 / 0.55);
+  --blob-b: rgb(220 190 240 / 0.42);
+  --blob-c: rgb(255 210 190 / 0.5);
+}
+
+[data-style="rose"][data-theme="dark"] {
+  --background: #2b1d25;
+  --foreground: #f6e9ef;
+  --card: rgb(78 52 66 / 0.5);
+  --card-foreground: #f6e9ef;
+  --popover: rgb(58 38 50 / 0.92);
+  --popover-foreground: #f6e9ef;
+  --primary: #f4a6c3;
+  --primary-foreground: #3a1a2a;
+  --secondary-foreground: #f6e9ef;
+  --muted-foreground: #c9aab9;
+  --accent: rgb(240 140 180 / 0.16);
+  --accent-foreground: #f8c3d8;
+  --ring: #f4a6c3;
+  --st-working: #a78bfa;
+  --logo-a: #b04f78; --logo-b: #4a1a31;
+  --blob-a: rgb(150 60 105 / 0.45);
+  --blob-b: rgb(100 70 150 / 0.36);
+  --blob-c: rgb(150 85 80 / 0.32);
+}
+
+/* Sunset: coral and amber, a Manila Bay sunset. Light is a warm peach cream, Dark a dusky ember. */
+
+[data-style="sunset"][data-theme="light"], [data-style="sunset"]:not([data-theme="dark"]) {
+  --background: #f4e6da;
+  --foreground: #2c1e16;
+  --card: rgb(255 250 245 / 0.58);
+  --card-foreground: #2c1e16;
+  --popover: rgb(253 246 240 / 0.9);
+  --popover-foreground: #2c1e16;
+  --primary: #d2502a;
+  --primary-foreground: #fff6f0;
+  --secondary-foreground: #2c1e16;
+  --muted-foreground: #7a6253;
+  --accent: rgb(230 110 60 / 0.14);
+  --accent-foreground: #b4461d;
+  --ring: #f08a52;
+  --border: rgb(150 100 70 / 0.22);
+  --input: rgb(150 100 70 / 0.26);
+  --glass-shadow: 0 1px 2px rgb(80 40 10 / 0.06), 0 18px 44px -22px rgb(80 40 10 / 0.36);
+  --st-working: #2f7fa8;
+  --logo-a: #f08a52; --logo-b: #8c2f12;
+  --blob-a: rgb(250 180 130 / 0.55);
+  --blob-b: rgb(250 210 150 / 0.45);
+  --blob-c: rgb(240 160 170 / 0.42);
+}
+
+[data-style="sunset"][data-theme="dark"] {
+  --background: #2a1d18;
+  --foreground: #f7ebe3;
+  --card: rgb(80 56 44 / 0.5);
+  --card-foreground: #f7ebe3;
+  --popover: rgb(60 41 32 / 0.92);
+  --popover-foreground: #f7ebe3;
+  --primary: #ffab7a;
+  --primary-foreground: #3c1d0e;
+  --secondary-foreground: #f7ebe3;
+  --muted-foreground: #cdb1a2;
+  --accent: rgb(255 150 100 / 0.16);
+  --accent-foreground: #ffc6a3;
+  --ring: #ffab7a;
   --st-working: #6bb8de;
-  --logo-a: #c9822a; --logo-b: #5a300c;
-  --blob-a: rgb(170 110 40 / 0.42);
-  --blob-b: rgb(70 120 100 / 0.32);
-  --blob-c: rgb(150 80 50 / 0.32);
+  --logo-a: #d86a3a; --logo-b: #5a220e;
+  --blob-a: rgb(170 80 40 / 0.42);
+  --blob-b: rgb(160 110 40 / 0.34);
+  --blob-c: rgb(150 60 80 / 0.32);
+}
+
+/* Forest: emerald and moss. Light is a sage mist, Dark a deep rainforest green. */
+
+[data-style="forest"][data-theme="light"], [data-style="forest"]:not([data-theme="dark"]) {
+  --background: #dfe9e2;
+  --foreground: #15261d;
+  --card: rgb(246 251 248 / 0.58);
+  --card-foreground: #15261d;
+  --popover: rgb(243 249 245 / 0.9);
+  --popover-foreground: #15261d;
+  --primary: #1f7a52;
+  --primary-foreground: #f0fbf5;
+  --secondary-foreground: #15261d;
+  --muted-foreground: #56695e;
+  --accent: rgb(31 122 82 / 0.13);
+  --accent-foreground: #18663f;
+  --ring: #3fae7c;
+  --border: rgb(70 115 90 / 0.22);
+  --input: rgb(70 115 90 / 0.26);
+  --glass-shadow: 0 1px 2px rgb(20 60 40 / 0.06), 0 18px 44px -22px rgb(20 60 40 / 0.36);
+  --st-working: #2f6fd0;
+  --logo-a: #2f9a68; --logo-b: #0f3d27;
+  --blob-a: rgb(150 210 175 / 0.55);
+  --blob-b: rgb(200 225 160 / 0.42);
+  --blob-c: rgb(160 200 220 / 0.42);
+}
+
+[data-style="forest"][data-theme="dark"] {
+  --background: #16241d;
+  --foreground: #e5f1ea;
+  --card: rgb(42 66 54 / 0.5);
+  --card-foreground: #e5f1ea;
+  --popover: rgb(30 48 39 / 0.92);
+  --popover-foreground: #e5f1ea;
+  --primary: #7fdcaa;
+  --primary-foreground: #0d2a1b;
+  --secondary-foreground: #e5f1ea;
+  --muted-foreground: #a2bcad;
+  --accent: rgb(110 220 160 / 0.15);
+  --accent-foreground: #a8ecc6;
+  --ring: #7fdcaa;
+  --st-working: #6b9cff;
+  --logo-a: #2c8a5e; --logo-b: #0c2a1b;
+  --blob-a: rgb(40 120 80 / 0.42);
+  --blob-b: rgb(90 120 40 / 0.32);
+  --blob-c: rgb(30 90 110 / 0.32);
+}
+
+/* Lavender: violet and periwinkle. Light is a lilac mist, Dark a deep twilight violet. */
+
+[data-style="lavender"][data-theme="light"], [data-style="lavender"]:not([data-theme="dark"]) {
+  --background: #e6e2f2;
+  --foreground: #211c33;
+  --card: rgb(249 247 254 / 0.58);
+  --card-foreground: #211c33;
+  --popover: rgb(246 244 252 / 0.9);
+  --popover-foreground: #211c33;
+  --primary: #6a4fd1;
+  --primary-foreground: #f6f3ff;
+  --secondary-foreground: #211c33;
+  --muted-foreground: #655f80;
+  --accent: rgb(106 79 209 / 0.13);
+  --accent-foreground: #5536b8;
+  --ring: #8f78ea;
+  --border: rgb(100 90 150 / 0.22);
+  --input: rgb(100 90 150 / 0.26);
+  --glass-shadow: 0 1px 2px rgb(40 30 90 / 0.06), 0 18px 44px -22px rgb(40 30 90 / 0.36);
+  --st-working: #2f7fd4;
+  --logo-a: #8467e6; --logo-b: #2f1f73;
+  --blob-a: rgb(190 170 245 / 0.55);
+  --blob-b: rgb(160 200 245 / 0.42);
+  --blob-c: rgb(240 190 225 / 0.42);
+}
+
+[data-style="lavender"][data-theme="dark"] {
+  --background: #1f1b2e;
+  --foreground: #ece8f8;
+  --card: rgb(58 50 84 / 0.5);
+  --card-foreground: #ece8f8;
+  --popover: rgb(42 36 62 / 0.92);
+  --popover-foreground: #ece8f8;
+  --primary: #b9a6ff;
+  --primary-foreground: #22174a;
+  --secondary-foreground: #ece8f8;
+  --muted-foreground: #b0a8cc;
+  --accent: rgb(170 150 255 / 0.16);
+  --accent-foreground: #d2c6ff;
+  --ring: #b9a6ff;
+  --st-working: #6bb4ff;
+  --logo-a: #6b52cc; --logo-b: #21164f;
+  --blob-a: rgb(100 70 180 / 0.45);
+  --blob-b: rgb(50 90 160 / 0.36);
+  --blob-c: rgb(140 60 130 / 0.32);
+}
+
+/* Graphite: no tint, just crisp neutral glass. Light is a soft grey, Dark a charcoal (never black). */
+
+[data-style="graphite"][data-theme="light"], [data-style="graphite"]:not([data-theme="dark"]) {
+  --background: #e4e4e7;
+  --foreground: #18181b;
+  --card: rgb(250 250 251 / 0.6);
+  --card-foreground: #18181b;
+  --popover: rgb(248 248 249 / 0.92);
+  --popover-foreground: #18181b;
+  --primary: #18181b;
+  --primary-foreground: #fafafa;
+  --secondary-foreground: #18181b;
+  --muted-foreground: #5f5f69;
+  --accent: rgb(24 24 27 / 0.07);
+  --accent-foreground: #18181b;
+  --ring: #71717a;
+  --border: rgb(60 60 70 / 0.16);
+  --input: rgb(60 60 70 / 0.22);
+  --glass-shadow: 0 1px 2px rgb(20 20 30 / 0.06), 0 18px 44px -22px rgb(20 20 30 / 0.36);
+  --st-working: #3b6fe0;
+  --logo-a: #3f3f46; --logo-b: #09090b;
+  --blob-a: rgb(200 200 212 / 0.5);
+  --blob-b: rgb(190 196 202 / 0.4);
+  --blob-c: rgb(216 210 204 / 0.4);
+}
+
+[data-style="graphite"][data-theme="dark"] {
+  --background: #1c1c20;
+  --foreground: #ececef;
+  --card: rgb(52 52 58 / 0.5);
+  --card-foreground: #ececef;
+  --popover: rgb(38 38 43 / 0.92);
+  --popover-foreground: #ececef;
+  --primary: #f4f4f5;
+  --primary-foreground: #18181b;
+  --secondary-foreground: #ececef;
+  --muted-foreground: #a1a1aa;
+  --accent: rgb(255 255 255 / 0.08);
+  --accent-foreground: #f4f4f5;
+  --ring: #a1a1aa;
+  --st-working: #6b9cff;
+  --logo-a: #52525b; --logo-b: #18181b;
+  --blob-a: rgb(90 90 100 / 0.38);
+  --blob-b: rgb(70 75 85 / 0.32);
+  --blob-c: rgb(95 85 80 / 0.3);
 }
 
 /* Frosted glass surface: translucent fill, hairline light edge, top shine, soft shadow, backdrop blur. */
@@ -230,6 +409,18 @@
      (with the -webkit- one last, Chrome and Firefox got no blur at all) */
   -webkit-backdrop-filter: blur(var(--glass-blur, 22px)) saturate(1.4);
   backdrop-filter: blur(var(--glass-blur, 22px)) saturate(1.4);
+}
+
+/* A slim scrollbar that keeps its own lane (the gutter), so it never sits on top of sliders and buttons. */
+@utility scroll-thin {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--foreground) 22%, transparent) transparent;
+  scrollbar-gutter: stable;
+  &::-webkit-scrollbar { width: 6px; }
+  &::-webkit-scrollbar-thumb { background: color-mix(in oklab, var(--foreground) 22%, transparent); border-radius: 9999px; }
+  &::-webkit-scrollbar-track { background: transparent; }
 }
 
 @theme inline {

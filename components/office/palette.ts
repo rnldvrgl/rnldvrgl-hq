@@ -36,21 +36,50 @@ export const PAL = {
 
 export type Palette = typeof PAL;
 
-/** The Blush style's office: a dusty-rose feature wall, blush sofa and rugs, rosé-gold lamps (same layout). */
-export const PAL_BLUSH: Palette = {
+/** Rosé: a dusty-rose feature wall, blush sofa and rugs, rosé-gold lamps (same layout). */
+export const PAL_ROSE: Palette = {
   ...PAL,
   accentWall: "#a86a80", slat: "#c79a86", slatDark: "#a87866",
   sofa: "#d7a4b6", sofaDark: "#c08aa0", rugLounge: "#f1dde3", rug: "#b9728f",
   lampShade: "#e8b4a0", officeFloor: "#8a5f52", divider: "#d9b7c2", signAccent: "#f0a3c4", selected: "#b0577f",
 };
 
-/** The Mango style's office: a terracotta feature wall, mustard sofa, warm oak and amber lamps (same layout). */
-export const PAL_MANGO: Palette = {
+/** Sunset: a terracotta feature wall, mustard sofa, warm oak and amber lamps. */
+export const PAL_SUNSET: Palette = {
   ...PAL,
   accentWall: "#b4603a", slat: "#b98552", slatDark: "#8f6236",
   sofa: "#d9a441", sofaDark: "#bf8a2e", rugLounge: "#efe0c2", rug: "#a15c2e",
-  lampShade: "#f0b04a", officeFloor: "#7f5433", divider: "#d8bf94", signAccent: "#f0b04a", selected: "#b86a14",
+  lampShade: "#f0b04a", officeFloor: "#7f5433", divider: "#d8bf94", signAccent: "#f0b04a", selected: "#c2502a",
 };
+
+/** Forest: a deep green feature wall, moss sofa, walnut and brass. */
+export const PAL_FOREST: Palette = {
+  ...PAL,
+  accentWall: "#24533c", slat: "#9b7a52", slatDark: "#6f5536",
+  sofa: "#6e8f5a", sofaDark: "#587848", rugLounge: "#e3e3cf", rug: "#3f6b4a",
+  lampShade: "#d9b25a", officeFloor: "#6b4c31", divider: "#a9c4ae", signAccent: "#7fdcaa", selected: "#1f7a52",
+};
+
+/** Lavender: a violet feature wall, periwinkle sofa, pale oak. */
+export const PAL_LAVENDER: Palette = {
+  ...PAL,
+  accentWall: "#5b4a9a", slat: "#bba58c", slatDark: "#94806a",
+  sofa: "#8f95d6", sofaDark: "#787fc2", rugLounge: "#e6e2f2", rug: "#6c5bb0",
+  lampShade: "#e9c6f0", officeFloor: "#7d6a5a", divider: "#c3bce0", signAccent: "#b9a6ff", selected: "#6a4fd1",
+};
+
+/** Graphite: charcoal feature wall, grey felt sofa, black steel and white oak. */
+export const PAL_GRAPHITE: Palette = {
+  ...PAL,
+  accentWall: "#3a3c42", slat: "#c9b899", slatDark: "#a39275",
+  sofa: "#7d8088", sofaDark: "#686b72", rugLounge: "#e2e1de", rug: "#4a4c52",
+  lampShade: "#e8e4da", officeFloor: "#857563", divider: "#c4c6ca", signAccent: "#e4e4e7", selected: "#3f3f46",
+};
+
+/** The office's furnishing colours for each colour style (Ocean is the original look). */
+export const PAL_BY_STYLE = {
+  ocean: PAL, rose: PAL_ROSE, sunset: PAL_SUNSET, forest: PAL_FOREST, lavender: PAL_LAVENDER, graphite: PAL_GRAPHITE,
+} as const satisfies Record<string, Palette>;
 
 /** Shirt colours, matching --c1..--c8 in globals.css. */
 export const SHIRTS = ["#e0a43a", "#4a8fd8", "#2f9e8f", "#d46a6a", "#8a6fd1", "#5aa34f", "#3f5c7a", "#c46aa6"] as const;

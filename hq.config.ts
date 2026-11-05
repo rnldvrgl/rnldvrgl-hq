@@ -8,7 +8,7 @@
 
 export type BossLook = "him" | "her";
 export type BossOffice = "auto" | "executive" | "gaming" | "cozy" | "minimal" | "studio" | "heritage";
-export type StyleName = "slate" | "blush" | "mango";
+export type StyleName = "ocean" | "rose" | "sunset" | "forest" | "lavender" | "graphite";
 export type LoginBackdrop = "street" | "aurora";
 export type AskAgain = "phones" | "always" | "never";
 
@@ -46,8 +46,8 @@ export const HQ = {
     askAgain: "phones" as AskAgain,
   },
 
-  /** Default colour style of the app (Settings → Appearance can change it per device). "blush" is the rosé look. */
-  style: "slate" as StyleName,
+  /** Default colour style (Settings → Appearance can change it per device): "ocean", "rose", "sunset", "forest", "lavender" or "graphite". */
+  style: "ocean" as StyleName,
 
   /** Where the office is: live weather, the wall clock's city label, the skyline. Time zone is Philippine time. */
   city: {

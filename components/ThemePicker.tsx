@@ -4,6 +4,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { Monitor, Moon, Sun, type LucideIcon } from "lucide-react";
 import { applyStyle, applyTheme, readStyle, readTheme, STYLE_KEY, THEMES, type StyleName, type ThemeChoice } from "@/lib/theme";
 import { cn } from "@/lib/utils";
+import { HQ } from "@/hq.config";
 
 const ICON: Record<ThemeChoice, LucideIcon> = { light: Sun, dark: Moon, system: Monitor };
 
@@ -49,7 +50,7 @@ export function ThemeSync() {
 
 /** The saved colour style (Slate / Blush), kept in sync across tabs. */
 export function useStyleChoice(): [StyleName, (s: StyleName) => void] {
-  const [style, setStyle] = useState<StyleName>("slate");
+  const [style, setStyle] = useState<StyleName>(HQ.style);
   useEffect(() => {
     setStyle(readStyle());
     const on = () => setStyle(readStyle());
