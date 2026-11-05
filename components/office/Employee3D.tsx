@@ -1,10 +1,11 @@
 "use client";
 
+import { NEED_LABEL } from "@/lib/hiring";
 import { ownerName, ownersName } from "@/lib/names";
 import { useMemo, useRef, type Ref } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
-import { BellRing, House, Pause, Trash2, TriangleAlert, LogIn, LogOut, UtensilsCrossed, Users, Wind, Presentation } from "lucide-react";
+import { BellRing, UserPlus, House, Pause, Trash2, TriangleAlert, LogIn, LogOut, UtensilsCrossed, Users, Wind, Presentation } from "lucide-react";
 import { useOffice, useEmployee, sceneNow } from "@/lib/store";
 import { isAfterHours, isWeekday, manilaMinutes } from "@/lib/office-clock";
 import { formatManilaSoon, nextSlot } from "@/lib/time";
@@ -31,7 +32,7 @@ const STRIDE = 4.8;
 type Purpose = "collect" | "drop" | "lunch" | "standup" | "meeting" | "vape" | "leaving" | "arriving";
 type Activity =
   | { kind: "seat" }
-  | { kind: "away"; why: "home" | "paused" }
+  | { kind: "away"; why: "home" | "paused" | "unhired" }
   | { kind: "route"; route: Route; t: number; reverse: boolean; purpose: Purpose };
 
 /**
@@ -41,6 +42,8 @@ type Activity =
  */
 export function activityOf(min: number, weekday: boolean, meta: EmployeeMeta, index: number, status: EmployeeStatus, enabled: boolean, duty: EmployeeId | null): Activity {
   if (!enabled) return { kind: "away", why: "paused" };
+  // this HQ hasn't connected what they need yet (Settings → Connections)
+  if (useOffice.getState().data.hiring?.[meta.id]?.length) return { kind: "away", why: "unhired" };
   // sent home or called in by hand (the desk panel): walk now, stay until the schedule catches up
   const o = overrideAt(meta.id, sceneNow().getTime());
   if (o) {
@@ -286,6 +289,10 @@ export function Employee3D({ meta, index, pal, shadows, reducedMotion, duty }: P
   if (activity.kind === "away") {
     chip = undefined;
     if (activity.why === "paused") { tone = "off"; label = "Paused"; Icon = Pause; detail = "Resume from the desk panel"; }
+    else if (activity.why === "unhired") {
+      tone = "off"; label = "Not hired yet"; Icon = UserPlus;
+      detail = `Needs ${(useOffice.getState().data.hiring?.[meta.id] ?? []).map((n) => NEED_LABEL[n]).join(" and ")}`;
+    }
     else { tone = "off"; label = "Home"; Icon = House; detail = `Back ${clockLabel(useSettings.getState().hours.teamIn)}`; }
   } else if (activity.kind === "route") {
     chip = undefined;

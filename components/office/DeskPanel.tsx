@@ -1,10 +1,11 @@
 "use client";
 
+import { NEED_LABEL } from "@/lib/hiring";
 import { useRef, useState } from "react";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { toast } from "sonner";
-import { Play, Pause, CheckCheck, X, ShieldCheck, Loader2, House, Building2 } from "lucide-react";
+import { Play, Pause, CheckCheck, X, ShieldCheck, Loader2, House, Building2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -29,6 +30,8 @@ export { Reminders };
 
 gsap.registerPlugin(useGSAP);
 
+/** A stable empty list (a fresh [] in a store selector would re-render forever). */
+const NO_NEEDS: readonly never[] = [];
 const fail = (e: unknown, fallback: string) => toast.error(e instanceof Error ? e.message : fallback);
 
 /** Send this employee home now, or call them in to the office (until the schedule catches up). */
@@ -56,6 +59,7 @@ export function DeskPanel({ id, onClose }: { id: EmployeeId; onClose?: () => voi
   const meta = teamById[id];
   const emp = useEmployee(id);
   const ai = useOffice((s) => s.data.ai);
+  const lacking = useOffice((s) => s.data.hiring?.[id] ?? NO_NEEDS);
   const { runNow, setEnabled, acknowledge } = useOffice.getState();
   const [busy, setBusy] = useState(false);
   const scope = useRef<HTMLDivElement>(null);
@@ -116,6 +120,13 @@ export function DeskPanel({ id, onClose }: { id: EmployeeId; onClose?: () => voi
           <dd>{formatManila(emp.last_run_at)}</dd>
         </div>
       </dl>
+
+      {lacking.length > 0 && (
+        <div data-anim className="grid gap-1 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-sm">
+          <p className="flex items-center gap-1.5 font-semibold"><UserPlus className="size-4" aria-hidden /> Not hired yet</p>
+          <p className="text-muted-foreground">{meta.name} needs {lacking.map((n) => NEED_LABEL[n]).join(" and ")} to start. Connect it in Settings → Connections (the sliders icon, top right of the office).</p>
+        </div>
+      )}
 
       <div data-anim><RunTimeline runs={emp.runs} /></div>
 

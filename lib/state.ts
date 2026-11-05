@@ -1,6 +1,9 @@
 import "server-only";
 import { hqId } from "@/lib/hq-context";
 import { syncNames } from "@/lib/names-server";
+import { have } from "@/lib/connections";
+import { missing } from "@/lib/hiring";
+import { hqCtx } from "@/lib/hq-context";
 import { db } from "@/lib/supabase/admin";
 import { TEAM, type DayTally, type OfficeState, type RunView } from "@/lib/team";
 import { activeProvider, backupAllowsPrivate } from "@/lib/ai";
@@ -43,8 +46,11 @@ export async function loadOfficeState(): Promise<OfficeState> {
     if (list.length < 8) list.push(run);
     runsByEmployee.set(employee_id, list);
   }
+  const has = have();
   return {
     names,
+    hiring: Object.fromEntries(TEAM.map((t) => [t.id, missing(t.id, has)])) as OfficeState["hiring"],
+    hq: { founder: hqCtx().founder },
     ai: { provider: activeProvider(), backupAllowsPrivate: backupAllowsPrivate() },
     employees: TEAM.map((t) => {
       const row = rowById.get(t.id);

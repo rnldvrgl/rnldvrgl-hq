@@ -84,6 +84,10 @@ export type EmployeeView = {
 export type OfficeState = {
   /** Renamed people (Settings → Names); missing = the hq.config.ts name. */
   names?: Partial<Record<"owner" | EmployeeId, string>>;
+  /** Per employee, what this HQ still has to connect before they can work (empty = hired). */
+  hiring?: Partial<Record<EmployeeId, ("ai" | "google" | "github")[]>>;
+  /** About this HQ: the founder's (yours) or a friend's. */
+  hq?: { founder: boolean };
   /** Which AI the office is running on right now, and whether private desks may use the backup. */
   ai: { provider: AiProvider; backupAllowsPrivate: boolean };
   employees: EmployeeView[];

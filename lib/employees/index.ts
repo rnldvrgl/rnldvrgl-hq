@@ -1,5 +1,7 @@
 import { syncNames } from "@/lib/names-server";
 import { nameOf } from "@/lib/names";
+import { have } from "@/lib/connections";
+import { missing, NEED_LABEL } from "@/lib/hiring";
 import { hqId } from "@/lib/hq-context";
 import "server-only";
 import { db } from "@/lib/supabase/admin";
@@ -61,6 +63,16 @@ function withDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
 export async function runEmployee(id: EmployeeId, trigger: RunTrigger): Promise<boolean> {
   await syncNames(); // briefs and emails use the names set in Settings → Names
   const now = new Date();
+
+  // not hired yet in this HQ: it hasn't connected what this employee needs (Settings → Connections)
+  const lacking = missing(id, have());
+  if (lacking.length) {
+    await db().from("employees").update({
+      status: "idle", summary: `Not hired yet · needs ${lacking.map((n) => NEED_LABEL[n]).join(" and ")}`,
+      last_run_at: now.toISOString(), updated_at: now.toISOString(),
+    }).eq("id", id).eq("hq_id", hqId());
+    return true;
+  }
 
   // Private desks don't touch your mail or calendar while only the free backup is available.
   // Their slot still counts as used, so they don't block the other employees every 5 minutes.
