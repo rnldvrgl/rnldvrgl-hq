@@ -1,5 +1,6 @@
 "use client";
 
+import { HOUSE_SLOTS, MANSION, OWNER_LOTS, homeBySlot } from "./homes";
 import { useMemo } from "react";
 import * as THREE from "three";
 import { create } from "zustand";
@@ -8,10 +9,10 @@ import { MapPin, ShoppingBag, X } from "lucide-react";
 import { useOffice } from "@/lib/store";
 import { manilaMinutes } from "@/lib/office-clock";
 import { cn } from "@/lib/utils";
-import { HQ } from "@/hq.config";
+import { HQ, OWNER } from "@/hq.config";
 import { EST, SIGN } from "./Neighbourhood";
 import { ROOM } from "./palette";
-import { BACK_STREETS, FAR_WALK, SIDE_STREETS } from "./world";
+import { FAR_WALK } from "./world";
 import { useSceneNow } from "./scene-clock-ui";
 
 /**
@@ -70,7 +71,7 @@ function buildPlaces(): Place[] {
     ["shell", -40, -29.5, z0, z0 + 9.8, 3.7, "24h"],
     ["petron", -17, -6.5, z0, z0 + 9.8, 3.7, "24h"],
     ["toda", -27.4, -20.4, z0, z0 + 7.6, 2.6, "shop"],
-    ["hall", 44, 54, z0 + 2.4, z0 + 8.4, 5.8, "day"],
+    ["hall", 44, 56.6, z0 + 0.4, z0 + 8.6, 6.6, "day"],
   ];
   for (const [sign, x0, x1, a, b, h, hours] of across) {
     const s = SIGN[sign];
@@ -81,26 +82,30 @@ function buildPlaces(): Place[] {
     blurb: "Pickup games after work, a liga every summer, and the barangay's fiestas and wakes under the lights.",
     hours: "shop", box: { x0: -3.6, x1: 11.8, z0: z0 + 0.8, z1: z0 + 8.6, h: 0.4 },
   });
-  // the houses, laid out exactly as Neighbourhood's houses() does it
-  let i = 0;
-  BACK_STREETS.forEach((b, row) => {
-    const gateZ = b.z0 - 0.45;
-    for (let x = -46 + row * 3.4; x < 66; x += 7.6) {
-      if (SIDE_STREETS.some((st) => x + 7 > st.x0 - 0.3 && x - 0.5 < st.x1 + 0.3)) continue;
-      const sari = i === 4 || i === 13;
-      const family = FAMILIES[i % FAMILIES.length];
-      out.push({
-        id: `house-${i}`,
-        name: sari ? `${family} sari-sari` : `The ${family} family`,
-        sub: sari ? "Coke · yelo · load, from the front window" : `Block ${row + 1}, Lot ${i + 1}`,
-        blurb: sari
+  // the houses, from the same lots Neighbourhood's houses() builds on
+  for (const lot of HOUSE_SLOTS) {
+    const { i, row, x, gateZ } = lot;
+    if (row === 0 && OWNER_LOTS.some((ox) => Math.abs(ox - x) < 0.01)) continue;
+    const own = homeBySlot(i);
+    const sari = !own && (i === 4 || i === 13);
+    const family = FAMILIES[i % FAMILIES.length];
+    out.push({
+      id: `house-${i}`,
+      name: own ? `${own.name}'s house` : sari ? `${family} sari-sari` : `The ${family} family`,
+      sub: own ? "Painted in their colour · walks to work" : sari ? "Coke · yelo · load, from the front window" : `Block ${row + 1}, Lot ${i + 1}`,
+      blurb: own
+        ? `Where ${own.name} lives. They walk home here at the end of the office day and back in the morning.`
+        : sari
           ? "A window store in the front of the house. Knock and someone comes out from the sala."
           : "A family home behind its gate, with a water tank on the roof and laundry drying out back.",
-        hours: sari ? "shop" : "home",
-        box: { x0: x - 0.2, x1: x + 6.4, z0: gateZ - 7.4, z1: gateZ + 0.2, h: 5.5 },
-      });
-      i++;
-    }
+      hours: sari ? "shop" : "home",
+      box: { x0: x - 0.2, x1: x + 6.4, z0: gateZ - 7.4, z1: gateZ + 0.2, h: 5.5 },
+    });
+  }
+  out.push({
+    id: "mansion", name: `${OWNER}'s house`, sub: "Two storeys, garage, garden",
+    blurb: `The boss's place right behind the office. ${OWNER} drives home here at the end of the day; the car sleeps in the garage.`,
+    hours: "home", box: { x0: MANSION.x0, x1: MANSION.x1, z0: MANSION.back - 0.4, z1: MANSION.gateZ + 0.3, h: 6.4 },
   });
   return out;
 }
