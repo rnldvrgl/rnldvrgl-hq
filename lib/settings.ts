@@ -75,7 +75,7 @@ export const MUSIC_STYLES: readonly { id: MusicStyle; label: string; hint: strin
 const isMusicStyle = (v: unknown): v is MusicStyle => MUSIC_STYLES.some((m) => m.id === v);
 
 /** The sound mixer's channels (lib/ambience.ts routes every sound through one of them). */
-export type MixKey = "all" | "music" | "room" | "typing" | "weather" | "street" | "alerts";
+export type MixKey = "all" | "music" | "room" | "typing" | "weather" | "street" | "fireworks" | "alerts";
 export const MIX_CHANNELS: readonly { key: MixKey; label: string; hint: string }[] = [
   { key: "all", label: "All office sound", hint: "Everything below together" },
   { key: "music", label: "Office radio", hint: "The sound system's music" },
@@ -83,10 +83,11 @@ export const MIX_CHANNELS: readonly { key: MixKey; label: string; hint: string }
   { key: "typing", label: "Keyboards", hint: "Typing at the desks you zoom in on" },
   { key: "weather", label: "Rain & thunder", hint: "Rain on the roof, storms" },
   { key: "street", label: "Street & nature", hint: "Birds, roosters, crickets, traffic, vendors, the car" },
+  { key: "fireworks", label: "Fireworks", hint: "Whistles, booms and crackle on New Year's Eve and fiesta nights" },
   { key: "alerts", label: "Alerts", hint: "The chime when someone needs you" },
 ];
 export const MIX_MAX = 150;
-const DEFAULT_VOLUMES: Record<MixKey, number> = { all: 100, music: 100, room: 100, typing: 100, weather: 100, street: 100, alerts: 100 };
+const DEFAULT_VOLUMES: Record<MixKey, number> = { all: 100, music: 100, room: 100, typing: 100, weather: 100, street: 100, fireworks: 100, alerts: 100 };
 const clampVol = (v: unknown, d: number): number => (typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.min(MIX_MAX, Math.round(v))) : d);
 
 /** The boss's car (components/office/Car.tsx). "auto" follows the boss's look. */

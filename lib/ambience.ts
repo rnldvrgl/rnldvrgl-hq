@@ -21,8 +21,11 @@ import { spotifyBeat, useSpotify } from "@/lib/spotify";
  * And the car and scooters outside: the boss's car starting, idling, stopping and locking, the lunch rider's
  * scooter, and now and then a jeepney's horn.
  *
+ * And fireworks over the town on New Year's Eve and fiesta nights: a whistle as each rocket climbs, a boom
+ * when it bursts (panned to where it is on screen, softer the farther off), crackle for the glittery ones.
+ *
  * Every sound goes through one of the mixer's channels (Settings → Sound → Volume): music, office hum,
- * keyboards, rain & thunder, street & nature, alerts, and the overall volume after them.
+ * keyboards, rain & thunder, street & nature, fireworks, alerts, and the overall volume after them.
  */
 
 type Song = {
@@ -146,7 +149,7 @@ export class Ambience {
     const all = ctx.createGain();
     all.connect(this.master);
     const channel = () => { const g = ctx.createGain(); g.connect(all); return g; };
-    this.bus = { all, music: channel(), room: channel(), typing: channel(), weather: channel(), street: channel(), alerts: channel() };
+    this.bus = { all, music: channel(), room: channel(), typing: channel(), weather: channel(), street: channel(), fireworks: channel(), alerts: channel() };
     this.applyMix();
     // follow the sliders the moment they move (not just on the next update tick)
     useSettings.subscribe((st, prev) => { if (st.volumes !== prev.volumes) this.applyMix(); });
@@ -586,6 +589,71 @@ export class Ambience {
     this.burst({ dur: 0.025, gain: 0.05, type: "highpass", freq: 3000, pan: 0.45 });
   }
 
+  /** Fireworks voices still sounding (audio-clock end times), so a barrage never piles up past a few at once. */
+  private fwVoices: number[] = [];
+  private fwVoice(len: number, max: number): boolean {
+    const now = this.ctx.currentTime;
+    this.fwVoices = this.fwVoices.filter((t) => t > now);
+    if (this.fwVoices.length >= max) return false;
+    this.fwVoices.push(now + len);
+    return true;
+  }
+
+  /**
+   * One firework. "launch": the rocket's rising whistle and a soft whoosh, `len` seconds long. "burst": a
+   * boom (a low thump and a rumble of brown noise, arriving a beat after the flash when it's far off) and,
+   * when `crackle`, a sparkle of tiny pops while the stars fall. `pan` −1…1 is where it is on screen and
+   * `gain` 0…1 how near it is.
+   */
+  firework(kind: "launch" | "burst", o: { pan: number; gain: number; len?: number; crackle?: boolean; big?: boolean }) {
+    const ctx = this.ctx, v = Math.max(0, Math.min(1, o.gain));
+    if (v < 0.02) return;
+    const pan = Math.max(-0.95, Math.min(0.95, o.pan));
+    const out = this.bus.fireworks;
+    if (kind === "launch") {
+      const len = o.len ?? 0.9;
+      if (!this.fwVoice(len, 6)) return;
+      const t0 = ctx.currentTime + 0.01;
+      const osc = ctx.createOscillator(), g = ctx.createGain(), p = ctx.createStereoPanner();
+      osc.type = "sine";
+      const f0 = 700 + Math.random() * 300;
+      osc.frequency.setValueAtTime(f0, t0);
+      osc.frequency.exponentialRampToValueAtTime(f0 * (2.2 + Math.random() * 0.6), t0 + len);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.012 * v, t0 + len * 0.3);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + len);
+      p.pan.setValueAtTime(pan, t0);
+      osc.connect(g).connect(p).connect(out);
+      osc.start(t0); osc.stop(t0 + len + 0.05);
+      this.burst({ dur: len, gain: 0.035 * v, type: "bandpass", freq: 1800, q: 0.8, attack: len * 0.6, pan, out, at: t0 });
+      return;
+    }
+    // the boom, a little behind the flash when it's far off (sound trails light)
+    if (!this.fwVoice(o.crackle ? 1.8 : 1.4, o.big ? 10 : 8)) return;
+    const t0 = ctx.currentTime + 0.02 + (1 - v) * 0.25;
+    const thump = ctx.createOscillator(), tg = ctx.createGain(), p = ctx.createStereoPanner();
+    thump.type = "sine";
+    thump.frequency.setValueAtTime(95 + Math.random() * 25, t0);
+    thump.frequency.exponentialRampToValueAtTime(38, t0 + 0.35);
+    const loud = (o.big ? 0.22 : 0.16) * v;
+    tg.gain.setValueAtTime(0.0001, t0);
+    tg.gain.exponentialRampToValueAtTime(loud, t0 + 0.008);
+    tg.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.5);
+    p.pan.value = pan;
+    thump.connect(tg).connect(p).connect(out);
+    thump.start(t0); thump.stop(t0 + 0.55);
+    // the crack of the charge, then the rumble rolling off the houses
+    this.burst({ dur: 0.18, gain: loud * 0.5, type: "lowpass", freq: 2400, pan, out, at: t0 });
+    this.burst({ dur: 1.3 + Math.random() * 0.4, gain: loud * 1.4, type: "lowpass", freq: 110 + v * 70, attack: 0.01, buf: this.brown, pan, out, at: t0 });
+    if (o.crackle) {
+      const n = 14 + Math.floor(Math.random() * 10);
+      for (let i = 0; i < n; i++) {
+        const at = t0 + 0.35 + Math.random() * 1.2;
+        this.burst({ dur: 0.012 + Math.random() * 0.01, gain: (0.02 + Math.random() * 0.03) * v, type: "highpass", freq: 2500 + Math.random() * 3000, pan: pan + (Math.random() - 0.5) * 0.3, out, at });
+      }
+    }
+  }
+
   /** A scooter: "in" rides up and stops at the kerb, "out" pulls away and fades down the street. */
   scooter(dir: "in" | "out") {
     const ctx = this.ctx, t0 = ctx.currentTime + 0.02, len = dir === "in" ? 6 : 7;
@@ -811,6 +879,11 @@ export function carSound(kind: "start" | "stop" | "lock" | "lights"): void {
 /** The lunch rider's scooter pulling up ("in") or riding off ("out"). */
 export function scooterSound(dir: "in" | "out"): void {
   if (engine && playing) engine.scooter(dir);
+}
+
+/** A firework over the town (Holidays.tsx): only heard with the office sound on. See Ambience.firework. */
+export function fireworkSound(kind: "launch" | "burst", o: { pan: number; gain: number; len?: number; crackle?: boolean; big?: boolean }): void {
+  if (engine && playing) engine.firework(kind, o);
 }
 
 /** Play desk `index`'s chime, if the office sound is on. */

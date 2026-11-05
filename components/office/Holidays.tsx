@@ -13,6 +13,7 @@ import { getGlowTexture } from "./Lighting";
 import { streetLightLevel } from "./StreetLamp";
 import { joinGeometries, mergeParts, mergePlaced, placed, type Part } from "./batch";
 import { useSceneNow } from "./scene-clock-ui";
+import { fireworkSound } from "@/lib/ambience";
 import { activeHolidays, useHolidayPreview, type HolidayId } from "@/lib/holidays";
 import { Festive } from "./Festive";
 import { Valentine } from "./Valentine";
@@ -260,16 +261,24 @@ function Season() {
 /* ------------------------------------------------------------------ fireworks */
 
 const FW_COLORS = ["#ff4d4d", "#ffd23f", "#4dd2ff", "#7dff6a", "#ff6ad5", "#ffffff"];
+const GLITTER = "#ffe6a3";
 const RISE = 0.9, LIFE = 2.4;
 
+/**
+ * The shells: each one goes up, bursts and falls on its own period, from a new spot over the town every round.
+ * About a third are glitter (gold stars that twinkle and crackle). With the office sound on, each launch
+ * whistles and each burst booms (lib/ambience.ts), panned to where it is on screen and softer off to the side.
+ */
 function Fireworks({ lowPower, peak, preview }: { lowPower: boolean; peak: () => boolean; preview: boolean }) {
-  const shells = lowPower ? 6 : 12, per = lowPower ? 22 : 40;
+  const shells = lowPower ? 8 : 16, per = lowPower ? 22 : 40;
   const mesh = useRef<THREE.InstancedMesh>(null);
   const data = useMemo(() => Array.from({ length: shells }, (_, i) => ({
     period: 3.2 + ((i * 1.37) % 2.6),
     offset: (i * 0.83) % 3.2,
     dirs: Array.from({ length: per }, () => new THREE.Vector3().randomDirection()),
     seed: i,
+    /** The round whose launch / burst has been heard already. */
+    launched: -1, burst: -1,
   })), [shells, per]);
   const m = useMemo(() => new THREE.Matrix4(), []);
   const v = useMemo(() => new THREE.Vector3(), []);
@@ -277,11 +286,19 @@ function Fireworks({ lowPower, peak, preview }: { lowPower: boolean; peak: () =>
   const q = useMemo(() => new THREE.Quaternion(), []);
   const col = useMemo(() => new THREE.Color(), []);
   const faded = useMemo(() => new THREE.Color(), []);
+  const ndc = useMemo(() => new THREE.Vector3(), []);
 
-  useFrame(({ clock }) => {
+  useFrame(({ clock, camera }) => {
     const im = mesh.current;
     if (!im) return;
-    const active = preview || peak() ? shells : Math.ceil(shells * 0.45);
+    const big = peak();
+    const active = preview || big ? shells : Math.ceil(shells * 0.45);
+    // where a point is on screen: pan by its x there, quieter the farther it is from the middle
+    const heard = (x: number, y: number, z: number) => {
+      ndc.set(x, y, z).project(camera);
+      const r = Math.hypot(ndc.x, ndc.y * 0.7);
+      return { pan: ndc.x * 0.8, gain: r < 1 ? 1 - r * 0.3 : 0.7 / (r * r) };
+    };
     let n = 0;
     for (let s = 0; s < active; s++) {
       const d = data[s];
@@ -290,22 +307,34 @@ function Fireworks({ lowPower, peak, preview }: { lowPower: boolean; peak: () =>
       // each round launches from a new spot over the town
       const r = rnd(d.seed * 97 + round);
       const cx = -30 + r() * 80, cz = -16 + r() * 34, top = 16 + r() * 10, speed = 3.5 + r() * 2.5;
-      col.set(FW_COLORS[Math.floor(r() * FW_COLORS.length)]);
+      const ci = Math.floor(r() * FW_COLORS.length), glitter = r() < 0.33;
+      col.set(glitter ? GLITTER : FW_COLORS[ci]);
       if (t < RISE) {
+        if (d.launched !== round) {
+          d.launched = round;
+          // not every rocket whistles, or a barrage would be nothing but whistles
+          if (r() < 0.6) fireworkSound("launch", { ...heard(cx, top * 0.5, cz), len: RISE - t + 0.15 });
+        }
         // the rocket: one bright dot climbing
         v.set(cx, (t / RISE) * top, cz); sc.setScalar(0.18);
         m.compose(v, q, sc); im.setMatrixAt(n, m); im.setColorAt(n, col); n++;
         continue;
       }
       const e = t - RISE;
+      if (d.burst !== round) {
+        d.burst = round;
+        if (e < 0.5) fireworkSound("burst", { ...heard(cx, top, cz), crackle: glitter, big });
+      }
       if (e > LIFE) continue;
       const fade = 1 - e / LIFE;
-      for (const dir of d.dirs) {
+      d.dirs.forEach((dir, k) => {
         v.set(cx + dir.x * speed * e, top + dir.y * speed * e - 0.9 * e * e, cz + dir.z * speed * e);
-        sc.setScalar(0.22 * (0.4 + fade));
+        // glitter twinkles as it falls: each star flickering on its own
+        const tw = glitter ? (Math.sin(clock.elapsedTime * 31 + k * 7.3) > 0.1 ? 1 : 0.25) : 1;
+        sc.setScalar((glitter ? 0.16 : 0.22) * (0.4 + fade) * (glitter ? 0.6 + tw * 0.4 : 1));
         m.compose(v, q, sc); im.setMatrixAt(n, m);
-        im.setColorAt(n, faded.copy(col).multiplyScalar(fade)); n++;
-      }
+        im.setColorAt(n, faded.copy(col).multiplyScalar(fade * tw)); n++;
+      });
     }
     im.count = n;
     im.instanceMatrix.needsUpdate = true;
