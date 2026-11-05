@@ -6,19 +6,17 @@ import { BellPlus, BellRing, Loader2, Repeat, Smartphone, Trash2 } from "lucide-
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DateTimePicker } from "@/components/DateTimePicker";
+import { DateTimePicker, TimePicker, nextHour } from "@/components/DateTimePicker";
 import { useOffice } from "@/lib/store";
-import { REMINDER_REPEATS, type ReminderRepeat } from "@/lib/supabase/database.types";
+import type { ReminderRepeat } from "@/lib/supabase/database.types";
 import type { ReminderView } from "@/lib/team";
-import { manilaParts } from "@/lib/time";
+import { MANILA_OFFSET_MS, manilaParts } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { Empty } from "./Report";
 
 const fail = (e: unknown, fallback: string) => toast.error(e instanceof Error ? e.message : fallback);
 
 type RepeatChoice = "once" | ReminderRepeat;
-const isRepeatChoice = (v: string): v is RepeatChoice => v === "once" || REMINDER_REPEATS.some((r) => r === v);
 const REPEAT_LABEL: Record<ReminderRepeat, string> = { daily: "Daily", weekdays: "Weekdays", weekly: "Weekly" };
 
 const TIME = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit", hour12: true });
@@ -87,6 +85,38 @@ function ReminderRow({ r, group }: { r: ReminderView; group: Group }) {
   );
 }
 
+const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+const REPEATS: readonly { id: RepeatChoice; label: string; hint: string }[] = [
+  { id: "once", label: "Once", hint: "On a date" },
+  { id: "daily", label: "Daily", hint: "Every day" },
+  { id: "weekdays", label: "Weekdays", hint: "Mon – Fri" },
+  { id: "weekly", label: "Weekly", hint: "One day a week" },
+];
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+/**
+ * The first time a repeating reminder fires, as "YYYY-MM-DDTHH:MM" Manila (what the API reads): the next day
+ * from today (today itself if the time hasn't passed) that fits the repeat.
+ */
+function firstOccurrence(repeat: ReminderRepeat, hhmm: string, dow: number, now: Date): string {
+  const p = manilaParts(now);
+  const [h, m] = hhmm.split(":").map(Number);
+  const nowMin = p.hour * 60 + p.minute;
+  for (let add = 0; add < 8; add++) {
+    const d = new Date(Date.UTC(p.year, p.month, p.day + add));
+    const wd = d.getUTCDay();
+    if (add === 0 && h * 60 + m <= nowMin) continue;
+    if (repeat === "weekdays" && (wd === 0 || wd === 6)) continue;
+    if (repeat === "weekly" && wd !== dow) continue;
+    return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}T${hhmm}`;
+  }
+  return "";
+}
+
+const WHEN = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+/** "Fri, Nov 6, 8:00 AM" from a Manila "YYYY-MM-DDTHH:MM". */
+const describeLocal = (local: string) => (local ? WHEN.format(new Date(`${local}:00Z`)) : "");
+
 /** Add and list reminders, grouped by when they're due. Also the Reminders tab of the phone layout. */
 export function Reminders() {
   const reminders = useOffice((s) => s.data.reminders);
@@ -94,48 +124,89 @@ export function Reminders() {
   const [title, setTitle] = useState("");
   const [local, setLocal] = useState("");
   const [repeat, setRepeat] = useState<RepeatChoice>("once");
+  const [time, setTime] = useState(nextHour);
+  const [dow, setDow] = useState(() => new Date(`${manilaParts(new Date()).isoDate}T00:00:00Z`).getUTCDay());
   const [adding, setAdding] = useState(false);
   const now = new Date();
+  // once: the date and time picked; repeating: just a time (and a day for weekly), starting at the next one
+  const due = repeat === "once" ? local : firstOccurrence(repeat, time, dow, now);
 
   async function add(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!local) return toast.error("Pick a date for the reminder.");
+    if (!due) return toast.error("Pick a date for the reminder.");
+    if (repeat === "once" && new Date(`${due}:00Z`).getTime() - MANILA_OFFSET_MS < Date.now()) return toast.error("That time has already passed.");
     setAdding(true);
     try {
-      await addReminder({ title, local, repeat: repeat === "once" ? null : repeat });
+      await addReminder({ title, local: due, repeat: repeat === "once" ? null : repeat });
       setTitle(""); setLocal(""); setRepeat("once");
       toast.success("Reminder added.", { description: title });
     } catch (err) { fail(err, "Couldn't add the reminder."); }
     finally { setAdding(false); }
   }
 
+  const summary = !due ? null
+    : repeat === "once" ? `Reminds you ${describeLocal(due)}`
+      : `${repeat === "daily" ? "Every day" : repeat === "weekdays" ? "Every weekday" : `Every ${DOW[dow]}`} · first one ${describeLocal(due)}`;
+
   const grouped = GROUPS.map((g) => ({ g, items: reminders.filter((r) => groupOf(r, now) === g) })).filter((x) => x.items.length);
 
   return (
     <div className="grid gap-5">
-      <form onSubmit={add} className="grid gap-3 rounded-xl border bg-muted/30 p-3">
-        <p className="flex items-center gap-2 text-sm font-semibold"><BellPlus className="size-4 text-primary" aria-hidden /> New reminder</p>
+      <form onSubmit={add} className="grid gap-4 rounded-2xl border bg-card p-4 shadow-xs">
+        <p className="flex items-center gap-2 text-sm font-semibold">
+          <span className="grid size-7 place-items-center rounded-lg bg-primary/12 text-primary"><BellPlus className="size-4" aria-hidden /></span>
+          New reminder
+        </p>
         <div className="grid gap-1.5">
           <Label htmlFor="rem-title">What</Label>
-          <Input id="rem-title" placeholder="Pay the internet bill" value={title} onChange={(e) => setTitle(e.target.value)} required />
+          <Input id="rem-title" placeholder="Pay the internet bill" value={title} onChange={(e) => setTitle(e.target.value)} required maxLength={120} className="h-11 text-base sm:text-sm" />
         </div>
-        <div className="grid gap-1.5">
-          <Label htmlFor="rem-when">When (PH time)</Label>
-          <DateTimePicker id="rem-when" value={local} onChange={setLocal} />
-        </div>
-        <div className="grid gap-1.5">
-          <Label htmlFor="rem-repeat">Repeat</Label>
-          <Select value={repeat} onValueChange={(v) => { if (isRepeatChoice(v)) setRepeat(v); }}>
-            <SelectTrigger id="rem-repeat" className="w-full"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="once">Once</SelectItem>
-              <SelectItem value="daily">Daily</SelectItem>
-              <SelectItem value="weekdays">Weekdays</SelectItem>
-              <SelectItem value="weekly">Weekly</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <Button type="submit" disabled={adding}>
+        <fieldset className="grid gap-1.5">
+          <legend className="mb-1.5 text-sm font-medium">Repeat</legend>
+          <div role="radiogroup" aria-label="Repeat" className="grid grid-cols-4 gap-1 rounded-xl border bg-muted/40 p-1">
+            {REPEATS.map((r) => (
+              <button key={r.id} type="button" role="radio" aria-checked={repeat === r.id} onClick={() => setRepeat(r.id)}
+                className={cn("grid min-h-11 content-center rounded-lg px-1 text-center leading-tight transition-colors focus-visible:outline-2 focus-visible:outline-ring",
+                  repeat === r.id ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
+                <span className="text-sm font-semibold">{r.label}</span>
+                <span className={cn("text-[10px]", repeat === r.id ? "opacity-80" : "opacity-70")}>{r.hint}</span>
+              </button>
+            ))}
+          </div>
+        </fieldset>
+        {repeat === "once" ? (
+          <div className="grid gap-1.5">
+            <Label htmlFor="rem-when">When (PH time)</Label>
+            <DateTimePicker id="rem-when" value={local} onChange={setLocal} />
+          </div>
+        ) : (
+          <div className="grid gap-3">
+            {repeat === "weekly" && (
+              <div className="grid gap-1.5">
+                <span className="text-sm font-medium">On</span>
+                <div role="radiogroup" aria-label="Day of the week" className="grid grid-cols-7 gap-1">
+                  {DOW.map((d, i) => (
+                    <button key={d} type="button" role="radio" aria-checked={dow === i} onClick={() => setDow(i)}
+                      className={cn("min-h-10 rounded-lg border text-xs font-semibold transition-colors", dow === i ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted")}>
+                      {d}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="grid gap-1.5">
+              <span className="text-sm font-medium">At (PH time)</span>
+              <TimePicker value={time} onChange={setTime} />
+            </div>
+          </div>
+        )}
+        {summary && (
+          <p className="flex items-center gap-2 rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+            {repeat === "once" ? <BellRing className="size-3.5 shrink-0" aria-hidden /> : <Repeat className="size-3.5 shrink-0" aria-hidden />}
+            {summary}
+          </p>
+        )}
+        <Button type="submit" disabled={adding} className="h-11">
           {adding ? <><Loader2 className="animate-spin" aria-hidden /> Adding…</> : "Add reminder"}
         </Button>
       </form>

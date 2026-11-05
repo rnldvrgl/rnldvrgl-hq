@@ -46,6 +46,50 @@ function isoToDay(iso: string): Date {
 
 const isPeriod = (v: string): v is Period => v === "AM" || v === "PM";
 
+/** Hour : minute AM/PM, three selects. */
+function TimeSelects({ time, onChange }: { time: Time; onChange: (next: Partial<Time>) => void }) {
+  return (
+    <div className="grid grid-cols-[1fr_auto_1fr_1fr] items-center gap-1.5" role="group" aria-label="Time (Philippine time)">
+      <Select value={String(time.hour)} onValueChange={(v) => onChange({ hour: Number(v) })}>
+        <SelectTrigger className="w-full font-mono tabular-nums" aria-label="Hour"><SelectValue /></SelectTrigger>
+        <SelectContent>{HOURS.map((h) => <SelectItem key={h} value={String(h)}>{h}</SelectItem>)}</SelectContent>
+      </Select>
+      <span className="text-muted-foreground" aria-hidden>:</span>
+      <Select value={String(time.minute)} onValueChange={(v) => onChange({ minute: Number(v) })}>
+        <SelectTrigger className="w-full font-mono tabular-nums" aria-label="Minute"><SelectValue /></SelectTrigger>
+        {/* Opens on the current minute (item-aligned) and scrolls; typing "4" "2" jumps to :42. */}
+        <SelectContent className="max-h-64 font-mono tabular-nums">
+          {MINUTES.map((m) => <SelectItem key={m} value={String(m)}>{pad(m)}</SelectItem>)}
+        </SelectContent>
+      </Select>
+      <Select value={time.period} onValueChange={(v) => { if (isPeriod(v)) onChange({ period: v }); }}>
+        <SelectTrigger className="w-full" aria-label="AM or PM"><SelectValue /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="AM">AM</SelectItem>
+          <SelectItem value="PM">PM</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+const to24 = (t: Time): string => `${pad((t.hour % 12) + (t.period === "PM" ? 12 : 0))}:${pad(t.minute)}`;
+const from24 = (hhmm: string): Time | null => {
+  const m = /^(\d{2}):(\d{2})$/.exec(hhmm);
+  if (!m) return null;
+  const h = Number(m[1]);
+  return { hour: h % 12 || 12, minute: Number(m[2]), period: h < 12 ? "AM" : "PM" };
+};
+
+/** Just a time of day in Manila: `value` / `onChange` are "HH:MM" (24-hour). Starts at the next full hour. */
+export function TimePicker({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const time = from24(value) ?? defaultTime();
+  return <TimeSelects time={time} onChange={(next) => onChange(to24({ ...time, ...next }))} />;
+}
+
+/** The next full hour in Manila, "HH:MM". */
+export const nextHour = (): string => to24(defaultTime());
+
 /**
  * Date + 12-hour time picker in Manila time. `value` and `onChange` use "YYYY-MM-DDTHH:MM" (24-hour),
  * the same format the reminders API reads, and "" while no date is picked.
@@ -92,27 +136,20 @@ export function DateTimePicker({ id, value, onChange, className }: {
         </PopoverContent>
       </Popover>
 
-      <div className="grid grid-cols-[1fr_auto_1fr_1fr] items-center gap-1.5" role="group" aria-label="Time (Philippine time)">
-        <Select value={String(time.hour)} onValueChange={(v) => setPart({ hour: Number(v) })}>
-          <SelectTrigger className="w-full font-mono tabular-nums" aria-label="Hour"><SelectValue /></SelectTrigger>
-          <SelectContent>{HOURS.map((h) => <SelectItem key={h} value={String(h)}>{h}</SelectItem>)}</SelectContent>
-        </Select>
-        <span className="text-muted-foreground" aria-hidden>:</span>
-        <Select value={String(time.minute)} onValueChange={(v) => setPart({ minute: Number(v) })}>
-          <SelectTrigger className="w-full font-mono tabular-nums" aria-label="Minute"><SelectValue /></SelectTrigger>
-          {/* Opens on the current minute (item-aligned) and scrolls; typing "4" "2" jumps to :42. */}
-          <SelectContent className="max-h-64 font-mono tabular-nums">
-            {MINUTES.map((m) => <SelectItem key={m} value={String(m)}>{pad(m)}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={time.period} onValueChange={(v) => { if (isPeriod(v)) setPart({ period: v }); }}>
-          <SelectTrigger className="w-full" aria-label="AM or PM"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="AM">AM</SelectItem>
-            <SelectItem value="PM">PM</SelectItem>
-          </SelectContent>
-        </Select>
+      {/* quick picks for the day */}
+      <div className="flex gap-1.5">
+        {[["Today", 0], ["Tomorrow", 1]].map(([label, add]) => {
+          const d = new Date(today); d.setDate(d.getDate() + Number(add));
+          const iso = dayToIso(d);
+          return (
+            <button key={label} type="button" onClick={() => onChange(toLocal(iso, time))} aria-pressed={date === iso}
+              className={cn("rounded-full border px-3 py-1 text-xs font-medium transition-colors", date === iso ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted")}>
+              {label}
+            </button>
+          );
+        })}
       </div>
+      <TimeSelects time={time} onChange={setPart} />
     </div>
   );
 }
