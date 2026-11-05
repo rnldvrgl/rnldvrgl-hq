@@ -5,7 +5,8 @@ import { useRef, useState } from "react";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { toast } from "sonner";
-import { Play, Pause, CheckCheck, X, ShieldCheck, Loader2, House, Building2, UserPlus } from "lucide-react";
+import { Play, Pause, CheckCheck, X, ShieldCheck, Loader2, House, Building2, UserPlus, PlugZap } from "lucide-react";
+import { openSettings } from "@/lib/settings-nav";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -71,8 +72,9 @@ export function DeskPanel({ id, onClose }: { id: EmployeeId; onClose?: () => voi
 
   if (!emp) return null;
   const Icon = ICONS[meta.icon];
-  const lampKey: LampKey = !emp.enabled ? "off" : emp.status;
+  const lampKey: LampKey = !emp.enabled || lacking.length > 0 ? "off" : emp.status;
   const latest = emp.runs.at(0);
+  const hired = lacking.length === 0;
   const extraTab = id === "job-hunter" ? "Pipeline" : id === "reminder-bot" ? "Reminders" : id === "inbox-triage" ? "Inbox" : null;
 
   async function act(fn: () => Promise<unknown>, ok: string) {
@@ -92,7 +94,7 @@ export function DeskPanel({ id, onClose }: { id: EmployeeId; onClose?: () => voi
         </div>
         <Badge variant="secondary" className="gap-1.5">
           <span className={cn("size-2 rounded-full", LAMP[lampKey])} aria-hidden />
-          {STATUS_LABEL[lampKey]}
+          {lacking.length > 0 ? "Not hired" : STATUS_LABEL[lampKey]}
         </Badge>
         {onClose && (
           <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close desk">
@@ -103,7 +105,7 @@ export function DeskPanel({ id, onClose }: { id: EmployeeId; onClose?: () => voi
 
       <p data-anim className="text-sm text-muted-foreground">{meta.job}</p>
 
-      {meta.private && ai.provider !== "claude" && !ai.backupAllowsPrivate && (
+      {hired && meta.private && ai.provider !== "claude" && !ai.backupAllowsPrivate && (
         <p data-anim className="flex gap-2 rounded-lg border border-needs/50 bg-needs/10 px-3 py-2 text-sm">
           <ShieldCheck className="mt-0.5 size-4 shrink-0 text-needs" aria-hidden />
           {meta.name} reads your private {meta.id === "dev-assistant" ? "repos" : "email and calendar"}, so they wait for Claude instead of using the free backup. They start working as soon as you add ANTHROPIC_API_KEY.
@@ -112,43 +114,56 @@ export function DeskPanel({ id, onClose }: { id: EmployeeId; onClose?: () => voi
 
       <dl data-anim className="grid grid-cols-2 gap-2 text-sm">
         <div className="rounded-lg bg-muted px-3 py-2">
-          <dt className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Hours</dt>
+          <dt className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">{hired ? "Hours" : "Will work"}</dt>
           <dd>{describeSchedule(meta.schedule)}</dd>
         </div>
         <div className="rounded-lg bg-muted px-3 py-2">
-          <dt className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Last run</dt>
-          <dd>{formatManila(emp.last_run_at)}</dd>
+          <dt className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">{hired ? "Last run" : "Status"}</dt>
+          <dd>{hired ? formatManila(emp.last_run_at) : "Not hired yet"}</dd>
         </div>
       </dl>
 
-      {lacking.length > 0 && (
-        <div data-anim className="grid gap-1 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-sm">
+      {hired ? (
+        <>
+          <div data-anim><RunTimeline runs={emp.runs} /></div>
+
+          <div data-anim className="flex flex-wrap gap-2">
+            <Button disabled={busy || emp.status === "working"} onClick={() => act(() => runNow(id), `${meta.name} is on it.`)}>
+              {emp.status === "working" ? <><Loader2 className="animate-spin" aria-hidden /> Working…</> : <><Play /> Run now</>}
+            </Button>
+            <Button variant="outline" disabled={busy}
+              onClick={() => act(() => setEnabled(id, !emp.enabled), emp.enabled ? `${meta.name} is paused.` : `${meta.name} is back at the desk.`)}>
+              <Pause /> {emp.enabled ? "Pause" : "Resume"}
+            </Button>
+            <CommuteButton id={id} />
+            {(emp.status === "needs_you" || emp.status === "error") && (
+              <Button variant="outline" disabled={busy} onClick={() => act(() => acknowledge(id), "Marked as read.")}>
+                <CheckCheck /> Mark read
+              </Button>
+            )}
+          </div>
+        </>
+      ) : (
+        // not hired: no buttons, reports or history (there's no work of theirs to show), just what to connect
+        <div data-anim className="grid gap-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3.5 text-sm">
           <p className="flex items-center gap-1.5 font-semibold"><UserPlus className="size-4" aria-hidden /> Not hired yet</p>
-          <p className="text-muted-foreground">{meta.name} needs {lacking.map((n) => NEED_LABEL[n]).join(" and ")} to start. Connect it in Settings → Connections (the sliders icon, top right of the office).</p>
+          <p className="text-muted-foreground">
+            {meta.name} starts working once this HQ has {lacking.map((n) => NEED_LABEL[n]).join(" and ")}. Until then the desk stays empty and nothing runs.
+          </p>
+          <ul className="grid gap-1">
+            {lacking.map((n) => (
+              <li key={n} className="flex items-center gap-2 text-[13px]"><span className="size-1.5 rounded-full bg-amber-500" aria-hidden />{NEED_LABEL[n]}</li>
+            ))}
+          </ul>
+          <Button className="justify-self-start" onClick={() => { onClose?.(); openSettings("connections"); }}>
+            <PlugZap aria-hidden /> Connect in Settings
+          </Button>
         </div>
       )}
 
-      <div data-anim><RunTimeline runs={emp.runs} /></div>
+      {hired && <Separator data-anim />}
 
-      <div data-anim className="flex flex-wrap gap-2">
-        <Button disabled={busy || emp.status === "working"} onClick={() => act(() => runNow(id), `${meta.name} is on it.`)}>
-          {emp.status === "working" ? <><Loader2 className="animate-spin" aria-hidden /> Working…</> : <><Play /> Run now</>}
-        </Button>
-        <Button variant="outline" disabled={busy}
-          onClick={() => act(() => setEnabled(id, !emp.enabled), emp.enabled ? `${meta.name} is paused.` : `${meta.name} is back at the desk.`)}>
-          <Pause /> {emp.enabled ? "Pause" : "Resume"}
-        </Button>
-        <CommuteButton id={id} />
-        {(emp.status === "needs_you" || emp.status === "error") && (
-          <Button variant="outline" disabled={busy} onClick={() => act(() => acknowledge(id), "Marked as read.")}>
-            <CheckCheck /> Mark read
-          </Button>
-        )}
-      </div>
-
-      <Separator data-anim />
-
-      <Tabs data-anim defaultValue={extraTab ?? "report"} key={id} className="min-w-0">
+      {hired && <Tabs data-anim defaultValue={extraTab ?? "report"} key={id} className="min-w-0">
         <TabsList className="w-full">
           {extraTab && <TabsTrigger value={extraTab}>{extraTab}</TabsTrigger>}
           <TabsTrigger value="report">Latest report</TabsTrigger>
@@ -168,7 +183,7 @@ export function DeskPanel({ id, onClose }: { id: EmployeeId; onClose?: () => voi
         <TabsContent value="history" className="mt-2">
           <History runs={emp.runs.slice(1)} />
         </TabsContent>
-      </Tabs>
+      </Tabs>}
     </div>
   );
 }

@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useOffice, WEATHER_KINDS, type BossErrandKind, type WeatherKind } from "@/lib/store";
 import { SoundToggle } from "@/components/SoundToggle";
 import { SettingsPanel } from "./SettingsPanel";
+import { useSettingsNav } from "@/lib/settings-nav";
 import { MusicPanel } from "./MusicPanel";
 import { PREVIEWS, hm, phaseAt } from "@/lib/office-clock";
 import { cn } from "@/lib/utils";
@@ -33,7 +34,8 @@ const iconButton =
  * passing underneath never show through.
  */
 export function SceneControls({ onReset, onZoom, onTurn }: { onReset: () => void; onZoom: (dir: 1 | -1) => void; onTurn: () => void }) {
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsOpen = useSettingsNav((s) => s.open);
+  const setSettingsOpen = (on: boolean) => (on ? useSettingsNav.getState().openSettings() : useSettingsNav.getState().close());
   return (
     <>
       <div className="pointer-events-none absolute top-3 right-[4.25rem] left-3 z-30 flex flex-wrap gap-2 sm:right-16">
