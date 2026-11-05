@@ -1,8 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useState } from "react";
-import { BatteryLow, Check, Eye, Gauge, LogOut, Loader2, Sparkles, Square } from "lucide-react";
+import { useEffect, useState } from "react";
+import { BatteryLow, Check, Eye, Gauge, LogOut, Loader2, SlidersHorizontal, Sparkles, Square } from "lucide-react";
 import { browserClient } from "@/lib/supabase/browser";
 import { HOLIDAYS, nextLabel, useHolidayPreview, type Holiday } from "@/lib/holidays";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -34,7 +34,7 @@ export function SettingsPanel({ open, onOpenChange }: { open: boolean; onOpenCha
                     <SheetTitle>Office settings</SheetTitle>
                     <SheetDescription>Saved on this device only. Lower-end phones: try Battery saver.</SheetDescription>
                 </SheetHeader>
-                <div className="grid gap-4 px-4 pt-4 pb-6">
+                <div className="grid min-w-0 gap-4 px-4 pt-4 pb-6 [&>*]:min-w-0">
                     <Appearance />
                     <Performance />
                     <Section title="Show in the office" hint="Turn layers off to draw less.">
@@ -61,7 +61,7 @@ export function SettingsPanel({ open, onOpenChange }: { open: boolean; onOpenCha
 /** One card of settings: a heading, a line on what it does, then its controls. */
 function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
     return (
-        <section className="grid gap-3 rounded-2xl border border-border bg-card/50 p-3.5">
+        <section className="grid min-w-0 gap-3 rounded-2xl border border-border bg-card/50 p-3.5 [&>*]:min-w-0">
             <div className="px-0.5">
                 <h3 className="text-sm font-semibold">{title}</h3>
                 {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
@@ -156,7 +156,9 @@ function Appearance() {
     );
 }
 
-type Preset = "full" | "balanced" | "saver";
+type Preset = "full" | "balanced" | "saver" | "custom";
+/** The last mix of performance settings that matched no preset, for the Custom card. */
+const CUSTOM_KEY = "hq:customPerf";
 
 function Performance() {
     const lowPower = useOffice((s) => s.lowPower);
@@ -170,16 +172,31 @@ function Performance() {
     const walkers = useSettings((s) => s.walkers);
     const setWalkers = useSettings((s) => s.setWalkers);
 
+    const snapshot = () => ({ lowPower, motion, show, walkers });
+    // remember the last mix that isn't a preset, so "Custom" can bring it back
+    useEffect(() => {
+        if (current !== "custom") return;
+        try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(snapshot())); } catch { /* not remembered */ }
+    });
     const apply = (p: Preset) => {
+        if (p === "custom") {
+            try {
+                const c = JSON.parse(localStorage.getItem(CUSTOM_KEY) ?? "null") as ReturnType<typeof snapshot> | null;
+                if (c) { setLowPower(!!c.lowPower); setMotion(c.motion === "minimal" ? "minimal" : "full"); setAllShow({ ...DEFAULT_SETTINGS.show, ...c.show }); setWalkers(Number(c.walkers) || 0); }
+            } catch { /* nothing saved */ }
+            return;
+        }
         if (p === "full") { setLowPower(false); setMotion("full"); setAllShow(DEFAULT_SETTINGS.show); setWalkers(DEFAULT_SETTINGS.walkers); }
         if (p === "balanced") { setLowPower(true); setMotion("full"); setAllShow({ ...DEFAULT_SETTINGS.show, neighbourhood: true, traffic: false, vendors: false, trees: true, smoke: false }); setWalkers(6); }
         if (p === "saver") { setLowPower(true); setMotion("minimal"); setAllShow(LIGHT_SHOW); setWalkers(0); }
     };
     const same = (a: typeof show, b: typeof show) => (Object.keys(a) as (keyof typeof show)[]).every((k) => a[k] === b[k]);
-    const current: Preset | null =
-        !lowPower && motion === "full" && same(show, DEFAULT_SETTINGS.show) ? "full"
-            : lowPower && motion === "minimal" && same(show, LIGHT_SHOW) ? "saver"
-                : lowPower && motion === "full" && !show.traffic && !show.smoke ? "balanced" : null;
+    const BALANCED_SHOW = { ...DEFAULT_SETTINGS.show, neighbourhood: true, traffic: false, vendors: false, trees: true, smoke: false };
+    // a preset only lights up when everything matches it exactly; any other mix is Custom
+    const current: Preset =
+        !lowPower && motion === "full" && same(show, DEFAULT_SETTINGS.show) && walkers === DEFAULT_SETTINGS.walkers ? "full"
+            : lowPower && motion === "minimal" && same(show, LIGHT_SHOW) && walkers === 0 ? "saver"
+                : lowPower && motion === "full" && same(show, BALANCED_SHOW) && walkers === 6 ? "balanced" : "custom";
 
     // each preset has its own colour: green for full, blue for balanced, amber for saving battery
     const PRESETS: { id: Preset; label: string; hint: string; icon: typeof Gauge; tone: { on: string; icon: string } }[] = [
@@ -195,11 +212,15 @@ function Performance() {
             id: "saver", label: "Battery saver", hint: "Office only, minimal motion", icon: BatteryLow,
             tone: { on: "border-amber-500 bg-amber-500/14 ring-1 ring-amber-500", icon: "text-amber-600 dark:text-amber-400" }
         },
+        {
+            id: "custom", label: "Custom", hint: "Your own mix of the settings below", icon: SlidersHorizontal,
+            tone: { on: "border-violet-500 bg-violet-500/12 ring-1 ring-violet-500", icon: "text-violet-600 dark:text-violet-400" }
+        },
     ];
 
     return (
-        <Section title="Performance" hint="Pick a preset, or fine-tune below.">
-            <div className="grid grid-cols-3 gap-2">
+        <Section title="Performance" hint="Pick a preset, or fine-tune below: any change of your own makes it Custom.">
+            <div className="grid grid-cols-2 gap-2">
                 {PRESETS.map(({ id, label, hint, icon: Icon, tone }) => (
                     <button
                         key={id}
