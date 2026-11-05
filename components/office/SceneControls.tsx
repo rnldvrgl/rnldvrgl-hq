@@ -3,7 +3,7 @@
 import { useState } from "react";
 import {
   BatteryLow, Check, ChevronDown, Cloud, CloudLightning, CloudRain, CloudSun, Coffee, Crown, Footprints, LocateFixed, Minus, Plus,
-  Radio, Settings2, ShoppingBag, Sun, Wind, Zap, Armchair, type LucideIcon,
+  Radio, RotateCw, Settings2, ShoppingBag, Sun, Wind, Zap, Armchair, type LucideIcon,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useOffice, WEATHER_KINDS, type BossErrandKind, type WeatherKind } from "@/lib/store";
@@ -28,7 +28,7 @@ const iconButton =
  * They sit above the name bubbles (z-30 vs the label layer's z-20) on a more opaque glass, so bubbles
  * passing underneath never show through.
  */
-export function SceneControls({ onReset, onZoom }: { onReset: () => void; onZoom: (dir: 1 | -1) => void }) {
+export function SceneControls({ onReset, onZoom, onTurn }: { onReset: () => void; onZoom: (dir: 1 | -1) => void; onTurn: () => void }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   return (
     <>
@@ -50,6 +50,8 @@ export function SceneControls({ onReset, onZoom }: { onReset: () => void; onZoom
         <ControlButton icon={Plus} label="Zoom in" onClick={() => onZoom(1)} />
         <span className="mx-2 h-px bg-border" aria-hidden />
         <ControlButton icon={Minus} label="Zoom out" onClick={() => onZoom(-1)} />
+        <span className="mx-2 h-px bg-border" aria-hidden />
+        <ControlButton icon={RotateCw} label="Turn the view (or drag with two fingers)" onClick={onTurn} />
         <span className="mx-2 h-px bg-border" aria-hidden />
         <ControlButton icon={LocateFixed} label="Reset view" onClick={onReset} />
         <span className="mx-2 h-px bg-border" aria-hidden />

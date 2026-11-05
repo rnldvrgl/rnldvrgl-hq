@@ -93,11 +93,12 @@ function defaultEye(x: number, y: number, z: number, azimuth = DEFAULT_AZIMUTH):
   ];
 }
 
-export type CameraRigHandle = { reset: () => void; zoom: (dir: 1 | -1) => void };
+export type CameraRigHandle = { reset: () => void; zoom: (dir: 1 | -1) => void; turn: () => void };
 
 /**
  * Pan / zoom / turn the office (drei CameraControls), within limits.
- * Mouse: left-drag pans, right-drag turns, wheel zooms. Touch: one finger pans, two pinch-zoom and pan, three turn.
+ * Mouse: left-drag pans, right-drag turns, wheel zooms. Touch: one finger pans, two fingers pinch to zoom and
+ * drag to turn (three fingers pan). The Turn button swings the view across its range in steps.
  * Selecting a desk glides to it; deselecting or "Reset view" goes back to the default framing.
  */
 function CameraRig({ reducedMotion, handle }: { reducedMotion: boolean; handle: RefObject<CameraRigHandle | null> }) {
@@ -158,6 +159,16 @@ function CameraRig({ reducedMotion, handle }: { reducedMotion: boolean; handle: 
         moved.current = false;
         frameView(!reducedMotion);
       },
+      turn: () => {
+        const c = controls.current;
+        if (!c) return;
+        moved.current = true;
+        // step one way until the end of the range, then swing back to the other end
+        const [lo, hi] = AZIMUTH_RANGE;
+        const step = 22 * DEG;
+        const next = c.azimuthAngle + step > hi + 0.5 * DEG ? lo : Math.min(hi, c.azimuthAngle + step);
+        void c.rotateAzimuthTo(next, !reducedMotion);
+      },
       zoom: (dir) => {
         const c = controls.current;
         if (!c) return;
@@ -181,7 +192,7 @@ function CameraRig({ reducedMotion, handle }: { reducedMotion: boolean; handle: 
       smoothTime={reducedMotion ? 0 : 0.3}
       draggingSmoothTime={reducedMotion ? 0 : 0.12}
       mouseButtons={{ left: ACTION.TRUCK, middle: ACTION.ZOOM, right: ACTION.ROTATE, wheel: ACTION.ZOOM }}
-      touches={{ one: ACTION.TOUCH_TRUCK, two: ACTION.TOUCH_ZOOM_TRUCK, three: ACTION.TOUCH_ROTATE }}
+      touches={{ one: ACTION.TOUCH_TRUCK, two: ACTION.TOUCH_ZOOM_ROTATE, three: ACTION.TOUCH_TRUCK }}
       onControlStart={() => { moved.current = true; }}
     />
   );
@@ -286,7 +297,7 @@ export default function Scene3D() {
           if (from && Math.hypot(e.clientX - from.x, e.clientY - from.y) > DRAG_PX) return;
           select(null);
         }}
-        aria-label={`${HQ.appName} in 3D. Drag to move around, pinch or scroll to zoom. Select a person or desk to open it.`}
+        aria-label={`${HQ.appName} in 3D. Drag to move around, pinch or scroll to zoom, two-finger drag or right-drag to turn. Select a person or desk to open it.`}
         role="img"
       >
         <AdaptiveDpr pixelated={false} />
@@ -329,6 +340,7 @@ export default function Scene3D() {
       <SceneControls
         onReset={() => { select(null); rig.current?.reset(); }}
         onZoom={(dir) => rig.current?.zoom(dir)}
+        onTurn={() => rig.current?.turn()}
       />
     </div>
   );
