@@ -1,5 +1,5 @@
 import "server-only";
-import { env } from "@/lib/env";
+import { env, hqEnv } from "@/lib/env";
 
 let cached: { token: string; expires: number } | null = null;
 
@@ -11,7 +11,7 @@ async function accessToken(): Promise<string> {
     body: new URLSearchParams({
       client_id: env("GOOGLE_CLIENT_ID"),
       client_secret: env("GOOGLE_CLIENT_SECRET"),
-      refresh_token: env("GOOGLE_REFRESH_TOKEN"),
+      refresh_token: hqEnv("GOOGLE_REFRESH_TOKEN"),
       grant_type: "refresh_token",
     }),
   });

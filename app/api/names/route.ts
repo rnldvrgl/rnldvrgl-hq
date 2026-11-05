@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
-import { currentOwner } from "@/lib/auth";
+import { hqRoute } from "@/lib/hq";
 import { BASE_NAMES, cleanName, NAME_KEYS } from "@/lib/names";
 import { saveNames } from "@/lib/names-server";
 
 export const dynamic = "force-dynamic";
 
 /** Save renames of the boss and the employees: `{ names: { owner?: string, "<employee id>"?: string } }`. Blank = back to the default. */
-export async function POST(req: Request) {
-  if (!(await currentOwner())) return NextResponse.json({ error: "Not allowed." }, { status: 403 });
+export const POST = hqRoute(async (req: Request) => {
   const body: unknown = await req.json().catch(() => null);
   const names = typeof body === "object" && body && "names" in body && typeof body.names === "object" && body.names ? (body.names as Record<string, unknown>) : null;
   if (!names) return NextResponse.json({ error: "Nothing to save." }, { status: 400 });
@@ -22,4 +21,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Couldn't save the names." }, { status: 500 });
   }
   return NextResponse.json({ ok: true });
-}
+});

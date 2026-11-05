@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { currentOwner } from "@/lib/auth";
+import { hqRoute } from "@/lib/hq";
 import { HQ } from "@/hq.config";
 
 /**
@@ -66,8 +66,7 @@ function recentPrecipitation(m: z.infer<typeof Upstream>["minutely_15"], nowIso:
   return total;
 }
 
-export async function GET() {
-  if (!(await currentOwner())) return NextResponse.json({ error: "Not allowed." }, { status: 403 });
+export const GET = hqRoute(async () => {
   const { lat, lon } = HQ.city;
   const url = "https://api.open-meteo.com/v1/forecast"
     + `?latitude=${lat}&longitude=${lon}&timezone=Asia%2FManila`
@@ -97,4 +96,4 @@ export async function GET() {
     console.warn("weather:", e instanceof Error ? e.message : e);
     return NextResponse.json({ error: "Weather is unavailable right now." }, { status: 502 });
   }
-}
+});

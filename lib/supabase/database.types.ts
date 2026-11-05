@@ -22,6 +22,7 @@ export type Database = {
     Tables: {
       employees: {
         Row: {
+          hq_id: string;
           id: string;
           enabled: boolean;
           status: EmployeeStatus;
@@ -30,6 +31,7 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          hq_id: string;
           id: string;
           enabled?: boolean;
           status?: EmployeeStatus;
@@ -42,6 +44,7 @@ export type Database = {
       };
       runs: {
         Row: {
+          hq_id: string;
           id: string;
           employee_id: string;
           trigger: RunTrigger;
@@ -52,6 +55,7 @@ export type Database = {
           finished_at: string | null;
         };
         Insert: {
+          hq_id: string;
           id?: string;
           employee_id: string;
           trigger?: RunTrigger;
@@ -74,6 +78,7 @@ export type Database = {
       };
       jobs: {
         Row: {
+          hq_id: string;
           id: string;
           role: string;
           company: string;
@@ -90,6 +95,7 @@ export type Database = {
           created_at: string;
         };
         Insert: {
+          hq_id: string;
           id?: string;
           role: string;
           company: string;
@@ -110,6 +116,7 @@ export type Database = {
       };
       interviews: {
         Row: {
+          hq_id: string;
           id: string;
           job_id: string | null;
           company: string | null;
@@ -119,6 +126,7 @@ export type Database = {
           created_at: string;
         };
         Insert: {
+          hq_id: string;
           id?: string;
           job_id?: string | null;
           company?: string | null;
@@ -140,6 +148,7 @@ export type Database = {
       };
       reminders: {
         Row: {
+          hq_id: string;
           id: string;
           title: string;
           due_at: string;
@@ -150,6 +159,7 @@ export type Database = {
           created_at: string;
         };
         Insert: {
+          hq_id: string;
           id?: string;
           title: string;
           due_at: string;
@@ -164,6 +174,7 @@ export type Database = {
       };
       inbox_items: {
         Row: {
+          hq_id: string;
           message_id: string;
           thread_id: string | null;
           sender: string | null;
@@ -176,6 +187,7 @@ export type Database = {
           created_at: string;
         };
         Insert: {
+          hq_id: string;
           message_id: string;
           thread_id?: string | null;
           sender?: string | null;
@@ -192,6 +204,7 @@ export type Database = {
       };
       push_subscriptions: {
         Row: {
+          hq_id: string;
           endpoint: string;
           p256dh: string;
           auth: string;
@@ -199,6 +212,7 @@ export type Database = {
           created_at: string;
         };
         Insert: {
+          hq_id: string;
           endpoint: string;
           p256dh: string;
           auth: string;
@@ -210,6 +224,7 @@ export type Database = {
       };
       spotify_auth: {
         Row: {
+          hq_id: string;
           id: number;
           refresh_token: string;
           access_token: string | null;
@@ -217,6 +232,7 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          hq_id: string;
           id?: number;
           refresh_token: string;
           access_token?: string | null;
@@ -226,9 +242,27 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["spotify_auth"]["Insert"]>;
         Relationships: [];
       };
+      hqs: {
+        Row: { id: string; owner_email: string | null; name: string | null; invited_by: string | null; created_at: string };
+        Insert: { id?: string; owner_email?: string | null; name?: string | null; invited_by?: string | null; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["hqs"]["Insert"]>;
+        Relationships: [];
+      };
+      hq_invites: {
+        Row: { code: string; hq_id: string; email: string | null; created_at: string; expires_at: string; used_by: string | null; used_at: string | null };
+        Insert: { code: string; hq_id: string; email?: string | null; created_at?: string; expires_at?: string; used_by?: string | null; used_at?: string | null };
+        Update: Partial<Database["public"]["Tables"]["hq_invites"]["Insert"]>;
+        Relationships: [];
+      };
+      hq_secrets: {
+        Row: { hq_id: string; key: string; value: string; updated_at: string };
+        Insert: { hq_id: string; key: string; value: string; updated_at?: string };
+        Update: Partial<Database["public"]["Tables"]["hq_secrets"]["Insert"]>;
+        Relationships: [];
+      };
       office_names: {
-        Row: { id: string; name: string; updated_at: string };
-        Insert: { id: string; name: string; updated_at?: string };
+        Row: { hq_id: string; id: string; name: string; updated_at: string };
+        Insert: { hq_id: string; id: string; name: string; updated_at?: string };
         Update: Partial<Database["public"]["Tables"]["office_names"]["Insert"]>;
         Relationships: [];
       };

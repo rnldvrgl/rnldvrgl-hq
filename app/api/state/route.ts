@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import { currentOwner } from "@/lib/auth";
+import { hqRoute } from "@/lib/hq";
 import { loadOfficeState } from "@/lib/state";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  if (!(await currentOwner())) return NextResponse.json({ error: "Not allowed." }, { status: 403 });
+export const GET = hqRoute(async () => {
   return NextResponse.json(await loadOfficeState());
-}
+});

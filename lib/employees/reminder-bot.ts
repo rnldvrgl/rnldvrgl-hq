@@ -1,4 +1,5 @@
 import "server-only";
+import { hqId } from "@/lib/hq-context";
 import { db } from "@/lib/supabase/admin";
 import { emailMe } from "@/lib/email";
 import { formatManila, manilaParts } from "@/lib/time";
@@ -21,7 +22,7 @@ export async function reminderBot(): Promise<WorkResult> {
   const now = new Date();
   const { data: due, error } = await db()
     .from("reminders")
-    .select("id, title, due_at, repeat")
+    .select("id, title, due_at, repeat").eq("hq_id", hqId())
     .is("sent_at", null)
     .eq("source", "hq") // iPhone reminders already alert on the phone
     .lte("due_at", now.toISOString())
@@ -36,9 +37,9 @@ export async function reminderBot(): Promise<WorkResult> {
       let next = nextDue(new Date(r.due_at), r.repeat);
       while (next <= now) next = nextDue(next, r.repeat); // skip missed repeats
       // pushed_at resets so the next occurrence is handed to the iPhone too.
-      await db().from("reminders").update({ due_at: next.toISOString(), pushed_at: null }).eq("id", r.id);
+      await db().from("reminders").update({ due_at: next.toISOString(), pushed_at: null }).eq("id", r.id).eq("hq_id", hqId());
     } else {
-      await db().from("reminders").update({ sent_at: now.toISOString() }).eq("id", r.id);
+      await db().from("reminders").update({ sent_at: now.toISOString() }).eq("id", r.id).eq("hq_id", hqId());
     }
     sent.push(`• ${r.title}`);
   }

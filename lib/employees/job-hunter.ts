@@ -1,4 +1,5 @@
 import "server-only";
+import { hqId } from "@/lib/hq-context";
 import { z } from "zod";
 import { askWithSources, extractJson, UNTRUSTED_NOTE } from "@/lib/ai";
 import { jobSearchUrl, verifyJobLink } from "@/lib/job-links";
@@ -27,7 +28,7 @@ const Job = z.object({
 });
 
 export async function jobHunter(): Promise<WorkResult> {
-  const { data: known } = await db().from("jobs").select("link, company, role");
+  const { data: known } = await db().from("jobs").select("link, company, role").eq("hq_id", hqId());
   const skip = (known ?? []).map((j) => `${j.company} — ${j.role}`).slice(-150);
 
   const { text: reply, sources } = await askWithSources({
@@ -57,7 +58,7 @@ export async function jobHunter(): Promise<WorkResult> {
 
   const { data: inserted, error } = await db()
     .from("jobs")
-    .upsert(jobs, { onConflict: "link", ignoreDuplicates: true })
+    .upsert(jobs.map((j) => ({ ...j, hq_id: hqId() })), { onConflict: "hq_id,link", ignoreDuplicates: true })
     .select("role, company, salary_text, fit_score, fit_reason, link");
   if (error) throw new Error(error.message);
   const added = inserted ?? [];

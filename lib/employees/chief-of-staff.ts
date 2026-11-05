@@ -1,4 +1,5 @@
 import "server-only";
+import { hqId } from "@/lib/hq-context";
 import { ask } from "@/lib/ai";
 import { db } from "@/lib/supabase/admin";
 import { listEvents, countMail } from "@/lib/google";
@@ -20,9 +21,9 @@ export async function chiefOfStaff(): Promise<WorkResult> {
   const [events, unread, reminders, pipeline, interviews] = await Promise.all([
     listEvents(dayStart, dayEnd),
     countMail("is:unread category:primary"),
-    db().from("reminders").select("title, due_at").is("sent_at", null).gte("due_at", dayStart.toISOString()).lt("due_at", dayEnd.toISOString()).order("due_at"),
-    db().from("jobs").select("status"),
-    db().from("interviews").select("company, starts_at").gte("starts_at", now.toISOString()).order("starts_at").limit(5),
+    db().from("reminders").select("title, due_at").eq("hq_id", hqId()).is("sent_at", null).gte("due_at", dayStart.toISOString()).lt("due_at", dayEnd.toISOString()).order("due_at"),
+    db().from("jobs").select("status").eq("hq_id", hqId()),
+    db().from("interviews").select("company, starts_at").eq("hq_id", hqId()).gte("starts_at", now.toISOString()).order("starts_at").limit(5),
   ]);
 
   const counts = (pipeline.data ?? []).reduce<Record<string, number>>((acc, j) => ({ ...acc, [j.status]: (acc[j.status] ?? 0) + 1 }), {});

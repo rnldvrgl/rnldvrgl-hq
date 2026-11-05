@@ -1,5 +1,5 @@
 import "server-only";
-import { env } from "@/lib/env";
+import { env, hqEnv } from "@/lib/env";
 
 const HTML_ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
 
@@ -13,7 +13,7 @@ export async function emailMe(subject: string, body: string): Promise<void> {
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${env("RESEND_API_KEY")}` },
-    body: JSON.stringify({ from: env("EMAIL_FROM"), to: [env("EMAIL_TO")], subject, text: body, html }),
+    body: JSON.stringify({ from: env("EMAIL_FROM"), to: [hqEnv("EMAIL_TO")], subject, text: body, html }),
   });
   if (!res.ok) throw new Error(`Resend ${res.status}: ${(await res.text()).slice(0, 200)}`);
 }

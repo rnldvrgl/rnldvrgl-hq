@@ -1,4 +1,5 @@
 import "server-only";
+import { hqId } from "@/lib/hq-context";
 import { ask } from "@/lib/ai";
 import { db } from "@/lib/supabase/admin";
 import { emailMe } from "@/lib/email";
@@ -10,10 +11,10 @@ import { ownerName, ownersName } from "@/lib/names";
 export async function weeklyReviewer(): Promise<WorkResult> {
   const since = new Date(Date.now() - 7 * 86400_000).toISOString();
   const [runs, newJobs, applied, interviews] = await Promise.all([
-    db().from("runs").select("employee_id, status").gte("started_at", since),
-    db().from("jobs").select("id", { count: "exact", head: true }).gte("created_at", since),
-    db().from("jobs").select("role, company").gte("date_applied", since.slice(0, 10)),
-    db().from("interviews").select("company, starts_at").gte("starts_at", new Date().toISOString()).order("starts_at").limit(5),
+    db().from("runs").select("employee_id, status").eq("hq_id", hqId()).gte("started_at", since),
+    db().from("jobs").select("id", { count: "exact", head: true }).eq("hq_id", hqId()).gte("created_at", since),
+    db().from("jobs").select("role, company").eq("hq_id", hqId()).gte("date_applied", since.slice(0, 10)),
+    db().from("interviews").select("company, starts_at").eq("hq_id", hqId()).gte("starts_at", new Date().toISOString()).order("starts_at").limit(5),
   ]);
 
   const perEmployee: Record<string, { done: number; errors: number }> = {};

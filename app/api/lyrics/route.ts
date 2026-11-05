@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { currentOwner } from "@/lib/auth";
+import { hqRoute } from "@/lib/hq";
 import { HQ } from "@/hq.config";
 
 /**
@@ -44,8 +44,7 @@ async function lookup(params: URLSearchParams): Promise<Lrclib | null> {
     .sort((a, b) => Math.abs((a.duration ?? 0) - want) - Math.abs((b.duration ?? 0) - want) || Number(!!b.syncedLyrics) - Number(!!a.syncedLyrics))[0] ?? null;
 }
 
-export async function GET(req: Request) {
-  if (!(await currentOwner())) return NextResponse.json({ error: "Not allowed." }, { status: 403 });
+export const GET = hqRoute(async (req: Request) => {
   const u = new URL(req.url);
   const track = u.searchParams.get("track")?.trim();
   const artist = u.searchParams.get("artist")?.split(",")[0]?.trim();
@@ -68,4 +67,4 @@ export async function GET(req: Request) {
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Couldn't load lyrics." }, { status: 502 });
   }
-}
+});

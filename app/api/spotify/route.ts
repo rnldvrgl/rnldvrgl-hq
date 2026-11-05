@@ -1,5 +1,6 @@
+import { hqId } from "@/lib/hq-context";
 import { NextResponse } from "next/server";
-import { currentOwner } from "@/lib/auth";
+import { hqRoute } from "@/lib/hq";
 import { db } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -46,7 +47,7 @@ async function spotifyToken(body: Record<string, string>): Promise<Fresh> {
 
 async function save(t: Fresh): Promise<void> {
   const { error } = await db().from("spotify_auth").upsert({
-    id: ROW, refresh_token: t.refresh, access_token: t.access,
+    hq_id: hqId(), id: ROW, refresh_token: t.refresh, access_token: t.access,
     expires_at: new Date(t.expiresAt).toISOString(), updated_at: new Date().toISOString(),
   });
   if (error) throw new Error(tableHint(error.message));
@@ -59,11 +60,10 @@ const tableHint = (msg: string) =>
 
 const fail = (e: unknown, status = 500) => NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status });
 
-export async function GET() {
-  if (!(await currentOwner())) return NextResponse.json({ error: "Not allowed." }, { status: 403 });
+export const GET = hqRoute(async () => {
   if (!CLIENT_ID) return NextResponse.json({ connected: false });
 
-  const { data, error } = await db().from("spotify_auth").select("refresh_token, access_token, expires_at").eq("id", ROW).maybeSingle<Saved>();
+  const { data, error } = await db().from("spotify_auth").select("refresh_token, access_token, expires_at").eq("hq_id", hqId()).maybeSingle<Saved>();
   if (error) return fail(new Error(tableHint(error.message)));
   if (!data) return NextResponse.json({ connected: false });
 
@@ -78,21 +78,20 @@ export async function GET() {
     // the refresh token it started from), the other uses its own fresh access token without overwriting
     const { error: upErr } = await db().from("spotify_auth")
       .update({ refresh_token: fresh.refresh, access_token: fresh.access, expires_at: new Date(fresh.expiresAt).toISOString(), updated_at: new Date().toISOString() })
-      .eq("id", ROW).eq("refresh_token", data.refresh_token);
+      .eq("hq_id", hqId()).eq("refresh_token", data.refresh_token);
     if (upErr) return fail(new Error(tableHint(upErr.message)));
     return NextResponse.json({ connected: true, access: fresh.access, expiresAt: fresh.expiresAt });
   } catch (e) {
     // the owner removed HQ from their Spotify account (or the token was revoked): forget it
     if ((e as { revoked?: boolean }).revoked) {
-      await db().from("spotify_auth").delete().eq("id", ROW);
+      await db().from("spotify_auth").delete().eq("hq_id", hqId());
       return NextResponse.json({ connected: false, error: "Spotify access was removed. Connect again." });
     }
     return fail(e, 502);
   }
-}
+});
 
-export async function POST(req: Request) {
-  if (!(await currentOwner())) return NextResponse.json({ error: "Not allowed." }, { status: 403 });
+export const POST = hqRoute(async (req: Request) => {
   if (!CLIENT_ID) return fail(new Error("NEXT_PUBLIC_SPOTIFY_CLIENT_ID isn't set."), 400);
   const body = (await req.json().catch(() => ({}))) as { code?: string; verifier?: string; redirectUri?: string; refresh?: string };
 
@@ -113,11 +112,10 @@ export async function POST(req: Request) {
   } catch (e) {
     return fail(e, 502);
   }
-}
+});
 
-export async function DELETE() {
-  if (!(await currentOwner())) return NextResponse.json({ error: "Not allowed." }, { status: 403 });
-  const { error } = await db().from("spotify_auth").delete().eq("id", ROW);
+export const DELETE = hqRoute(async () => {
+  const { error } = await db().from("spotify_auth").delete().eq("hq_id", hqId());
   if (error) return fail(new Error(tableHint(error.message)));
   return NextResponse.json({ connected: false });
-}
+});

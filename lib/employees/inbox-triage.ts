@@ -1,4 +1,5 @@
 import "server-only";
+import { hqId } from "@/lib/hq-context";
 import { z } from "zod";
 import { ask, extractJson, UNTRUSTED_NOTE } from "@/lib/ai";
 import { db } from "@/lib/supabase/admin";
@@ -28,7 +29,7 @@ function toIso(header: string): string | null {
 
 export async function inboxTriage(): Promise<WorkResult> {
   const mail = await listMail("is:unread category:primary newer_than:1d", 20);
-  const { data: seen } = await db().from("inbox_items").select("message_id").in("message_id", mail.map((m) => m.id));
+  const { data: seen } = await db().from("inbox_items").select("message_id").eq("hq_id", hqId()).in("message_id", mail.map((m) => m.id));
   const seenIds = new Set((seen ?? []).map((s) => s.message_id));
   const fresh = mail.filter((m) => !seenIds.has(m.id));
   if (!fresh.length) return { status: "done", summary: "Inbox clear", output: "No new unread mail since the last check." };
@@ -66,14 +67,14 @@ export async function inboxTriage(): Promise<WorkResult> {
       const start = new Date(it.interview.starts_at_iso);
       if (!Number.isNaN(start.getTime())) {
         const eventId = await createTentativeEvent(`Interview: ${it.interview.company}`, start, it.interview.minutes, `From: ${m.from}\nSubject: ${m.subject}`);
-        const { data: job } = await db().from("jobs").select("id").ilike("company", `%${it.interview.company}%`).limit(1).maybeSingle();
-        if (job) await db().from("jobs").update({ status: "interview" }).eq("id", job.id);
-        await db().from("interviews").insert({ job_id: job?.id ?? null, company: it.interview.company, starts_at: start.toISOString(), calendar_event_id: eventId });
+        const { data: job } = await db().from("jobs").select("id").eq("hq_id", hqId()).ilike("company", `%${it.interview.company}%`).limit(1).maybeSingle();
+        if (job) await db().from("jobs").update({ status: "interview" }).eq("id", job.id).eq("hq_id", hqId());
+        await db().from("interviews").insert({ hq_id: hqId(), job_id: job?.id ?? null, company: it.interview.company, starts_at: start.toISOString(), calendar_event_id: eventId });
         interviews++;
       }
     }
     await db().from("inbox_items").upsert({
-      message_id: m.id, thread_id: m.threadId, sender: m.from, subject: m.subject,
+      hq_id: hqId(), message_id: m.id, thread_id: m.threadId, sender: m.from, subject: m.subject,
       category: it.category, summary: it.summary, draft_id: draftId,
       handled: it.category === "ignore" || it.category === "fyi",
       received_at: toIso(m.date),

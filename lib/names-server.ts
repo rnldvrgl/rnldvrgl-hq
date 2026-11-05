@@ -1,10 +1,11 @@
 import "server-only";
+import { hqId } from "@/lib/hq-context";
 import { db } from "@/lib/supabase/admin";
 import { applyNames, cleanName, NAME_KEYS, type Names } from "@/lib/names";
 
 /** The saved renames (table office_names). Empty if the table isn't there yet. */
 export async function loadNames(): Promise<Names> {
-  const { data, error } = await db().from("office_names").select("id, name");
+  const { data, error } = await db().from("office_names").select("id, name").eq("hq_id", hqId());
   if (error) return {};
   const out: Names = {};
   for (const r of data ?? []) if ((NAME_KEYS as string[]).includes(r.id)) out[r.id as keyof Names] = r.name;
@@ -27,8 +28,8 @@ export async function saveNames(input: Record<string, unknown>, defaults: Record
     if (!c || c === defaults[k]) clear.push(k); else keep.push({ id: k, name: c });
   }
   if (keep.length) {
-    const { error } = await db().from("office_names").upsert(keep.map((r) => ({ ...r, updated_at: new Date().toISOString() })));
+    const { error } = await db().from("office_names").upsert(keep.map((r) => ({ ...r, hq_id: hqId(), updated_at: new Date().toISOString() })));
     if (error) throw new Error(error.message.includes("office_names") ? "Run the office_names SQL from supabase/schema.sql in Supabase first." : error.message);
   }
-  if (clear.length) await db().from("office_names").delete().in("id", clear);
+  if (clear.length) await db().from("office_names").delete().in("id", clear).eq("hq_id", hqId());
 }

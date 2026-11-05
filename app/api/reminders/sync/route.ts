@@ -1,3 +1,5 @@
+import { founderHq, inHq } from "@/lib/hq";
+import { hqId } from "@/lib/hq-context";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { isShortcutRequest } from "@/lib/auth";
@@ -54,6 +56,11 @@ const SHORTCUT_DATE = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila"
 
 export async function POST(req: Request) {
   if (!isShortcutRequest(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  // the Shortcut is yours: it syncs your HQ's reminders
+  return inHq(await founderHq(), () => sync(req));
+}
+
+async function sync(req: Request): Promise<Response> {
   const body = Body.safeParse(await req.json().catch(() => null));
   if (!body.success) return NextResponse.json({ error: 'Send { "items": "ISO-due|title" lines }.' }, { status: 400 });
 
@@ -62,7 +69,7 @@ export async function POST(req: Request) {
 
   const { data: open, error } = await db()
     .from("reminders")
-    .select("id, title, due_at, repeat, source, pushed_at")
+    .select("id, title, due_at, repeat, source, pushed_at").eq("hq_id", hqId())
     .is("sent_at", null);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -89,13 +96,13 @@ export async function POST(req: Request) {
 
   const inserts: TablesInsert<"reminders">[] = [...incoming]
     .filter(([key]) => !matched.has(key))
-    .map(([, item]) => ({ title: item.title, due_at: item.dueIso, source: "iphone", pushed_at: now }));
+    .map(([, item]) => ({ hq_id: hqId(), title: item.title, due_at: item.dueIso, source: "iphone", pushed_at: now }));
 
   const results = await Promise.all([
     inserts.length ? db().from("reminders").insert(inserts) : null,
-    removeIds.length ? db().from("reminders").delete().in("id", removeIds) : null,
-    completeIds.length ? db().from("reminders").update({ sent_at: now }).in("id", completeIds) : null,
-    pushIds.length ? db().from("reminders").update({ pushed_at: now }).in("id", pushIds) : null,
+    removeIds.length ? db().from("reminders").delete().in("id", removeIds).eq("hq_id", hqId()) : null,
+    completeIds.length ? db().from("reminders").update({ sent_at: now }).in("id", completeIds).eq("hq_id", hqId()) : null,
+    pushIds.length ? db().from("reminders").update({ pushed_at: now }).in("id", pushIds).eq("hq_id", hqId()) : null,
   ]);
   const failed = results.find((r) => r?.error);
   if (failed?.error) return NextResponse.json({ error: failed.error.message }, { status: 500 });

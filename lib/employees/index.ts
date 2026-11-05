@@ -1,4 +1,5 @@
 import { syncNames } from "@/lib/names-server";
+import { hqId } from "@/lib/hq-context";
 import "server-only";
 import { db } from "@/lib/supabase/admin";
 import { TEAM, teamById, type EmployeeId, type EmployeeMeta } from "@/lib/team";
@@ -66,7 +67,7 @@ export async function runEmployee(id: EmployeeId, trigger: RunTrigger): Promise<
     await db().from("employees").update({
       status: "idle", summary: "Waiting for your Claude key (reads private data)",
       last_run_at: now.toISOString(), updated_at: now.toISOString(),
-    }).eq("id", id);
+    }).eq("id", id).eq("hq_id", hqId());
     return true;
   }
   const staleBefore = new Date(now.getTime() - STALE_MS).toISOString();
@@ -76,21 +77,21 @@ export async function runEmployee(id: EmployeeId, trigger: RunTrigger): Promise<
   const { data: claimed } = await db()
     .from("employees")
     .update({ status: "working", last_run_at: now.toISOString(), updated_at: now.toISOString() })
-    .eq("id", id)
+    .eq("id", id).eq("hq_id", hqId())
     .or(`status.neq.working,updated_at.lt.${staleBefore}`)
     .select("id");
   if (!claimed?.length) return false;
 
   const { data: run, error: runError } = await db()
     .from("runs")
-    .insert({ employee_id: id, trigger, status: "running" })
+    .insert({ hq_id: hqId(), employee_id: id, trigger, status: "running" })
     .select("id")
     .single();
   if (runError) {
     // Couldn't record the run: release the desk instead of leaving it stuck on "working".
     await db().from("employees").update({
       status: "error", summary: `Couldn't log the run: ${runError.message}`.slice(0, 140), updated_at: new Date().toISOString(),
-    }).eq("id", id);
+    }).eq("id", id).eq("hq_id", hqId());
     return true;
   }
 
@@ -99,20 +100,20 @@ export async function runEmployee(id: EmployeeId, trigger: RunTrigger): Promise<
     const finished = new Date().toISOString();
     const provider = activeProvider();
     const brain = provider === "gemini" || provider === "groq" ? `\n\n— done by the free ${provider === "groq" ? "Groq" : "Gemini"} backup` : "";
-    await db().from("runs").update({ status: result.status, output: result.output + brain, finished_at: finished }).eq("id", run.id);
+    await db().from("runs").update({ status: result.status, output: result.output + brain, finished_at: finished }).eq("id", run.id).eq("hq_id", hqId());
     await db().from("employees").update({
       status: result.status === "needs_you" ? "needs_you" : "idle",
       summary: result.summary, last_run_at: now.toISOString(), updated_at: finished,
-    }).eq("id", id);
+    }).eq("id", id).eq("hq_id", hqId());
     if (result.status === "needs_you") await notify(id, "needs you", result.summary);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const finished = new Date().toISOString();
-    await db().from("runs").update({ status: "error", error: message, finished_at: finished }).eq("id", run.id);
+    await db().from("runs").update({ status: "error", error: message, finished_at: finished }).eq("id", run.id).eq("hq_id", hqId());
     // last_run_at still advances so a broken employee doesn't retry every 5 minutes; use "Run now" after fixing.
     await db().from("employees").update({
       status: "error", summary: message.slice(0, 140), last_run_at: now.toISOString(), updated_at: finished,
-    }).eq("id", id);
+    }).eq("id", id).eq("hq_id", hqId());
     await notify(id, "hit an error", message);
   }
   return true;
@@ -135,7 +136,7 @@ async function notify(id: EmployeeId, what: string, detail: string | null): Prom
  */
 export async function tick(): Promise<string[]> {
   const ran: string[] = [];
-  const { data: rows } = await db().from("employees").select("id, enabled, last_run_at");
+  const { data: rows } = await db().from("employees").select("id, enabled, last_run_at").eq("hq_id", hqId());
   const state = new Map((rows ?? []).map((r) => [r.id, r]));
 
   if (state.get("reminder-bot")?.enabled !== false) {
@@ -144,13 +145,13 @@ export async function tick(): Promise<string[]> {
       const r = await reminderBot();
       if (r.summary !== NOTHING_DUE) {
         const at = new Date().toISOString();
-        await db().from("runs").insert({ employee_id: "reminder-bot", trigger: "schedule", status: "done", output: r.output, finished_at: at });
-        await db().from("employees").update({ status: "idle", summary: r.summary, last_run_at: at, updated_at: at }).eq("id", "reminder-bot");
+        await db().from("runs").insert({ hq_id: hqId(), employee_id: "reminder-bot", trigger: "schedule", status: "done", output: r.output, finished_at: at });
+        await db().from("employees").update({ status: "idle", summary: r.summary, last_run_at: at, updated_at: at }).eq("id", "reminder-bot").eq("hq_id", hqId());
         ran.push("reminder-bot");
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      await db().from("employees").update({ status: "error", summary: message.slice(0, 140), updated_at: new Date().toISOString() }).eq("id", "reminder-bot");
+      await db().from("employees").update({ status: "error", summary: message.slice(0, 140), updated_at: new Date().toISOString() }).eq("id", "reminder-bot").eq("hq_id", hqId());
     }
   }
 

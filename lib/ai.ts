@@ -1,5 +1,5 @@
 import "server-only";
-import { env, optionalEnv } from "@/lib/env";
+import { optionalEnv, hqEnv, optionalHqEnv } from "@/lib/env";
 import type { AiProvider } from "@/lib/team";
 
 /**
@@ -27,9 +27,9 @@ export type AskOptions = {
 
 export class AiUnavailableError extends Error {}
 
-const hasClaude = () => !!optionalEnv("ANTHROPIC_API_KEY");
-const hasGemini = () => !!optionalEnv("GEMINI_API_KEY");
-const hasGroq = () => !!optionalEnv("GROQ_API_KEY");
+const hasClaude = () => !!optionalHqEnv("ANTHROPIC_API_KEY");
+const hasGemini = () => !!optionalHqEnv("GEMINI_API_KEY");
+const hasGroq = () => !!optionalHqEnv("GROQ_API_KEY");
 
 /** A free tier's rate or daily limit (or a backup that didn't answer in time): the next backup gets a turn. */
 class RateLimitError extends Error {}
@@ -72,7 +72,7 @@ async function askBackups(opts: AskOptions): Promise<string> {
   if (last instanceof Error) throw new Error(`${last.message} Every free backup is at its limit right now; add ANTHROPIC_API_KEY to stop this.`);
   throw new AiUnavailableError("No AI key yet. Add ANTHROPIC_API_KEY, or GROQ_API_KEY / GEMINI_API_KEY as a free backup.");
 }
-export const backupAllowsPrivate = () => optionalEnv("BACKUP_ALLOW_PRIVATE") === "true";
+export const backupAllowsPrivate = () => optionalHqEnv("BACKUP_ALLOW_PRIVATE") === "true";
 
 export function activeProvider(): AiProvider {
   if (hasClaude()) return "claude";
@@ -157,7 +157,7 @@ async function askClaude(opts: AskOptions): Promise<AskResult> {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-api-key": env("ANTHROPIC_API_KEY"),
+        "x-api-key": hqEnv("ANTHROPIC_API_KEY"),
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
@@ -204,7 +204,7 @@ async function askGemini(opts: AskOptions): Promise<string> {
 
   const res = await timedFetch("Gemini", `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method: "POST",
-    headers: { "content-type": "application/json", "x-goog-api-key": env("GEMINI_API_KEY") },
+    headers: { "content-type": "application/json", "x-goog-api-key": hqEnv("GEMINI_API_KEY") },
     body: JSON.stringify({
       ...(opts.system ? { systemInstruction: { parts: [{ text: opts.system }] } } : {}),
       contents: [{ role: "user", parts: [{ text: prompt }] }],
@@ -256,7 +256,7 @@ const notAvailable = (status: number, body: string) =>
 async function groqCall(route: GroqRoute, opts: AskOptions, prompt: string): Promise<Response> {
   return timedFetch("Groq", "https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${env("GROQ_API_KEY")}` },
+    headers: { "content-type": "application/json", authorization: `Bearer ${hqEnv("GROQ_API_KEY")}` },
     body: JSON.stringify({
       model: route.model,
       max_tokens: Math.max(1024, opts.maxTokens ?? 2000),

@@ -1,4 +1,5 @@
 import "server-only";
+import { hqId } from "@/lib/hq-context";
 import webpush, { WebPushError } from "web-push";
 import { db } from "@/lib/supabase/admin";
 import { optionalEnv } from "@/lib/env";
@@ -34,7 +35,7 @@ export const pushConfigured = (): boolean => configure();
 export async function pushToOwner(payload: PushPayload): Promise<number> {
   try {
     if (!configure()) return 0;
-    const { data: subs, error } = await db().from("push_subscriptions").select("endpoint, p256dh, auth");
+    const { data: subs, error } = await db().from("push_subscriptions").select("endpoint, p256dh, auth").eq("hq_id", hqId());
     if (error || !subs?.length) return 0;
     const body = JSON.stringify(payload);
     const results = await Promise.all(subs.map(async (s) => {
