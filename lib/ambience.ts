@@ -3,7 +3,7 @@
 import { sceneNow, sceneWeather } from "@/lib/store";
 import { manilaMinutes } from "@/lib/office-clock";
 import { create } from "zustand";
-import { useSettings, MUSIC_STYLES, type MusicStyle } from "@/lib/settings";
+import { useSettings, MUSIC_STYLES, type MixKey, type MusicStyle } from "@/lib/settings";
 import { spotifyBeat, useSpotify } from "@/lib/spotify";
 
 /**
@@ -19,6 +19,9 @@ import { spotifyBeat, useSpotify } from "@/lib/spotify";
  *
  * And the car and scooters outside: the boss's car starting, idling, stopping and locking, the lunch rider's
  * scooter, and now and then a jeepney's horn.
+ *
+ * Every sound goes through one of the mixer's channels (Settings → Sound → Volume): music, office hum,
+ * keyboards, rain & thunder, street & nature, alerts, and the overall volume after them.
  */
 
 type Song = {
@@ -106,6 +109,9 @@ function loop(ctx: AudioContext, buf: AudioBuffer, out: AudioNode): AudioBufferS
 export class Ambience {
   private ctx: AudioContext;
   private master: GainNode;
+  /** The mixer: one channel per kind of sound, then the overall volume (see applyMix). */
+  private bus: Record<MixKey, GainNode>;
+  private mixed = "";
   private room: GainNode;
   private ac: GainNode;
   private rain: GainNode;
@@ -131,7 +137,16 @@ export class Ambience {
     const ctx = this.ctx;
     this.master = ctx.createGain();
     this.master.gain.value = 0;
-    this.master.connect(ctx.destination);
+    // a gentle limiter at the very end, so turning several channels up never clips
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -6; limiter.knee.value = 6; limiter.ratio.value = 8;
+    limiter.attack.value = 0.005; limiter.release.value = 0.2;
+    this.master.connect(limiter).connect(ctx.destination);
+    const all = ctx.createGain();
+    all.connect(this.master);
+    const channel = () => { const g = ctx.createGain(); g.connect(all); return g; };
+    this.bus = { all, music: channel(), room: channel(), typing: channel(), weather: channel(), street: channel(), alerts: channel() };
+    this.applyMix();
     this.white = noiseBuffer(ctx, 2, "white");
     this.brown = noiseBuffer(ctx, 4, "brown");
 
@@ -140,13 +155,13 @@ export class Ambience {
     this.room.gain.value = 0.05;
     const roomLp = ctx.createBiquadFilter();
     roomLp.type = "lowpass"; roomLp.frequency.value = 420;
-    roomLp.connect(this.room).connect(this.master);
+    roomLp.connect(this.room).connect(this.bus.room);
     loop(ctx, this.brown, roomLp);
 
     // AC hum: two low sines
     this.ac = ctx.createGain();
     this.ac.gain.value = 0;
-    this.ac.connect(this.master);
+    this.ac.connect(this.bus.room);
     for (const f of [58, 117]) {
       const o = ctx.createOscillator();
       o.frequency.value = f;
@@ -161,7 +176,7 @@ export class Ambience {
     this.rain.gain.value = 0;
     const rainBp = ctx.createBiquadFilter();
     rainBp.type = "bandpass"; rainBp.frequency.value = 1800; rainBp.Q.value = 0.4;
-    rainBp.connect(this.rain).connect(this.master);
+    rainBp.connect(this.rain).connect(this.bus.weather);
     loop(ctx, noiseBuffer(ctx, 3, "pink"), rainBp);
 
     // crickets: a high tone pulsed by a low oscillator
@@ -176,7 +191,7 @@ export class Ambience {
     const lfoGain = ctx.createGain();
     lfoGain.gain.value = 0.5;
     lfo.connect(lfoGain).connect(pulse.gain);
-    tone.connect(pulse).connect(this.crickets).connect(this.master);
+    tone.connect(pulse).connect(this.crickets).connect(this.bus.street);
     tone.start(); lfo.start();
 
     // the sound system: everything musical goes through a warm low-pass (the lo-fi "dusty" top end)
@@ -184,7 +199,7 @@ export class Ambience {
     this.music.gain.value = 0;
     this.musicLp = ctx.createBiquadFilter();
     this.musicLp.type = "lowpass"; this.musicLp.frequency.value = 2200; this.musicLp.Q.value = 0.5;
-    this.musicLp.connect(this.music).connect(this.master);
+    this.musicLp.connect(this.music).connect(this.bus.music);
   }
 
   get now(): number { return this.ctx.currentTime; }
@@ -368,6 +383,22 @@ export class Ambience {
     await this.ctx.suspend();
   }
 
+  /** A channel's level as a gain: the slider is 0–150 %, squared so it feels even (100 % = as designed). */
+  private level(k: MixKey): number {
+    const v = (useSettings.getState().volumes[k] ?? 100) / 100;
+    return v * v;
+  }
+
+  /** Follow the volume sliders (checked on every update; only touches the audio graph when they moved). */
+  private applyMix() {
+    const vols = useSettings.getState().volumes;
+    const key = JSON.stringify(vols);
+    if (key === this.mixed) return;
+    this.mixed = key;
+    const t = this.ctx.currentTime;
+    for (const k of Object.keys(this.bus) as MixKey[]) this.bus[k].gain.setTargetAtTime(this.level(k), t, 0.05);
+  }
+
   private set(g: GainNode, v: number) {
     g.gain.setTargetAtTime(v, this.ctx.currentTime, 0.8);
   }
@@ -386,7 +417,7 @@ export class Ambience {
     g.gain.exponentialRampToValueAtTime(0.0001, t + opts.dur);
     const p = ctx.createStereoPanner();
     p.pan.value = opts.pan ?? 0;
-    src.connect(f).connect(g).connect(p).connect(opts.out ?? this.master);
+    src.connect(f).connect(g).connect(p).connect(opts.out ?? this.bus.street);
     src.start(t, Math.random());
     src.stop(t + opts.dur + 0.05);
   }
@@ -405,7 +436,7 @@ export class Ambience {
       g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + 0.16);
       const p = ctx.createStereoPanner();
       p.pan.value = 0.5;
-      o.connect(f).connect(g).connect(p).connect(this.master);
+      o.connect(f).connect(g).connect(p).connect(this.bus.street);
       o.start(t0 + at); o.stop(t0 + at + 0.2);
     }
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
@@ -414,12 +445,12 @@ export class Ambience {
       const voice = window.speechSynthesis.getVoices().find((v) => v.lang.startsWith("fil") || v.lang.startsWith("tl"));
       if (voice) u.voice = voice;
       u.lang = voice?.lang ?? "fil-PH";
-      u.rate = 0.95; u.pitch = 1.15; u.volume = 0.35;
+      u.rate = 0.95; u.pitch = 1.15; u.volume = Math.min(1, 0.35 * this.level("street"));
       setTimeout(() => window.speechSynthesis.speak(u), 700);
     } catch { /* no voice: the horn is enough */ }
   }
 
-  /** A soft bell motif (semitones above A4, one note every 0.16 s), straight to the master so music settings don't mute it. */
+  /** A soft bell motif (semitones above A4, one note every 0.16 s), on the Alerts channel so music settings don't mute it. */
   chime(notes: readonly number[]) {
     const ctx = this.ctx, t0 = ctx.currentTime + 0.02;
     notes.forEach((n, i) => {
@@ -431,7 +462,7 @@ export class Ambience {
         g.gain.setValueAtTime(0.0001, t);
         g.gain.exponentialRampToValueAtTime(gain, t + 0.01);
         g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9 / mul);
-        o.connect(g).connect(this.master);
+        o.connect(g).connect(this.bus.alerts);
         o.start(t); o.stop(t + 1);
       }
     });
@@ -451,7 +482,7 @@ export class Ambience {
     lp.type = "lowpass"; lp.frequency.value = 240; lp.Q.value = 1.2;
     const pan = ctx.createStereoPanner();
     pan.pan.value = 0.45; // the car is out front, right of the office
-    lp.connect(gain).connect(pan).connect(this.master);
+    lp.connect(gain).connect(pan).connect(this.bus.street);
     // two detuned saws an octave apart, their level wobbling at the firing rate: a 4-cylinder burble
     const osc = [ctx.createOscillator(), ctx.createOscillator()];
     osc[0].type = "sawtooth"; osc[0].frequency.value = 44;
@@ -485,7 +516,7 @@ export class Ambience {
       sg.gain.exponentialRampToValueAtTime(0.025, c + 0.18);
     }
     sg.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.95);
-    st.connect(sf).connect(sg).connect(sp).connect(this.master);
+    st.connect(sf).connect(sg).connect(sp).connect(this.bus.street);
     st.start(t0); st.stop(t0 + 1);
     // it catches: a rev up and back down
     const tc = t0 + 0.85;
@@ -500,7 +531,7 @@ export class Ambience {
     rg.gain.exponentialRampToValueAtTime(0.16, tc + 0.08);
     rg.gain.exponentialRampToValueAtTime(0.05, tc + 1.3);
     rg.gain.exponentialRampToValueAtTime(0.0001, tc + 1.6);
-    rev.connect(rf).connect(rg).connect(rp).connect(this.master);
+    rev.connect(rf).connect(rg).connect(rp).connect(this.bus.street);
     rev.start(tc); rev.stop(tc + 1.7);
     this.burst({ dur: 0.5, gain: 0.08, type: "lowpass", freq: 260, attack: 0.02, pan: 0.45, buf: this.brown, at: tc });
     // then the idle takes over
@@ -539,7 +570,7 @@ export class Ambience {
       g.gain.exponentialRampToValueAtTime(0.018, t0 + at + 0.01);
       g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + 0.09);
       p.pan.value = 0.45;
-      o.connect(g).connect(p).connect(this.master);
+      o.connect(g).connect(p).connect(this.bus.street);
       o.start(t0 + at); o.stop(t0 + at + 0.1);
     }
   }
@@ -574,7 +605,7 @@ export class Ambience {
       g.gain.exponentialRampToValueAtTime(0.0001, t0 + len);
       p.pan.setValueAtTime(0.35, t0); p.pan.linearRampToValueAtTime(0.95, t0 + len);
     }
-    o.connect(f).connect(g).connect(p).connect(this.master);
+    o.connect(f).connect(g).connect(p).connect(this.bus.street);
     o.start(t0); o.stop(t0 + len + 0.1);
   }
 
@@ -592,7 +623,7 @@ export class Ambience {
         g.gain.setValueAtTime(0.012, t0 + at + 0.17);
         g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + 0.22);
         p.pan.value = pan;
-        o.connect(f).connect(g).connect(p).connect(this.master);
+        o.connect(f).connect(g).connect(p).connect(this.bus.street);
         o.start(t0 + at); o.stop(t0 + at + 0.25);
       }
     }
@@ -611,12 +642,13 @@ export class Ambience {
       g.gain.exponentialRampToValueAtTime(0.0001, s + 0.09);
       const p = ctx.createStereoPanner();
       p.pan.value = Math.random() * 1.6 - 0.8;
-      o.connect(g).connect(p).connect(this.master);
+      o.connect(g).connect(p).connect(this.bus.street);
       o.start(s); o.stop(s + 0.1);
     }
   }
 
   private update() {
+    this.applyMix();
     const now = performance.now() / 1000;
     const min = manilaMinutes(sceneNow());
     const night = min < 360 || min >= 1110;
@@ -643,7 +675,7 @@ export class Ambience {
       if (src.gain < 0.03) continue;
       const due = this.nextKey.get(id) ?? 0;
       if (now < due) continue;
-      this.burst({ dur: 0.03, gain: (0.02 + Math.random() * 0.03) * src.gain, type: "highpass", freq: 2400 + Math.random() * 1500, pan: src.pan });
+      this.burst({ dur: 0.03, gain: (0.02 + Math.random() * 0.03) * src.gain, type: "highpass", freq: 2400 + Math.random() * 1500, pan: src.pan, out: this.bus.typing });
       const pause = Math.random() < 0.08 ? 0.6 + Math.random() * 1.2 : 0.07 + Math.random() * 0.15;
       this.nextKey.set(id, now + pause);
     }
@@ -667,7 +699,7 @@ export class Ambience {
     }
     // thunder in storms
     if (weather === "storm" && now >= this.nextThunder) {
-      if (this.nextThunder) this.burst({ dur: 3.5, gain: 0.35, type: "lowpass", freq: 140, attack: 0.08, buf: this.brown });
+      if (this.nextThunder) this.burst({ dur: 3.5, gain: 0.35, type: "lowpass", freq: 140, attack: 0.08, buf: this.brown, out: this.bus.weather });
       this.nextThunder = now + 9 + Math.random() * 10;
     }
   }

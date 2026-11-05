@@ -28,6 +28,8 @@ export type Settings = {
   music: boolean;
   /** Which music the sound system plays (all generated live, no audio files). */
   musicStyle: MusicStyle;
+  /** The sound mixer: each kind of sound's volume, 0–150 (%), 100 = as designed. */
+  volumes: Record<MixKey, number>;
   /** A short chime, different for each employee, when someone starts needing you (only with sound on). */
   chimes: boolean;
   /** Switch to Battery saver by itself when the 3D view keeps running slow. */
@@ -45,6 +47,21 @@ export const MUSIC_STYLES: readonly { id: MusicStyle; label: string; hint: strin
   { id: "chiptune", label: "8-bit arcade", hint: "Square-wave chiptune" },
 ];
 const isMusicStyle = (v: unknown): v is MusicStyle => MUSIC_STYLES.some((m) => m.id === v);
+
+/** The sound mixer's channels (lib/ambience.ts routes every sound through one of them). */
+export type MixKey = "all" | "music" | "room" | "typing" | "weather" | "street" | "alerts";
+export const MIX_CHANNELS: readonly { key: MixKey; label: string; hint: string }[] = [
+  { key: "all", label: "All office sound", hint: "Everything below together" },
+  { key: "music", label: "Office radio", hint: "The sound system's music" },
+  { key: "room", label: "Office hum", hint: "Room tone and the aircon" },
+  { key: "typing", label: "Keyboards", hint: "Typing at the desks you zoom in on" },
+  { key: "weather", label: "Rain & thunder", hint: "Rain on the roof, storms" },
+  { key: "street", label: "Street & nature", hint: "Birds, crickets, traffic, vendors, the car" },
+  { key: "alerts", label: "Alerts", hint: "The chime when someone needs you" },
+];
+export const MIX_MAX = 150;
+const DEFAULT_VOLUMES: Record<MixKey, number> = { all: 100, music: 100, room: 100, typing: 100, weather: 100, street: 100, alerts: 100 };
+const clampVol = (v: unknown, d: number): number => (typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.min(MIX_MAX, Math.round(v))) : d);
 
 /** The corner office's interior. "auto" follows the boss's look: executive for him, cozy for her. */
 export type OfficeStyle = BossOffice;
@@ -92,6 +109,7 @@ export const DEFAULT_SETTINGS: Settings = {
   boss: { look: HQ.owner.look, wanders: true, office: HQ.owner.office },
   music: true,
   musicStyle: "lofi",
+  volumes: DEFAULT_VOLUMES,
   chimes: true,
   autoSaver: true,
 };
@@ -114,6 +132,9 @@ function read(): Settings {
       boss: { ...DEFAULT_SETTINGS.boss, ...v.boss },
       music: v.music ?? DEFAULT_SETTINGS.music,
       musicStyle: isMusicStyle(v.musicStyle) ? v.musicStyle : DEFAULT_SETTINGS.musicStyle,
+      volumes: Object.fromEntries(
+        (Object.keys(DEFAULT_VOLUMES) as MixKey[]).map((k) => [k, clampVol(v.volumes?.[k], DEFAULT_VOLUMES[k])]),
+      ) as Record<MixKey, number>,
       chimes: v.chimes ?? DEFAULT_SETTINGS.chimes,
       autoSaver: v.autoSaver ?? DEFAULT_SETTINGS.autoSaver,
     };
@@ -134,6 +155,8 @@ type SettingsStore = Settings & {
   setBoss: (patch: Partial<Settings["boss"]>) => void;
   setMusic: (on: boolean) => void;
   setMusicStyle: (style: MusicStyle) => void;
+  setVolume: (key: MixKey, v: number) => void;
+  resetVolumes: () => void;
   setChimes: (on: boolean) => void;
   setAutoSaver: (on: boolean) => void;
   reset: () => void;
@@ -142,8 +165,8 @@ type SettingsStore = Settings & {
 export const useSettings = create<SettingsStore>()((set, get) => {
   const commit = (patch: Partial<Settings>) => {
     set(patch);
-    const { show, motion, routine, boss, music, musicStyle, chimes, autoSaver } = get();
-    save({ show, motion, routine, boss, music, musicStyle, chimes, autoSaver });
+    const { show, motion, routine, boss, music, musicStyle, volumes, chimes, autoSaver } = get();
+    save({ show, motion, routine, boss, music, musicStyle, volumes, chimes, autoSaver });
   };
   return {
     ...(typeof window === "undefined" ? DEFAULT_SETTINGS : read()),
@@ -154,6 +177,8 @@ export const useSettings = create<SettingsStore>()((set, get) => {
     setBoss: (patch) => commit({ boss: { ...get().boss, ...patch } }),
     setMusic: (music) => commit({ music }),
     setMusicStyle: (musicStyle) => commit({ musicStyle }),
+    setVolume: (key, v) => commit({ volumes: { ...get().volumes, [key]: clampVol(v, DEFAULT_VOLUMES[key]) } }),
+    resetVolumes: () => commit({ volumes: DEFAULT_VOLUMES }),
     setChimes: (chimes) => commit({ chimes }),
     setAutoSaver: (autoSaver) => commit({ autoSaver }),
     reset: () => commit(DEFAULT_SETTINGS),

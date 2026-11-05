@@ -9,6 +9,7 @@ import {
 } from "@/lib/settings";
 import { STYLES } from "@/lib/theme";
 import { Passkeys } from "./Passkeys";
+import { SoundMixer } from "./SoundMixer";
 import { ThemePicker, useStyleChoice } from "@/components/ThemePicker";
 import { useIsDesktop } from "@/hooks/use-media";
 import { HQ } from "@/hq.config";
@@ -303,6 +304,10 @@ function Sound() {
         </div>
       )}
       <SwitchRow label="Who-needs-you chimes" hint="Each employee has their own little tune when they need you" checked={chimes} onChange={setChimes} />
+      <div className="grid gap-2 px-2.5 pt-2">
+        <p className="text-sm font-medium">Volume</p>
+        <SoundMixer />
+      </div>
     </Section>
   );
 }
